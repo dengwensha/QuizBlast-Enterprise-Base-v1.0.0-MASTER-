@@ -1,0 +1,44 @@
+[
+  {
+    "row_no": 2,
+    "data": {
+      "Question": "Geçerli soru?",
+      "OptionA": "A",
+      "OptionB": "B",
+      "OptionC": "C",
+      "OptionD": "D",
+      "Correct": "A",
+      "Time": "15",
+      "Difficulty": "Kolay",
+      "QuestionType": "Çoktan Seçmeli"
+    }
+  },
+  {
+    "row_no": 3,
+    "data": {
+      "Question": "",
+      "OptionA": "A",
+      "OptionB": "B",
+      "OptionC": "C",
+      "OptionD": "D",
+      "Correct": "A",
+      "Time": "15",
+      "Difficulty": "Kolay",
+      "QuestionType": "Çoktan Seçmeli"
+    }
+  },
+  {
+    "row_no": 4,
+    "data": {
+      "Question": "Tekrarlı seçenek?",
+      "OptionA": "İstanbul",
+      "OptionB": "Ankara",
+      "OptionC": "İstanbul",
+      "OptionD": "İzmir",
+      "Correct": "B",
+      "Time": "20",
+      "Difficulty": "Orta",
+      "QuestionType": "Çoktan Seçmeli"
+    }
+  }
+]

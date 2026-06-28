@@ -1,0 +1,113 @@
+[
+  {
+    "name": "good",
+    "row_no": 2,
+    "data": {
+      "QuizName": "WW2",
+      "Category": "Tarih",
+      "Language": "tr",
+      "Audience": "Yetişkin",
+      "Question": "II. Dünya Savaşı hangi yıl başladı?",
+      "OptionA": "1914",
+      "OptionB": "1939",
+      "OptionC": "1945",
+      "OptionD": "1950",
+      "Correct": "B",
+      "Time": "20",
+      "Difficulty": "Orta",
+      "QuestionType": "Çoktan Seçmeli",
+      "Tags": "tarih,savaş"
+    }
+  },
+  {
+    "name": "missing_question",
+    "row_no": 3,
+    "data": {
+      "Question": "",
+      "OptionA": "A",
+      "OptionB": "B",
+      "OptionC": "C",
+      "OptionD": "D",
+      "Correct": "A",
+      "Time": "15",
+      "Difficulty": "Kolay",
+      "QuestionType": "Çoktan Seçmeli"
+    }
+  },
+  {
+    "name": "missing_option",
+    "row_no": 4,
+    "data": {
+      "Question": "Eksik seçenek testi",
+      "OptionA": "A",
+      "OptionB": "B",
+      "OptionC": "C",
+      "OptionD": "",
+      "Correct": "A",
+      "Time": "15",
+      "Difficulty": "Kolay",
+      "QuestionType": "Çoktan Seçmeli"
+    }
+  },
+  {
+    "name": "same_options",
+    "row_no": 5,
+    "data": {
+      "Question": "Aynı seçenek testi",
+      "OptionA": "İstanbul",
+      "OptionB": "Ankara",
+      "OptionC": "İstanbul",
+      "OptionD": "İzmir",
+      "Correct": "A",
+      "Time": "15",
+      "Difficulty": "Kolay",
+      "QuestionType": "Çoktan Seçmeli"
+    }
+  },
+  {
+    "name": "wrong_time",
+    "row_no": 6,
+    "data": {
+      "Question": "Süre testi",
+      "OptionA": "A",
+      "OptionB": "B",
+      "OptionC": "C",
+      "OptionD": "D",
+      "Correct": "A",
+      "Time": "300",
+      "Difficulty": "Kolay",
+      "QuestionType": "Çoktan Seçmeli"
+    }
+  },
+  {
+    "name": "unknown_language",
+    "row_no": 7,
+    "data": {
+      "Question": "Dil testi",
+      "Language": "jp",
+      "OptionA": "A",
+      "OptionB": "B",
+      "OptionC": "C",
+      "OptionD": "D",
+      "Correct": "A",
+      "Time": "15",
+      "Difficulty": "Kolay",
+      "QuestionType": "Çoktan Seçmeli"
+    }
+  },
+  {
+    "name": "duplicate",
+    "row_no": 8,
+    "data": {
+      "Question": "II. Dünya Savaşı hangi yıl başladı?",
+      "OptionA": "1914",
+      "OptionB": "1939",
+      "OptionC": "1945",
+      "OptionD": "1950",
+      "Correct": "B",
+      "Time": "20",
+      "Difficulty": "Orta",
+      "QuestionType": "Çoktan Seçmeli"
+    }
+  }
+]

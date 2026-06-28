@@ -1,0 +1,63 @@
+[
+  {
+    "QuizName": "Pilot",
+    "Category": "Tarih",
+    "Language": "tr",
+    "Audience": "Yetişkin",
+    "Question": "Geçerli soru?",
+    "OptionA": "A",
+    "OptionB": "B",
+    "OptionC": "C",
+    "OptionD": "D",
+    "Correct": "A",
+    "Time": "15",
+    "Difficulty": "Kolay",
+    "QuestionType": "Çoktan Seçmeli",
+    "Tags": "pilot,test"
+  },
+  {
+    "QuizName": "Pilot",
+    "Category": "Tarih",
+    "Language": "tr",
+    "Audience": "Yetişkin",
+    "Question": "Correct hatası olan soru?",
+    "OptionA": "A",
+    "OptionB": "B",
+    "OptionC": "C",
+    "OptionD": "D",
+    "Correct": "E",
+    "Time": "15",
+    "Difficulty": "Kolay",
+    "QuestionType": "Çoktan Seçmeli"
+  },
+  {
+    "QuizName": "Pilot",
+    "Category": "Tarih",
+    "Language": "tr",
+    "Audience": "Yetişkin",
+    "Question": "",
+    "OptionA": "A",
+    "OptionB": "B",
+    "OptionC": "C",
+    "OptionD": "D",
+    "Correct": "B",
+    "Time": "15",
+    "Difficulty": "Kolay",
+    "QuestionType": "Çoktan Seçmeli"
+  },
+  {
+    "QuizName": "Pilot",
+    "Category": "Tarih",
+    "Language": "jp",
+    "Audience": "Yetişkin",
+    "Question": "Uyarılı ama import edilebilir?",
+    "OptionA": "A",
+    "OptionB": "B",
+    "OptionC": "C",
+    "OptionD": "D",
+    "Correct": "C",
+    "Time": "20",
+    "Difficulty": "Orta",
+    "QuestionType": "Çoktan Seçmeli"
+  }
+]
