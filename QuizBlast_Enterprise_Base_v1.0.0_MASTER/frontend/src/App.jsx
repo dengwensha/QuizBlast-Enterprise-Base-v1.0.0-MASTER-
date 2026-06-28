@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";import * as XLSX fro
 import { QRCodeCanvas } from "qrcode.react";
 import confetti from "canvas-confetti";
 import QuestionList from "./components/question/QuestionList";
+import LeaderboardBoard from "./components/game/LeaderboardBoard";
 
 const HOST = window.location.hostname;
 const API = `http://${HOST}:8001`;
@@ -162,7 +163,7 @@ function QuestionGame({
         />
       )}
 
-      <LeaderboardBoard visibleLeaderboard={visibleLeaderboard} />
+      <LeaderboardBoard visibleLeaderboard={visibleLeaderboard} styles={styles} />
     </>
   );
 }
@@ -254,7 +255,7 @@ function HostLiveStage({
         </>
       )}
 
-      <LeaderboardBoard visibleLeaderboard={visibleLeaderboard} live />
+      <LeaderboardBoard visibleLeaderboard={visibleLeaderboard} live  styles={styles}/>
     </div>
   );
 }
@@ -302,26 +303,6 @@ function ResultReveal({ questionResult, options, optionColors, live = false }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function LeaderboardBoard({ visibleLeaderboard, live = false }) {
-  return (
-    <div style={live ? styles.liveBoard : styles.board}>
-      <h2>🏆 Leaderboard</h2>
-
-      {visibleLeaderboard.map((p, i) => (
-        <div
-          key={i}
-          style={live ? styles.liveBoardRow : styles.boardRow}
-        >
-          <span>
-            #{i + 1} {p[0]}
-          </span>
-          <span>{p[1]}</span>
-        </div>
-      ))}
     </div>
   );
 }
