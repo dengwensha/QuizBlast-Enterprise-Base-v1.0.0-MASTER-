@@ -3,6 +3,7 @@ import { QRCodeCanvas } from "qrcode.react";
 import confetti from "canvas-confetti";
 import QuestionList from "./components/question/QuestionList";
 import LeaderboardBoard from "./components/game/LeaderboardBoard";
+import ResultReveal from "./components/game/ResultReveal";
 
 const HOST = window.location.hostname;
 const API = `http://${HOST}:8001`;
@@ -160,6 +161,7 @@ function QuestionGame({
           questionResult={questionResult}
           options={safeOptions}
           optionColors={optionColors}
+          styles={styles}
         />
       )}
 
@@ -242,6 +244,7 @@ function HostLiveStage({
             options={options}
             optionColors={optionColors}
             live
+            styles={styles}
           />
 
           <div style={{ textAlign: "center", marginTop: 20 }}>
@@ -259,54 +262,6 @@ function HostLiveStage({
     </div>
   );
 }
-
-function ResultReveal({ questionResult, options, optionColors, live = false }) {
-  const correctIndex = questionResult.correct;
-  const correctText = options[correctIndex];
-
-  return (
-    <div style={live ? styles.liveResultCard : styles.card}>
-      <h2 style={live ? styles.liveResultTitle : undefined}>Doğru Cevap</h2>
-
-      <div
-        style={{
-          ...(live ? styles.liveCorrectAnswer : styles.correctAnswer),
-          background: optionColors[correctIndex] || "#46178f"
-        }}
-      >
-        {correctText}
-      </div>
-
-      <h3>Cevap Dağılımı</h3>
-
-      {questionResult.stats?.map((count, i) => {
-        const maxCount = Math.max(...questionResult.stats, 1);
-        const width = `${(count / maxCount) * 100}%`;
-
-        return (
-          <div key={i} style={styles.resultRow}>
-            <div style={live ? styles.liveResultLabel : styles.resultLabel}>
-              <b>{String.fromCharCode(65 + i)})</b> {options[i]} → {count} kişi
-            </div>
-
-            <div style={styles.resultBarOuter}>
-              <div
-                style={{
-                  ...styles.resultBarInner,
-                  width,
-                  background: optionColors[i] || "#46178f"
-                }}
-              >
-                {count}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 
 const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#46178f,#6c2bd9)',display:'flex',justifyContent:'center',alignItems:'center',color:'white',fontFamily:'Arial',padding:16},center:{textAlign:'center'},logo:{fontSize:isMobile?42:64,marginBottom:10},subtitle:{fontSize:isMobile?18:22,marginBottom:30},mainButton:{display:'block',width:isMobile?'100%':320,padding:18,margin:'15px auto',fontSize:isMobile?18:22,borderRadius:18,border:'none',cursor:'pointer',fontWeight:'bold'},app:{minHeight:'100vh',background:'#f2f2f2',fontFamily:'Arial'},topbar:{background:'#46178f',color:'white',padding:16,textAlign:'center',display:'flex',flexWrap:'wrap',justifyContent:'center',alignItems:'center',gap:12},container:{maxWidth:1200,margin:'0 auto',padding:isMobile?12:20},card:{background:'white',color:'black',padding:isMobile?16:25,borderRadius:18,marginBottom:20,boxShadow:'0 4px 12px rgba(0,0,0,0.12)'},input:{width:'100%',padding:14,marginBottom:12,fontSize:17,boxSizing:'border-box'},purpleButton:{padding:14,background:'#46178f',color:'white',border:'none',borderRadius:12,fontSize:18,cursor:'pointer'},deleteButton:{padding:'8px 12px',background:'#e21b3c',color:'white',border:'none',borderRadius:8,cursor:'pointer'},questionDetailCard:{display:'flex',flexDirection:isMobile?'column':'row',justifyContent:'space-between',alignItems:'flex-start',padding:16,borderBottom:'1px solid #ddd',gap:20},joinCard:{background:'white',color:'black',padding:isMobile?24:40,borderRadius:20,width:isMobile?'100%':350,textAlign:'center'},joinButton:{width:'100%',padding:15,background:'#46178f',color:'white',border:'none',fontSize:18,borderRadius:10},hostButton:{padding:'12px 24px',border:'none',borderRadius:12,background:'white',color:'#46178f',fontWeight:'bold',cursor:'pointer'},qrBox:{background:'white',padding:14,borderRadius:16,margin:10},waiting:{textAlign:'center',marginTop:isMobile?40:80},player:{fontSize:isMobile?22:28,margin:10},questionCard:{background:'white',borderRadius:20,padding:isMobile?18:30,textAlign:'center',marginBottom:20,boxShadow:'0 4px 12px rgba(0,0,0,0.15)'},questionImage:{maxWidth:'100%',maxHeight:isMobile?220:360,objectFit:'contain',borderRadius:18,margin:'20px auto',display:'block',boxShadow:'0 4px 14px rgba(0,0,0,0.18)'},previewImage:{maxWidth:260,maxHeight:160,objectFit:'contain',borderRadius:12,margin:'10px 0',display:'block',border:'1px solid #ddd'},timerCircle:{width:isMobile?90:120,height:isMobile?90:120,borderRadius:'50%',background:'#46178f',color:'white',fontSize:isMobile?36:48,display:'flex',justifyContent:'center',alignItems:'center',margin:'20px auto'},progressOuter:{height:20,background:'#ddd',borderRadius:20,overflow:'hidden'},progressInner:{height:'100%',background:'#46178f',transition:'1s linear'},answers:{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16},answerButton:{color:'white',border:'none',padding:isMobile?24:40,fontSize:isMobile?20:28,borderRadius:20,minHeight:isMobile?110:180,cursor:'pointer',fontWeight:'bold'},answered:{marginTop:20,textAlign:'center',fontSize:24,color:'green',fontWeight:'bold'},board:{background:'white',borderRadius:20,padding:20,marginTop:30},boardRow:{display:'flex',justifyContent:'space-between',padding:10,fontSize:isMobile?18:22,borderBottom:'1px solid #ddd'},gameOver:{textAlign:'center',marginTop:60},gameOverTitle:{fontSize:isMobile?42:64,color:'#46178f'},podium:{display:'flex',flexDirection:isMobile?'column':'row',justifyContent:'center',alignItems:'center',gap:20,marginTop:40},podiumItem:{width:isMobile?'100%':220,borderRadius:20,color:'black',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',fontWeight:'bold',boxShadow:'0 4px 12px rgba(0,0,0,0.2)'},finalBoard:{background:'white',borderRadius:20,padding:20,marginTop:40},finalRow:{display:'flex',justifyContent:'space-between',padding:15,fontSize:isMobile?18:24,borderBottom:'1px solid #ddd'},
   liveStage: {
