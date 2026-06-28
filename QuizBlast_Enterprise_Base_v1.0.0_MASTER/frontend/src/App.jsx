@@ -4,6 +4,7 @@ import confetti from "canvas-confetti";
 import QuestionList from "./components/question/QuestionList";
 import LeaderboardBoard from "./components/game/LeaderboardBoard";
 import ResultReveal from "./components/game/ResultReveal";
+import GameOver from "./components/game/GameOver";
 
 const HOST = window.location.hostname;
 const API = `http://${HOST}:8001`;
@@ -61,14 +62,90 @@ export default function App() {
   if(mode==='player'&&!joined) return <JoinScreen {...{roomPin,setRoomPin,name,setName,joinRoom,setMode}} />;
   if(mode==='display'&&!joined) return <DisplayConnect {...{roomPin,setRoomPin,connectDisplay,setMode}} />;
 
-  return <div style={styles.app}><div style={styles.topbar}><h1>{mode==='display'?'📺 QuizBlast Display':'QuizBlast 🚀'}</h1><h2>PIN: {roomPin}</h2>{roomPin&&(mode==='host'||mode==='display')&&<div style={styles.qrBox}><QRCodeCanvas value={`${APP_URL}?pin=${roomPin}`} size={160} includeMargin/></div>}{mode==='host'&&<button onClick={startGame} style={styles.hostButton}>▶ Oyunu Başlat</button>}<button onClick={leaveGame} style={{...styles.hostButton,background:'#e21b3c',color:'white'}}>Oyundan Çık</button></div><div style={styles.container}>{!question&&!gameOver&&<div style={styles.waiting}><h1>Oyuncular Bekleniyor...</h1>{visiblePlayers.map((p,i)=><div key={i} style={styles.player}>👤 {p}</div>)}</div>}{gameOver&&<GameOver {...{podium,visibleLeaderboard,finalLimit}}/>}{question&&<QuestionGame {...{question,questionImage,timeLeft,answerCount,totalPlayers,mode,playerName,options,sendAnswer,answered,questionResult,optionColors,visibleLeaderboard,nextQuestion,currentQuestionIndex,totalQuestions:selectedQuestions.length}}/>}</div></div>;
+return (
+  <div style={styles.app}>
+    <div style={styles.topbar}>
+      <h1>{mode === "display" ? "📺 QuizBlast Display" : "QuizBlast 🚀"}</h1>
+      <h2>PIN: {roomPin}</h2>
+
+      {roomPin && (mode === "host" || mode === "display") && (
+        <div style={styles.qrBox}>
+          <QRCodeCanvas
+            value={`${APP_URL}?pin=${roomPin}`}
+            size={160}
+            includeMargin
+          />
+        </div>
+      )}
+
+      {mode === "host" && (
+        <button onClick={startGame} style={styles.hostButton}>
+          ▶ Oyunu Başlat
+        </button>
+      )}
+
+      <button
+        onClick={leaveGame}
+        style={{
+          ...styles.hostButton,
+          background: "#e21b3c",
+          color: "white",
+        }}
+      >
+        Oyundan Çık
+      </button>
+    </div>
+
+    <div style={styles.container}>
+      {!question && !gameOver && (
+        <div style={styles.waiting}>
+          <h1>Oyuncular Bekleniyor...</h1>
+          {visiblePlayers.map((p, i) => (
+            <div key={i} style={styles.player}>
+              👤 {p}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {gameOver && (
+        <GameOver
+          podium={podium}
+          visibleLeaderboard={visibleLeaderboard}
+          finalLimit={finalLimit}
+          styles={styles}
+        />
+      )}
+
+      {question && (
+        <QuestionGame
+          question={question}
+          questionImage={questionImage}
+          timeLeft={timeLeft}
+          answerCount={answerCount}
+          totalPlayers={totalPlayers}
+          mode={mode}
+          playerName={playerName}
+          options={options}
+          sendAnswer={sendAnswer}
+          answered={answered}
+          questionResult={questionResult}
+          optionColors={optionColors}
+          visibleLeaderboard={visibleLeaderboard}
+          nextQuestion={nextQuestion}
+          currentQuestionIndex={currentQuestionIndex}
+          totalQuestions={selectedQuestions.length}
+        />
+      )}
+    </div>
+  </div>
+);
 }
 
 function AdminView(p){return <div style={styles.app}><div style={styles.topbar}><h1>Admin Quiz Builder 🧠</h1><button onClick={()=>p.setMode(null)} style={styles.hostButton}>Ana Menü</button></div><div style={styles.container}><div style={styles.card}><h2>Yeni Quiz Oluştur</h2><input placeholder="Quiz adı" value={p.newQuizTitle} onChange={e=>p.setNewQuizTitle(e.target.value)} style={styles.input}/><button onClick={p.createQuiz} style={styles.purpleButton}>Quiz Oluştur</button></div><div style={styles.card}><h2>Quiz Seç</h2><select value={p.selectedQuizId} onChange={e=>p.setSelectedQuizId(e.target.value)} style={styles.input}><option value="">Quiz seç</option>{p.quizzes.map(q=><option key={q.id} value={String(q.id)}>{q.title} ({q.questions?.length||0} soru)</option>)}</select><button onClick={p.deleteQuiz} style={{...styles.purpleButton,background:'#e21b3c'}}>Seçili Quiz’i Sil</button></div><div style={styles.card}><h2>Soru Ekle</h2><textarea placeholder="Soru metni" value={p.newQuestion} onChange={e=>p.setNewQuestion(e.target.value)} style={{...styles.input,minHeight:90}}/><input placeholder="Görsel URL opsiyonel" value={p.newImageUrl} onChange={e=>p.setNewImageUrl(e.target.value)} style={styles.input}/>{p.newOptions.map((opt,i)=><input key={i} placeholder={`Seçenek ${i+1}`} value={opt} onChange={e=>{const c=[...p.newOptions]; c[i]=e.target.value; p.setNewOptions(c)}} style={styles.input}/>) }<select value={p.newCorrect} onChange={e=>p.setNewCorrect(e.target.value)} style={styles.input}><option value={0}>Doğru: 1. seçenek</option><option value={1}>Doğru: 2. seçenek</option><option value={2}>Doğru: 3. seçenek</option><option value={3}>Doğru: 4. seçenek</option></select><input type="number" value={p.newTime} onChange={e=>p.setNewTime(e.target.value)} style={styles.input}/><button onClick={()=>p.addQuestion()} style={styles.purpleButton}>Soruyu Ekle</button></div><div style={styles.card}><h2>🤖 AI Soru Oluşturucu</h2><p>Okul, kurumsal eğitim, fuar, etkinlik veya serbest konu için soru taslağı oluştur.</p><label><b>Konu / Prompt</b></label><textarea placeholder="Örn: Forklift güvenliği, ISO 9001 kalite yönetimi, Kadıköy tarihi, 5. sınıf İngilizce Animals konusu" value={p.aiPrompt} onChange={e=>p.setAiPrompt(e.target.value)} style={{...styles.input,minHeight:80}}/><small>Soruların hangi konu hakkında üretileceğini yaz.</small><br/><br/><label><b>Hedef Kitle</b></label><select value={p.aiAudience} onChange={e=>p.setAiAudience(e.target.value)} style={styles.input}><option>İlkokul</option><option>Ortaokul</option><option>Lise</option><option>Üniversite</option><option>Yetişkin</option><option>Uzman</option><option>Serbest</option></select><label><b>Soru Sayısı</b></label><input type="number" min="1" max="20" value={p.aiCount} onChange={e=>p.setAiCount(e.target.value)} style={styles.input}/><label><b>Zorluk</b></label><select value={p.aiDifficulty} onChange={e=>p.setAiDifficulty(e.target.value)} style={styles.input}><option>Kolay</option><option>Orta</option><option>Zor</option><option>Karışık</option></select><label><b>Soru Tipi</b></label><select value={p.aiQuestionType} onChange={e=>p.setAiQuestionType(e.target.value)} style={styles.input}><option>Çoktan Seçmeli</option><option>Doğru / Yanlış</option><option>Karışık</option></select><label><b>Ek Talimat</b> <span style={{fontWeight:'normal'}}>(Opsiyonel)</span></label><textarea placeholder="Örn: İş güvenliği kurallarına odaklan. Sorular kısa ve anlaşılır olsun." value={p.aiInstruction} onChange={e=>p.setAiInstruction(e.target.value)} style={{...styles.input,minHeight:70}}/><button onClick={p.generateMockAiQuestions} style={styles.purpleButton}>AI Sorularını Önizle</button>{p.aiPreviewQuestions.length>0&&<div style={{marginTop:20,padding:15,border:'2px dashed #d89e00',borderRadius:14,background:'#fff8e1'}}><h3>AI Önizleme - Henüz Quiz’e Eklenmedi</h3><div style={{background:'#f5f5f5',padding:15,borderRadius:10,marginBottom:20,lineHeight:1.7}}><b>AI Ayarları</b><br/><b>Konu:</b> {p.aiPrompt}<br/><b>Hedef Kitle:</b> {p.aiAudience}<br/><b>Zorluk:</b> {p.aiDifficulty}<br/><b>Soru Tipi:</b> {p.aiQuestionType}<br/>{p.aiInstruction&&<><b>Ek Talimat:</b> {p.aiInstruction}<br/></>}</div><p>Bu sorular sadece önizlemedir. Veritabanına eklemek için aşağıdaki yeşil butona bas.</p>{p.aiPreviewQuestions.map((q,i)=><div key={i} style={styles.questionDetailCard}><div><h4>{i+1}. {q.question}</h4><ol>{q.options.map((opt,index)=><li key={index} style={{fontWeight:q.correct===index?'bold':'normal',color:q.correct===index?'green':'black'}}>{opt} {q.correct===index?'✅':''}</li>)}</ol><p><b>Süre:</b> {q.time} saniye</p><div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}><button onClick={()=>p.removeAiPreviewQuestion(i)} style={{background:'#e21b3c',color:'white',border:'none',borderRadius:8,padding:'8px 12px',cursor:'pointer'}}>Kaldır</button><button onClick={()=>p.editAiPreviewQuestion(i)} style={{background:'#1368ce',color:'white',border:'none',borderRadius:8,padding:'8px 12px',cursor:'pointer'}}>✏ Düzenle</button><button onClick={()=>p.regenerateAiPreviewQuestion(i)} style={{background:'#d89e00',color:'white',border:'none',borderRadius:8,padding:'8px 12px',cursor:'pointer'}}>🔄 Yeniden Üret</button></div></div></div>)}<button onClick={p.addAiPreviewToQuiz} style={{...styles.purpleButton,marginTop:15,background:'#26890c'}}>Önizlenen Soruları Quiz’e Ekle</button><button onClick={()=>p.setAiPreviewQuestions([])} style={{...styles.purpleButton,marginTop:15,marginLeft:10,background:'#e21b3c'}}>Önizlemeyi Temizle</button></div>}</div><QuestionList title="Seçili Quiz Soruları" questions={p.selectedQuestions} onDelete={p.deleteQuestion} onEdit={p.editQuestion} showDelete styles={styles}/><div style={styles.card}><h2>Excel Import Ön İzleme & Commit</h2><p>QBDS formatı veya eski format desteklenir. Dosya önce önizlenir, sonra onayla veritabanına aktarılır.</p><input type="file" accept=".xlsx,.xls" onChange={p.importExcel} style={styles.input}/>{p.importPreview&&<div style={{background:'#f5f5f5',padding:15,borderRadius:10,marginTop:10,lineHeight:1.7}}><b>Preview hazır</b><br/>Dosya: {p.importPreview.filename}<br/>Session: {p.importPreview.session_id}<br/>Import edilebilir: {p.importPreview.preview_payload?.summary?.importable_rows??0}<br/>Bloklanan: {p.importPreview.preview_payload?.summary?.blocked_rows??0}<br/>Hata: {p.importPreview.preview_payload?.summary?.error_count??0}<br/>Uyarı: {p.importPreview.preview_payload?.summary?.warning_count??0}<br/><button onClick={p.commitImport} disabled={p.importing} style={{...styles.purpleButton,marginTop:12,background:'#26890c'}}>{p.importing?'Import ediliyor...':'Import Et'}</button></div>}{p.importSummary&&<div style={{background:p.importSummary.error?'#ffe5e5':'#e8f5e9',padding:15,borderRadius:10,marginTop:10,lineHeight:1.7}}><b>Import Summary</b><br/>Durum: {p.importSummary.error?'FAILED':'SUCCESS'}<br/>Session: {p.importSummary.session_id}<br/>Aktarılan: {p.importSummary.imported??0}<br/>Atlanan: {p.importSummary.skipped??0}<br/>Hata: {p.importSummary.failed??0}</div>}<p>Not: Correct alanı A/B/C/D veya geriye dönük uyumluluk için 0/1/2/3 olabilir.</p></div></div></div>}
 function HostSetup(p){return <div style={styles.app}><div style={styles.topbar}><h1>Host Dashboard 🚀</h1><button onClick={()=>p.setMode(null)} style={styles.hostButton}>Ana Menü</button></div><div style={styles.container}><div style={styles.card}><h2>Quiz Seç</h2><select value={p.selectedQuizId} onChange={e=>{p.setSelectedQuizId(e.target.value); p.loadSelectedQuestions(e.target.value)}} style={styles.input}><option value="">Quiz seç</option>{p.quizzes.map(q=><option key={q.id} value={String(q.id)}>{q.title} ({q.questions?.length||0} soru)</option>)}</select><label>Final sıralamada gösterilecek kişi sayısı</label><input type="number" min="3" max="10" value={p.finalLimit} onChange={e=>p.setFinalLimit(Math.min(Math.max(Number(e.target.value),3),10))} style={styles.input}/><button onClick={p.createRoom} style={styles.purpleButton}>Create Room</button></div><QuestionList title="Host Quiz Önizleme" questions={p.selectedQuestions}styles={styles}/></div></div>}
 function JoinScreen(p){return <div style={styles.splash}><div style={styles.joinCard}><h1>Join Game</h1><input placeholder="Room PIN" value={p.roomPin} onChange={e=>p.setRoomPin(e.target.value)} style={styles.input}/><input placeholder="Name" value={p.name} onChange={e=>p.setName(e.target.value)} style={styles.input}/>{p.roomPin&&<p style={{color:'green'}}>QR ile PIN otomatik dolduruldu</p>}<button onClick={p.joinRoom} style={styles.joinButton}>Join</button><button onClick={()=>p.setMode(null)} style={{...styles.joinButton,marginTop:10,background:'#333'}}>Ana Menü</button></div></div>}
 function DisplayConnect(p){return <div style={styles.splash}><div style={styles.joinCard}><h1>📺 Display Screen</h1><input placeholder="Room PIN" value={p.roomPin} onChange={e=>p.setRoomPin(e.target.value)} style={styles.input}/><button onClick={p.connectDisplay} style={styles.joinButton}>Connect Display</button><button onClick={()=>p.setMode(null)} style={{...styles.joinButton,marginTop:10,background:'#333'}}>Ana Menü</button></div></div>}
-function GameOver({podium,visibleLeaderboard,finalLimit}){return <div style={styles.gameOver}><h1 style={styles.gameOverTitle}>GAME OVER 🎉</h1><div style={styles.podium}>{podium[1]&&<div style={{...styles.podiumItem,...styles.podiumSilver,height:180,background:'#c0c0c0'}}>🥈<h2>{podium[1][0]}</h2><h3>{podium[1][1]}</h3></div>}{podium[0]&&<div style={{...styles.podiumItem,...styles.podiumGold,height:240,background:'#ffd700'}}>👑<h1>{podium[0][0]}</h1><h2>{podium[0][1]}</h2></div>}{podium[2]&&<div style={{...styles.podiumItem,...styles.podiumBronze,height:140,background:'#cd7f32'}}>🥉<h2>{podium[2][0]}</h2><h3>{podium[2][1]}</h3></div>}</div><div style={styles.finalBoard}>{visibleLeaderboard.slice(0,finalLimit).map((p,i)=><div key={i} style={styles.finalRow}><span>#{i+1} {p[0]}</span><span>{p[1]}</span></div>)}</div></div>}
 function QuestionGame({
   question,
   questionImage,
