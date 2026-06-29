@@ -8,6 +8,7 @@ import GameOver from "./components/game/GameOver";
 import DisplayConnect from "./components/game/DisplayConnect";
 import JoinScreen from "./components/game/JoinScreen";
 import HostSetup from "./components/game/HostSetup";
+import HostLiveStage from "./components/game/HostLiveStage";
 
 const HOST = window.location.hostname;
 const API = `http://${HOST}:8001`;
@@ -61,7 +62,7 @@ export default function App() {
   if(!user) return <div style={styles.splash}><div style={styles.joinCard}><h1>QuizBlast 🚀</h1><h2>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</h2><input placeholder="E-posta" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={styles.input}/><input placeholder="Şifre" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={styles.input}/><button onClick={authMode==='login'?login:register} style={styles.joinButton}>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</button><button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} style={{...styles.joinButton,marginTop:10,background:'#333'}}>{authMode==='login'?'Hesap oluştur':'Giriş ekranına dön'}</button></div></div>;
   if(!mode) return <div style={styles.splash}><div style={styles.center}><h1 style={styles.logo}>QuizBlast 🚀</h1><p style={styles.subtitle}>Multiplayer Quiz Platform</p><p>{user.email}</p><button onClick={()=>{setMode('host');loadQuizzes();}} style={styles.mainButton}>🎤 Host Game</button><button onClick={()=>setMode('player')} style={styles.mainButton}>🎮 Join Game</button><button onClick={()=>setMode('display')} style={styles.mainButton}>📺 Display Screen</button><button onClick={()=>{setMode('admin');loadQuizzes();}} style={styles.mainButton}>🧠 Admin Panel</button><button onClick={logout} style={{...styles.mainButton,background:'#e21b3c',color:'white'}}>Çıkış Yap</button></div></div>;
   if(mode==='admin') return <AdminView {...{quizzes,selectedQuizId,setSelectedQuizId,newQuizTitle,setNewQuizTitle,createQuiz,deleteQuiz,newQuestion,setNewQuestion,newImageUrl,setNewImageUrl,newOptions,setNewOptions,newCorrect,setNewCorrect,newTime,setNewTime,addQuestion,selectedQuestions,deleteQuestion,editQuestion,importExcel,commitImport,importPreview,importing,importSummary,aiPrompt,setAiPrompt,aiAudience,setAiAudience,aiCount,setAiCount,aiDifficulty,setAiDifficulty,aiQuestionType,setAiQuestionType,aiInstruction,setAiInstruction,aiPreviewQuestions,setAiPreviewQuestions,generateMockAiQuestions,addAiPreviewToQuiz,removeAiPreviewQuestion,editAiPreviewQuestion,regenerateAiPreviewQuestion,setMode}} />;
-  if(mode==='host'&&!joined) return <HostSetup {...{quizzes,selectedQuizId,setSelectedQuizId,loadSelectedQuestions,finalLimit,setFinalLimit,createRoom,selectedQuestions,setMode}} styles={styles} />;
+  if(mode==='host'&&!joined) return <HostSetup {...{quizzes,selectedQuizId,setSelectedQuizId,loadSelectedQuestions,finalLimit,setFinalLimit,createRoom,selectedQuestions,setMode}} />;
   if(mode==='player'&&!joined) return <JoinScreen {...{roomPin,setRoomPin,name,setName,joinRoom,setMode}}styles={styles} />;
   if(mode==='display'&&!joined) return <DisplayConnect {...{roomPin,setRoomPin,connectDisplay,setMode}} styles={styles}/>;
 
@@ -180,7 +181,7 @@ function QuestionGame({
         visibleLeaderboard={visibleLeaderboard}
         nextQuestion={nextQuestion}
         currentQuestionIndex={currentQuestionIndex}
-        totalQuestions={totalQuestions}
+        totalQuestions={totalQuestions} styles={styles}
       />
     );
   }
@@ -247,98 +248,6 @@ function QuestionGame({
   );
 }
 
-function HostLiveStage({
-  question,
-  questionImage,
-  timeLeft,
-  answerCount,
-  totalPlayers,
-  options,
-  optionColors,
-  questionResult,
-  visibleLeaderboard,
-  nextQuestion,
-  currentQuestionIndex,
-  totalQuestions
-}) {
-  return (
-    <div style={styles.liveStage}>
-      <div style={styles.liveQuestionCard}>
-        <div style={styles.liveQuestionText}>{question}</div>
-
-        {questionImage && (
-          <img
-            src={questionImage}
-            alt="Soru görseli"
-            style={styles.liveQuestionImage}
-          />
-        )}
-
-        <div style={{
-          ...styles.liveTimer,
-          background: timeLeft <= 5 ? "#e21b3c" : "#46178f",
-          animation: timeLeft <= 5 ? "timerUrgent 0.8s infinite" : undefined
-        }}>{timeLeft}</div>
-
-        <div style={styles.liveProgressOuter}>
-          <div
-            style={{
-              ...styles.liveProgressInner,
-              width: `${(timeLeft / 15) * 100}%`
-            }}
-          />
-        </div>
-
-        <div style={styles.liveAnswerCount}>
-          Cevaplayan: {answerCount} / {totalPlayers}
-        </div>
-      </div>
-
-      {!questionResult && (
-        <div style={styles.liveOptionsGrid}>
-          {options.map((opt, i) => (
-            <div
-              key={i}
-              style={{
-                ...styles.liveOptionCard,
-                background: optionColors[i] || "#46178f",
-                animationDelay: `${i * 0.35}s`
-              }}
-            >
-              <div style={styles.liveOptionLetter}>
-                {String.fromCharCode(65 + i)}
-              </div>
-              <div style={styles.liveOptionText}>{opt}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {questionResult && (
-        <>
-          <ResultReveal
-            questionResult={questionResult}
-            options={options}
-            optionColors={optionColors}
-            live
-            styles={styles}
-          />
-
-          <div style={{ textAlign: "center", marginTop: 20 }}>
-            <button
-              onClick={nextQuestion}
-              style={styles.nextQuestionButton}
-            >
-              {currentQuestionIndex + 1 >= totalQuestions ? '🏁 Sonuçları Göster' : '➜ Sonraki Soru'}
-            </button>
-          </div>
-        </>
-      )}
-
-      <LeaderboardBoard visibleLeaderboard={visibleLeaderboard} live  styles={styles}/>
-    </div>
-  );
-}
 
 const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#46178f,#6c2bd9)',display:'flex',justifyContent:'center',alignItems:'center',color:'white',fontFamily:'Arial',padding:16},center:{textAlign:'center'},logo:{fontSize:isMobile?42:64,marginBottom:10},subtitle:{fontSize:isMobile?18:22,marginBottom:30},mainButton:{display:'block',width:isMobile?'100%':320,padding:18,margin:'15px auto',fontSize:isMobile?18:22,borderRadius:18,border:'none',cursor:'pointer',fontWeight:'bold'},app:{minHeight:'100vh',background:'#f2f2f2',fontFamily:'Arial'},topbar:{background:'#46178f',color:'white',padding:16,textAlign:'center',display:'flex',flexWrap:'wrap',justifyContent:'center',alignItems:'center',gap:12},container:{maxWidth:1200,margin:'0 auto',padding:isMobile?12:20},card:{background:'white',color:'black',padding:isMobile?16:25,borderRadius:18,marginBottom:20,boxShadow:'0 4px 12px rgba(0,0,0,0.12)'},input:{width:'100%',padding:14,marginBottom:12,fontSize:17,boxSizing:'border-box'},purpleButton:{padding:14,background:'#46178f',color:'white',border:'none',borderRadius:12,fontSize:18,cursor:'pointer'},deleteButton:{padding:'8px 12px',background:'#e21b3c',color:'white',border:'none',borderRadius:8,cursor:'pointer'},questionDetailCard:{display:'flex',flexDirection:isMobile?'column':'row',justifyContent:'space-between',alignItems:'flex-start',padding:16,borderBottom:'1px solid #ddd',gap:20},joinCard:{background:'white',color:'black',padding:isMobile?24:40,borderRadius:20,width:isMobile?'100%':350,textAlign:'center'},joinButton:{width:'100%',padding:15,background:'#46178f',color:'white',border:'none',fontSize:18,borderRadius:10},hostButton:{padding:'12px 24px',border:'none',borderRadius:12,background:'white',color:'#46178f',fontWeight:'bold',cursor:'pointer'},qrBox:{background:'white',padding:14,borderRadius:16,margin:10},waiting:{textAlign:'center',marginTop:isMobile?40:80},player:{fontSize:isMobile?22:28,margin:10},questionCard:{background:'white',borderRadius:20,padding:isMobile?18:30,textAlign:'center',marginBottom:20,boxShadow:'0 4px 12px rgba(0,0,0,0.15)'},questionImage:{maxWidth:'100%',maxHeight:isMobile?220:360,objectFit:'contain',borderRadius:18,margin:'20px auto',display:'block',boxShadow:'0 4px 14px rgba(0,0,0,0.18)'},previewImage:{maxWidth:260,maxHeight:160,objectFit:'contain',borderRadius:12,margin:'10px 0',display:'block',border:'1px solid #ddd'},timerCircle:{width:isMobile?90:120,height:isMobile?90:120,borderRadius:'50%',background:'#46178f',color:'white',fontSize:isMobile?36:48,display:'flex',justifyContent:'center',alignItems:'center',margin:'20px auto'},progressOuter:{height:20,background:'#ddd',borderRadius:20,overflow:'hidden'},progressInner:{height:'100%',background:'#46178f',transition:'1s linear'},answers:{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16},answerButton:{color:'white',border:'none',padding:isMobile?24:40,fontSize:isMobile?20:28,borderRadius:20,minHeight:isMobile?110:180,cursor:'pointer',fontWeight:'bold'},answered:{marginTop:20,textAlign:'center',fontSize:24,color:'green',fontWeight:'bold'},board:{background:'white',borderRadius:20,padding:20,marginTop:30},boardRow:{display:'flex',justifyContent:'space-between',padding:10,fontSize:isMobile?18:22,borderBottom:'1px solid #ddd'},gameOver:{textAlign:'center',marginTop:60},gameOverTitle:{fontSize:isMobile?42:64,color:'#46178f'},podium:{display:'flex',flexDirection:isMobile?'column':'row',justifyContent:'center',alignItems:'center',gap:20,marginTop:40},podiumItem:{width:isMobile?'100%':220,borderRadius:20,color:'black',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',fontWeight:'bold',boxShadow:'0 4px 12px rgba(0,0,0,0.2)'},finalBoard:{background:'white',borderRadius:20,padding:20,marginTop:40},finalRow:{display:'flex',justifyContent:'space-between',padding:15,fontSize:isMobile?18:24,borderBottom:'1px solid #ddd'},
   liveStage: {
