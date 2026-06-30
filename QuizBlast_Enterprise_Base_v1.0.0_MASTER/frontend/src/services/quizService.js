@@ -45,3 +45,9 @@ export async function addQuestionRequest(user, quizId, payload) {
 
   return await r.json();
 }
+export async function deleteQuestionRequest(user, questionId) {
+  await fetch(`${API}/questions/${questionId}`, {
+    method: "DELETE",
+    headers: authHeaders(user),
+  });
+}
