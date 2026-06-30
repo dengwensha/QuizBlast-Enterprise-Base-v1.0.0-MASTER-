@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";import * as XLSX from "xlsx";
+import React, { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import { QRCodeCanvas } from "qrcode.react";
 import confetti from "canvas-confetti";
+
 import QuestionList from "./components/question/QuestionList";
 import LeaderboardBoard from "./components/game/LeaderboardBoard";
 import ResultReveal from "./components/game/ResultReveal";
@@ -8,6 +10,8 @@ import GameOver from "./components/game/GameOver";
 import DisplayConnect from "./components/game/DisplayConnect";
 import JoinScreen from "./components/game/JoinScreen";
 import HostSetup from "./components/game/HostSetup";
+import QuestionGame from "./components/game/QuestionGame";
+
 import {
   API,
   WS,
@@ -15,12 +19,15 @@ import {
   authHeaders,
   jsonAuthHeaders,
 } from "./services/api";
+
 import {
   fetchQuizzes,
   fetchQuizQuestions,
   createQuizRequest,
   deleteQuizRequest,
+  addQuestionRequest,
 } from "./services/quizService";
+
 import {
   createRoomRequest,
   startGameRequest,
@@ -54,8 +61,37 @@ export default function App() {
   useEffect(()=>{if((mode==='admin'||mode==='host')&&selectedQuizId)loadSelectedQuestions(selectedQuizId);},[mode,selectedQuizId]);
   const createQuiz=async()=>{if(!newQuizTitle.trim())return alert('Quiz adı gir.'); const r=await fetch(`${API}/quizzes`,{method:'POST',headers:jsonAuthHeaders(user),body:JSON.stringify({title:newQuizTitle})}); const d=await r.json(); if(d.error)return alert(d.error); setNewQuizTitle(''); setSelectedQuizId(String(d.id)); await loadQuizzes(); await loadSelectedQuestions(String(d.id));};
   const deleteQuiz=async()=>{if(!selectedQuizId)return alert('Quiz seç.'); if(!confirm('Bu quiz ve tüm sorular silinsin mi?'))return; await fetch(`${API}/quizzes/${selectedQuizId}`,{method:'DELETE',headers:authHeaders(user)}); setSelectedQuizId(''); setSelectedQuestions([]); await loadQuizzes();};
-  const addQuestion=async(q=newQuestion,img=newImageUrl,opts=newOptions,c=Number(newCorrect),tm=Number(newTime))=>{if(!selectedQuizId)return alert('Quiz seç'); if(!q.trim())return alert('Soru gir.'); if(opts.some(o=>!String(o).trim()))return alert('4 seçeneği de doldur.'); const r=await fetch(`${API}/quizzes/${selectedQuizId}/questions`,{method:'POST',headers:jsonAuthHeaders(user),body:JSON.stringify({question:q,image_url:img,options:opts,correct:c,time:tm})}); const d=await r.json(); if(d.error)return alert(d.error); setNewQuestion(''); setNewImageUrl(''); setNewOptions(['','','','']); setNewCorrect(0); setNewTime(15); await loadQuizzes(); await loadSelectedQuestions(selectedQuizId);};
-  const generateMockAiQuestions=()=>{if(!String(aiPrompt||'').trim())return alert('Konu / Prompt alanı boş olamaz.');const multipleChoiceTemplates=[{question:'What is the most important point about this topic?',options:['Basic rule','Wrong approach','Unrelated detail','No rule'],correct:0},{question:'Which option is the best practice?',options:['Ignore instructions','Follow the correct procedure','Guess quickly','Skip preparation'],correct:1},{question:'What should participants remember?',options:['The key rule','A random number','An unrelated name','Nothing'],correct:0},{question:'Which statement is correct?',options:['Preparation is important','Rules are unnecessary','Mistakes never happen','Training has no value'],correct:0},{question:'What is the best response in a risky situation?',options:['Stop and check','Continue without thinking','Ignore warnings','Hide the problem'],correct:0}];const trueFalseTemplates=[{question:'Following instructions is important for this topic.',options:['True','False','True and False','Not sure'],correct:0},{question:'Preparation is unnecessary for this topic.',options:['True','False','True and False','Not sure'],correct:1},{question:'Participants should understand the basic rules.',options:['True','False','True and False','Not sure'],correct:0}];const count=Math.min(Math.max(Number(aiCount)||1,1),20);const generated=[];for(let i=0;i<count;i++){let pool=multipleChoiceTemplates;if(aiQuestionType==='Doğru / Yanlış')pool=trueFalseTemplates;if(aiQuestionType==='Karışık')pool=i%2===0?multipleChoiceTemplates:trueFalseTemplates;const b=pool[i%pool.length];generated.push({question:b.question,image_url:'',options:b.options,correct:b.correct,time:Number(newTime||15)});}setAiPreviewQuestions(generated);alert(`${count} adet soru önizlemeye hazırlandı. Henüz quiz’e eklenmedi.`);};
+const addQuestion = async (
+  q = newQuestion,
+  img = newImageUrl,
+  opts = newOptions,
+  c = Number(newCorrect),
+  tm = Number(newTime)
+) => {
+  if (!selectedQuizId) return alert("Quiz seç");
+  if (!q.trim()) return alert("Soru gir.");
+  if (opts.some((o) => !String(o).trim()))
+    return alert("4 seçeneği de doldur.");
+
+  const d = await addQuestionRequest(user, selectedQuizId, {
+    question: q,
+    image_url: img,
+    options: opts,
+    correct: c,
+    time: tm,
+  });
+
+  if (d.error) return alert(d.error);
+
+  setNewQuestion("");
+  setNewImageUrl("");
+  setNewOptions(["", "", "", ""]);
+  setNewCorrect(0);
+  setNewTime(15);
+
+  await loadQuizzes();
+  await loadSelectedQuestions(selectedQuizId);
+};  const generateMockAiQuestions=()=>{if(!String(aiPrompt||'').trim())return alert('Konu / Prompt alanı boş olamaz.');const multipleChoiceTemplates=[{question:'What is the most important point about this topic?',options:['Basic rule','Wrong approach','Unrelated detail','No rule'],correct:0},{question:'Which option is the best practice?',options:['Ignore instructions','Follow the correct procedure','Guess quickly','Skip preparation'],correct:1},{question:'What should participants remember?',options:['The key rule','A random number','An unrelated name','Nothing'],correct:0},{question:'Which statement is correct?',options:['Preparation is important','Rules are unnecessary','Mistakes never happen','Training has no value'],correct:0},{question:'What is the best response in a risky situation?',options:['Stop and check','Continue without thinking','Ignore warnings','Hide the problem'],correct:0}];const trueFalseTemplates=[{question:'Following instructions is important for this topic.',options:['True','False','True and False','Not sure'],correct:0},{question:'Preparation is unnecessary for this topic.',options:['True','False','True and False','Not sure'],correct:1},{question:'Participants should understand the basic rules.',options:['True','False','True and False','Not sure'],correct:0}];const count=Math.min(Math.max(Number(aiCount)||1,1),20);const generated=[];for(let i=0;i<count;i++){let pool=multipleChoiceTemplates;if(aiQuestionType==='Doğru / Yanlış')pool=trueFalseTemplates;if(aiQuestionType==='Karışık')pool=i%2===0?multipleChoiceTemplates:trueFalseTemplates;const b=pool[i%pool.length];generated.push({question:b.question,image_url:'',options:b.options,correct:b.correct,time:Number(newTime||15)});}setAiPreviewQuestions(generated);alert(`${count} adet soru önizlemeye hazırlandı. Henüz quiz’e eklenmedi.`);};
   const addAiPreviewToQuiz=async()=>{if(!selectedQuizId)return alert('Önce quiz seç.');if(aiPreviewQuestions.length===0)return alert('Önce AI soruları oluştur.');for(const q of aiPreviewQuestions){await addQuestion(q.question,q.image_url,q.options,q.correct,q.time);}await loadQuizzes();await loadSelectedQuestions(selectedQuizId);setAiPreviewQuestions([]);alert('AI soruları quiz’e eklendi.');};
   const removeAiPreviewQuestion=(index)=>setAiPreviewQuestions(aiPreviewQuestions.filter((_,i)=>i!==index));
   const editAiPreviewQuestion=(index)=>{const q=aiPreviewQuestions[index];if(!q)return;const qt=prompt('Soru metni:',q.question);if(qt===null)return;const opts=[...q.options];for(let i=0;i<4;i++){const v=prompt(`Seçenek ${i+1}:`,opts[i]);if(v===null)return;opts[i]=v;}const corr=Number(prompt('Doğru cevap indexi: A=0, B=1, C=2, D=3',q.correct));const tm=Number(prompt('Süre:',q.time));const u=[...aiPreviewQuestions];u[index]={...q,question:qt,options:opts,correct:Number.isNaN(corr)?q.correct:Math.min(Math.max(corr,0),3),time:Number.isNaN(tm)?q.time:tm};setAiPreviewQuestions(u);};
@@ -76,7 +112,7 @@ export default function App() {
 };
   const connectWebsocket=(pin,who)=>{setPlayerName(who); const ws=new WebSocket(`${WS}/ws/${pin}/${encodeURIComponent(who)}`); ws.onopen=()=>{}; ws.onmessage=(event)=>{const d=JSON.parse(event.data); if(d.type==='join_error'){alert(d.reason==='duplicate_name'?'Bu isim zaten odada. Farklı bir isim gir.':d.reason==='room_not_found'?'Oda bulunamadı. PIN kontrol et.':'Geçersiz giriş.'); setJoined(false); setSocket(null); try{ws.close();}catch(e){} return;} if(d.type==='players'){setJoined(true); setPlayers(d.players); setTotalPlayers(d.players.filter(p=>p!=='HOST'&&p!=='DISPLAY').length);} if(d.type==='question'){playTone(720,140,'triangle'); setQuestionResult(null); setQuestion(d.question); setQuestionImage(d.image_url||''); setOptions(d.options); setCurrentQuestionIndex(d.index||0); setTimeLeft(d.time); setAnswered(false); setGameOver(false); setAnswerCount(0);} if(d.type==='answer_count')setAnswerCount(d.count); if(d.type==='question_result'){fireSmallConfetti(); playTone(950,220,'sine'); setQuestionResult(d);} if(d.type==='leaderboard')setLeaderboard(d.scores); if(d.type==='game_over'){fireBigConfetti(); playTone(600,120,'triangle'); setTimeout(()=>playTone(760,120,'triangle'),150); setTimeout(()=>playTone(920,220,'triangle'),300); setQuestion(null); setQuestionImage(''); setOptions([]); setGameOver(true);}}; ws.onclose=()=>{}; ws.onerror=(err)=>{console.error('WebSocket error',err);}; setSocket(ws);};
   const joinRoom=()=>{if(!roomPin.trim())return alert('PIN gir'); if(!name.trim())return alert('İsim gir'); connectWebsocket(roomPin,name);}; const connectDisplay=()=>{if(!roomPin.trim())return alert('PIN gir'); connectWebsocket(roomPin,'DISPLAY');}; 
-  const startGame=async()=>{playTone(700,100,'triangle'); await fetch(`${API}/start-game/${roomPin}`);};
+  const startGame=async()=>{playTone(700,100,'triangle'); await startGameRequest(roomPin);};
   const nextQuestion = async () => {
   await nextQuestionRequest(roomPin);
 };

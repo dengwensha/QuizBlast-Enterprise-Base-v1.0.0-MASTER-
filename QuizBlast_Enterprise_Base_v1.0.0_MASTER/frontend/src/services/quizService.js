@@ -36,3 +36,12 @@ export async function deleteQuizRequest(user, quizId) {
     headers: authHeaders(user),
   });
 }
+export async function addQuestionRequest(user, quizId, payload) {
+  const r = await fetch(`${API}/quizzes/${quizId}/questions`, {
+    method: "POST",
+    headers: jsonAuthHeaders(user),
+    body: JSON.stringify(payload),
+  });
+
+  return await r.json();
+}
