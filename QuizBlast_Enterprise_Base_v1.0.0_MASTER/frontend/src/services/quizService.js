@@ -51,3 +51,12 @@ export async function deleteQuestionRequest(user, questionId) {
     headers: authHeaders(user),
   });
 }
+export async function updateQuestionRequest(user, questionId, payload) {
+  const r = await fetch(`${API}/questions/${questionId}`, {
+    method: "PUT",
+    headers: jsonAuthHeaders(user),
+    body: JSON.stringify(payload),
+  });
+
+  return await r.json();
+}
