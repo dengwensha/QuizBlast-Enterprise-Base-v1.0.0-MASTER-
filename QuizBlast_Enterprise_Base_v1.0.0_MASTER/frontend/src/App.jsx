@@ -21,7 +21,11 @@ import {
   createQuizRequest,
   deleteQuizRequest,
 } from "./services/quizService";
-import { createRoomRequest } from "./services/gameService";
+import {
+  createRoomRequest,
+  startGameRequest,
+  nextQuestionRequest,
+} from "./services/gameService";
 
 const isMobile = window.innerWidth < 700;
 
@@ -71,8 +75,11 @@ export default function App() {
   connectWebsocket(d.room_pin, "HOST");
 };
   const connectWebsocket=(pin,who)=>{setPlayerName(who); const ws=new WebSocket(`${WS}/ws/${pin}/${encodeURIComponent(who)}`); ws.onopen=()=>{}; ws.onmessage=(event)=>{const d=JSON.parse(event.data); if(d.type==='join_error'){alert(d.reason==='duplicate_name'?'Bu isim zaten odada. Farklı bir isim gir.':d.reason==='room_not_found'?'Oda bulunamadı. PIN kontrol et.':'Geçersiz giriş.'); setJoined(false); setSocket(null); try{ws.close();}catch(e){} return;} if(d.type==='players'){setJoined(true); setPlayers(d.players); setTotalPlayers(d.players.filter(p=>p!=='HOST'&&p!=='DISPLAY').length);} if(d.type==='question'){playTone(720,140,'triangle'); setQuestionResult(null); setQuestion(d.question); setQuestionImage(d.image_url||''); setOptions(d.options); setCurrentQuestionIndex(d.index||0); setTimeLeft(d.time); setAnswered(false); setGameOver(false); setAnswerCount(0);} if(d.type==='answer_count')setAnswerCount(d.count); if(d.type==='question_result'){fireSmallConfetti(); playTone(950,220,'sine'); setQuestionResult(d);} if(d.type==='leaderboard')setLeaderboard(d.scores); if(d.type==='game_over'){fireBigConfetti(); playTone(600,120,'triangle'); setTimeout(()=>playTone(760,120,'triangle'),150); setTimeout(()=>playTone(920,220,'triangle'),300); setQuestion(null); setQuestionImage(''); setOptions([]); setGameOver(true);}}; ws.onclose=()=>{}; ws.onerror=(err)=>{console.error('WebSocket error',err);}; setSocket(ws);};
-  const joinRoom=()=>{if(!roomPin.trim())return alert('PIN gir'); if(!name.trim())return alert('İsim gir'); connectWebsocket(roomPin,name);}; const connectDisplay=()=>{if(!roomPin.trim())return alert('PIN gir'); connectWebsocket(roomPin,'DISPLAY');}; const startGame=async()=>{playTone(700,100,'triangle'); await fetch(`${API}/start-game/${roomPin}`);};
-  const nextQuestion=async()=>{await fetch(`${API}/next-question/${roomPin}`);};
+  const joinRoom=()=>{if(!roomPin.trim())return alert('PIN gir'); if(!name.trim())return alert('İsim gir'); connectWebsocket(roomPin,name);}; const connectDisplay=()=>{if(!roomPin.trim())return alert('PIN gir'); connectWebsocket(roomPin,'DISPLAY');}; 
+  const startGame=async()=>{playTone(700,100,'triangle'); await fetch(`${API}/start-game/${roomPin}`);};
+  const nextQuestion = async () => {
+  await nextQuestionRequest(roomPin);
+};
   const sendAnswer=(i)=>{if(!socket||answered||timeLeft<=0)return; socket.send(JSON.stringify({type:'answer',answer:i,timeLeft})); setAnswered(true);};
   useEffect(()=>{if(!joined||timeLeft<=0)return; const timer=setTimeout(()=>setTimeLeft(prev=>{if(prev<=6&&prev>1)playTone(520,80,'square'); return prev-1;}),1000); return()=>clearTimeout(timer);},[joined,timeLeft]);
 
