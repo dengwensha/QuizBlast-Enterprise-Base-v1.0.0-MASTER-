@@ -58,7 +58,15 @@ export default function App() {
   const resetGame=()=>{setJoined(false); setRoomPin(''); setName(''); setPlayerName(''); setPlayers([]); setQuestion(null); setQuestionImage(''); setOptions([]); setLeaderboard([]); setQuestionResult(null); setTimeLeft(0); setAnswered(false); setGameOver(false); setAnswerCount(0); setTotalPlayers(0); setCurrentQuestionIndex(0);};
   const logout=()=>{if(socket)socket.close(); localStorage.removeItem('quizblast_user'); setUser(null); setMode(null); setSocket(null); resetGame(); setQuizzes([]); setSelectedQuizId(''); setSelectedQuestions([]);};
   const leaveGame=()=>{if(socket)socket.close(); setSocket(null); resetGame(); setMode(null);};
-  const loadQuizzes=async()=>{const r=await fetch(`${API}/quizzes`,{headers:authHeaders(user)}); const d=await r.json(); const list=Array.isArray(d)?d:[]; setQuizzes(list); if(list.length>0&&!selectedQuizId)setSelectedQuizId(String(list[0].id));};
+const loadQuizzes = async () => {
+  const list = await fetchQuizzes(user);
+
+  setQuizzes(list);
+
+  if (list.length > 0 && !selectedQuizId) {
+    setSelectedQuizId(String(list[0].id));
+  }
+};
   const loadSelectedQuestions=async(id)=>{if(!id){setSelectedQuestions([]);return;} const r=await fetch(`${API}/quizzes/${id}/questions`,{headers:authHeaders(user)}); const d=await r.json(); setSelectedQuestions(Array.isArray(d)?d:[]);};
   useEffect(()=>{if((mode==='admin'||mode==='host')&&selectedQuizId)loadSelectedQuestions(selectedQuizId);},[mode,selectedQuizId]);
   const createQuiz=async()=>{if(!newQuizTitle.trim())return alert('Quiz adı gir.'); const r=await fetch(`${API}/quizzes`,{method:'POST',headers:jsonAuthHeaders(user),body:JSON.stringify({title:newQuizTitle})}); const d=await r.json(); if(d.error)return alert(d.error); setNewQuizTitle(''); setSelectedQuizId(String(d.id)); await loadQuizzes(); await loadSelectedQuestions(String(d.id));};
