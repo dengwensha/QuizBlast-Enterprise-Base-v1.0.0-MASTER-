@@ -67,10 +67,56 @@ const loadQuizzes = async () => {
     setSelectedQuizId(String(list[0].id));
   }
 };
-  const loadSelectedQuestions=async(id)=>{if(!id){setSelectedQuestions([]);return;} const r=await fetch(`${API}/quizzes/${id}/questions`,{headers:authHeaders(user)}); const d=await r.json(); setSelectedQuestions(Array.isArray(d)?d:[]);};
-  useEffect(()=>{if((mode==='admin'||mode==='host')&&selectedQuizId)loadSelectedQuestions(selectedQuizId);},[mode,selectedQuizId]);
-  const createQuiz=async()=>{if(!newQuizTitle.trim())return alert('Quiz adı gir.'); const r=await fetch(`${API}/quizzes`,{method:'POST',headers:jsonAuthHeaders(user),body:JSON.stringify({title:newQuizTitle})}); const d=await r.json(); if(d.error)return alert(d.error); setNewQuizTitle(''); setSelectedQuizId(String(d.id)); await loadQuizzes(); await loadSelectedQuestions(String(d.id));};
-  const deleteQuiz=async()=>{if(!selectedQuizId)return alert('Quiz seç.'); if(!confirm('Bu quiz ve tüm sorular silinsin mi?'))return; await fetch(`${API}/quizzes/${selectedQuizId}`,{method:'DELETE',headers:authHeaders(user)}); setSelectedQuizId(''); setSelectedQuestions([]); await loadQuizzes();};
+  const loadSelectedQuestions = async (id) => {
+    if (!id) {
+      setSelectedQuestions([]);
+      return;
+    }
+
+    const list = await fetchQuizQuestions(user, id);
+    setSelectedQuestions(list);
+  };
+
+  useEffect(() => {
+    if ((mode === "admin" || mode === "host") && selectedQuizId) {
+      loadSelectedQuestions(selectedQuizId);
+    }
+  }, [mode, selectedQuizId]);
+
+  const createQuiz = async () => {
+    if (!newQuizTitle.trim()) {
+      return alert("Quiz adı gir.");
+    }
+
+    const d = await createQuizRequest(user, newQuizTitle);
+
+    if (d.error) {
+      return alert(d.error);
+    }
+
+    setNewQuizTitle("");
+    setSelectedQuizId(String(d.id));
+
+    await loadQuizzes();
+    await loadSelectedQuestions(String(d.id));
+  };
+
+  const deleteQuiz = async () => {
+    if (!selectedQuizId) {
+      return alert("Quiz seç.");
+    }
+
+    if (!confirm("Bu quiz ve tüm sorular silinsin mi?")) {
+      return;
+    }
+
+    await deleteQuizRequest(user, selectedQuizId);
+
+    setSelectedQuizId("");
+    setSelectedQuestions([]);
+
+    await loadQuizzes();
+  };
 const addQuestion = async (
   q = newQuestion,
   img = newImageUrl,
