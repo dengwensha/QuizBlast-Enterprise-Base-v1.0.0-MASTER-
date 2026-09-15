@@ -36,6 +36,11 @@ import {
   nextQuestionRequest,
 } from "./services/gameService";
 
+import {
+  registerRequest,
+  loginRequest,
+} from "./services/authService";
+
 const isMobile = window.innerWidth < 700;
 
 export default function App() {
@@ -53,8 +58,8 @@ export default function App() {
   const visiblePlayers=players.filter(p=>p!=='HOST'&&p!=='DISPLAY'); const visibleLeaderboard=leaderboard.filter(p=>p[0]!=='HOST'&&p[0]!=='DISPLAY'); const podium=useMemo(()=>visibleLeaderboard.slice(0,3),[visibleLeaderboard]);
   const playTone=(f=600,d=120,t='sine')=>{try{const A=window.AudioContext||window.webkitAudioContext; const c=new A(); const o=c.createOscillator(); const g=c.createGain(); o.type=t; o.frequency.value=f; o.connect(g); g.connect(c.destination); g.gain.setValueAtTime(.08,c.currentTime); g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d/1000); o.start(); o.stop(c.currentTime+d/1000);}catch(e){}};
   const fireSmallConfetti=()=>confetti({particleCount:60,spread:70,origin:{y:.7}}); const fireBigConfetti=()=>{const end=Date.now()+3000; const i=setInterval(()=>{if(Date.now()>end){clearInterval(i);return;} confetti({particleCount:40,spread:120,startVelocity:40,origin:{x:Math.random(),y:Math.random()*.5}})},250)};
-  const register=async()=>{try{const r=await fetch(`${API}/auth/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:authEmail,password:authPassword})}); const d=await r.json(); if(d.error)return alert(d.error); alert('Kayıt başarılı.'); setAuthMode('login');}catch(err){console.error(err); alert('Backend bağlantısı kurulamadı. Mobilde bilgisayar IP adresiyle açtığından ve CORS ayarından emin ol.');}};
-  const login=async()=>{try{const r=await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:authEmail,password:authPassword})}); const d=await r.json(); if(d.error)return alert('Giriş başarısız'); const u={email:d.email,token:d.access_token}; localStorage.setItem('quizblast_user',JSON.stringify(u)); setUser(u);}catch(err){console.error(err); alert('Backend bağlantısı kurulamadı. Mobilde bilgisayar IP adresiyle açtığından ve CORS ayarından emin ol.');}};
+  const register=async()=>{try{const d=await registerRequest(authEmail,authPassword); if(d.error)return alert(d.error); alert('Kayıt başarılı.'); setAuthMode('login');}catch(err){console.error(err); alert('Backend bağlantısı kurulamadı. Mobilde bilgisayar IP adresiyle açtığından ve CORS ayarından emin ol.');}};
+  const login=async()=>{try{const d=await loginRequest(authEmail,authPassword); if(d.error)return alert('Giriş başarısız'); const u={email:d.email,token:d.access_token}; localStorage.setItem('quizblast_user',JSON.stringify(u)); setUser(u);}catch(err){console.error(err); alert('Backend bağlantısı kurulamadı. Mobilde bilgisayar IP adresiyle açtığından ve CORS ayarından emin ol.');}};
   const resetGame=()=>{setJoined(false); setRoomPin(''); setName(''); setPlayerName(''); setPlayers([]); setQuestion(null); setQuestionImage(''); setOptions([]); setLeaderboard([]); setQuestionResult(null); setTimeLeft(0); setAnswered(false); setGameOver(false); setAnswerCount(0); setTotalPlayers(0); setCurrentQuestionIndex(0);};
   const logout=()=>{if(socket)socket.close(); localStorage.removeItem('quizblast_user'); setUser(null); setMode(null); setSocket(null); resetGame(); setQuizzes([]); setSelectedQuizId(''); setSelectedQuestions([]);};
   const leaveGame=()=>{if(socket)socket.close(); setSocket(null); resetGame(); setMode(null);};
