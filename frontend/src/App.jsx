@@ -17,15 +17,7 @@ import {
   APP_URL,
 } from "./services/api";
 
-import {
-  fetchQuizzes,
-  fetchQuizQuestions,
-  createQuizRequest,
-  deleteQuizRequest,
-  addQuestionRequest,
-  deleteQuestionRequest,
-  updateQuestionRequest,
-} from "./services/quizService";
+import { useQuizState } from "./hooks/useQuizState";
 
 import {
   createRoomRequest,
@@ -60,7 +52,20 @@ export default function App() {
   const [players,setPlayers]=useState([]); const [question,setQuestion]=useState(null); const [questionImage,setQuestionImage]=useState(''); const [options,setOptions]=useState([]);
   const [leaderboard,setLeaderboard]=useState([]); const [currentQuestionIndex,setCurrentQuestionIndex]=useState(0); const [questionResult,setQuestionResult]=useState(null); const [timeLeft,setTimeLeft]=useState(0); const [answered,setAnswered]=useState(false);
   const [gameOver,setGameOver]=useState(false); const [answerCount,setAnswerCount]=useState(0); const [totalPlayers,setTotalPlayers]=useState(0);
-  const [quizzes,setQuizzes]=useState([]); const [selectedQuizId,setSelectedQuizId]=useState(''); const [selectedQuestions,setSelectedQuestions]=useState([]);
+  const {
+    quizzes,
+    selectedQuizId,
+    setSelectedQuizId,
+    selectedQuestions,
+    loadQuizzes,
+    loadSelectedQuestions,
+    createQuizRequestState,
+    deleteQuizRequestState,
+    addQuestionRequestState,
+    deleteQuestionRequestState,
+    updateQuestionRequestState,
+    clearQuizState,
+  } = useQuizState(user);
   const [newQuizTitle,setNewQuizTitle]=useState(''); const [newQuestion,setNewQuestion]=useState(''); const [newImageUrl,setNewImageUrl]=useState(''); const [newOptions,setNewOptions]=useState(['','','','']); const [newCorrect,setNewCorrect]=useState(0); const [newTime,setNewTime]=useState(15);
   const [finalLimit,setFinalLimit]=useState(3); const [aiPrompt,setAiPrompt]=useState(''); const [aiAudience,setAiAudience]=useState('Serbest'); const [aiCount,setAiCount]=useState(5); const [aiDifficulty,setAiDifficulty]=useState('Orta'); const [aiQuestionType,setAiQuestionType]=useState('Çoktan Seçmeli'); const [aiInstruction,setAiInstruction]=useState(''); const [aiPreviewQuestions,setAiPreviewQuestions]=useState([]); const [importPreview,setImportPreview]=useState(null); const [importing,setImporting]=useState(false); const [importSummary,setImportSummary]=useState(null);
   const optionColors=['#e21b3c','#1368ce','#d89e00','#26890c'];
@@ -68,27 +73,8 @@ export default function App() {
   const playTone=(f=600,d=120,t='sine')=>{try{const A=window.AudioContext||window.webkitAudioContext; const c=new A(); const o=c.createOscillator(); const g=c.createGain(); o.type=t; o.frequency.value=f; o.connect(g); g.connect(c.destination); g.gain.setValueAtTime(.08,c.currentTime); g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d/1000); o.start(); o.stop(c.currentTime+d/1000);}catch(e){}};
   const fireSmallConfetti=()=>confetti({particleCount:60,spread:70,origin:{y:.7}}); const fireBigConfetti=()=>{const end=Date.now()+3000; const i=setInterval(()=>{if(Date.now()>end){clearInterval(i);return;} confetti({particleCount:40,spread:120,startVelocity:40,origin:{x:Math.random(),y:Math.random()*.5}})},250)};
   const resetGame=()=>{setJoined(false); setRoomPin(''); setName(''); setPlayerName(''); setPlayers([]); setQuestion(null); setQuestionImage(''); setOptions([]); setLeaderboard([]); setQuestionResult(null); setTimeLeft(0); setAnswered(false); setGameOver(false); setAnswerCount(0); setTotalPlayers(0); setCurrentQuestionIndex(0);};
-  const logout=()=>{if(socket)socket.close(); clearAuth(); setMode(null); setSocket(null); resetGame(); setQuizzes([]); setSelectedQuizId(''); setSelectedQuestions([]);};
+  const logout=()=>{if(socket)socket.close(); clearAuth(); setMode(null); setSocket(null); resetGame(); clearQuizState();};
   const leaveGame=()=>{if(socket)socket.close(); setSocket(null); resetGame(); setMode(null);};
-const loadQuizzes = async () => {
-  const list = await fetchQuizzes(user);
-
-  setQuizzes(list);
-
-  if (list.length > 0 && !selectedQuizId) {
-    setSelectedQuizId(String(list[0].id));
-  }
-};
-  const loadSelectedQuestions = async (id) => {
-    if (!id) {
-      setSelectedQuestions([]);
-      return;
-    }
-
-    const list = await fetchQuizQuestions(user, id);
-    setSelectedQuestions(list);
-  };
-
   useEffect(() => {
     if ((mode === "admin" || mode === "host") && selectedQuizId) {
       loadSelectedQuestions(selectedQuizId);
@@ -100,17 +86,13 @@ const loadQuizzes = async () => {
       return alert("Quiz adı gir.");
     }
 
-    const d = await createQuizRequest(user, newQuizTitle);
+    const d = await createQuizRequestState(newQuizTitle);
 
     if (d.error) {
       return alert(d.error);
     }
 
     setNewQuizTitle("");
-    setSelectedQuizId(String(d.id));
-
-    await loadQuizzes();
-    await loadSelectedQuestions(String(d.id));
   };
 
   const deleteQuiz = async () => {
@@ -122,12 +104,7 @@ const loadQuizzes = async () => {
       return;
     }
 
-    await deleteQuizRequest(user, selectedQuizId);
-
-    setSelectedQuizId("");
-    setSelectedQuestions([]);
-
-    await loadQuizzes();
+    await deleteQuizRequestState();
   };
 const addQuestion = async (
   q = newQuestion,
@@ -141,7 +118,7 @@ const addQuestion = async (
   if (opts.some((o) => !String(o).trim()))
     return alert("4 seçeneği de doldur.");
 
-  const d = await addQuestionRequest(user, selectedQuizId, {
+  const d = await addQuestionRequestState({
     question: q,
     image_url: img,
     options: opts,
@@ -156,9 +133,6 @@ const addQuestion = async (
   setNewOptions(["", "", "", ""]);
   setNewCorrect(0);
   setNewTime(15);
-
-  await loadQuizzes();
-  await loadSelectedQuestions(selectedQuizId);
 };  const generateMockAiQuestions=()=>{if(!String(aiPrompt||'').trim())return alert('Konu / Prompt alanı boş olamaz.');const multipleChoiceTemplates=[{question:'What is the most important point about this topic?',options:['Basic rule','Wrong approach','Unrelated detail','No rule'],correct:0},{question:'Which option is the best practice?',options:['Ignore instructions','Follow the correct procedure','Guess quickly','Skip preparation'],correct:1},{question:'What should participants remember?',options:['The key rule','A random number','An unrelated name','Nothing'],correct:0},{question:'Which statement is correct?',options:['Preparation is important','Rules are unnecessary','Mistakes never happen','Training has no value'],correct:0},{question:'What is the best response in a risky situation?',options:['Stop and check','Continue without thinking','Ignore warnings','Hide the problem'],correct:0}];const trueFalseTemplates=[{question:'Following instructions is important for this topic.',options:['True','False','True and False','Not sure'],correct:0},{question:'Preparation is unnecessary for this topic.',options:['True','False','True and False','Not sure'],correct:1},{question:'Participants should understand the basic rules.',options:['True','False','True and False','Not sure'],correct:0}];const count=Math.min(Math.max(Number(aiCount)||1,1),20);const generated=[];for(let i=0;i<count;i++){let pool=multipleChoiceTemplates;if(aiQuestionType==='Doğru / Yanlış')pool=trueFalseTemplates;if(aiQuestionType==='Karışık')pool=i%2===0?multipleChoiceTemplates:trueFalseTemplates;const b=pool[i%pool.length];generated.push({question:b.question,image_url:'',options:b.options,correct:b.correct,time:Number(newTime||15)});}setAiPreviewQuestions(generated);alert(`${count} adet soru önizlemeye hazırlandı. Henüz quiz’e eklenmedi.`);};
   const addAiPreviewToQuiz=async()=>{if(!selectedQuizId)return alert('Önce quiz seç.');if(aiPreviewQuestions.length===0)return alert('Önce AI soruları oluştur.');for(const q of aiPreviewQuestions){await addQuestion(q.question,q.image_url,q.options,q.correct,q.time);}await loadQuizzes();await loadSelectedQuestions(selectedQuizId);setAiPreviewQuestions([]);alert('AI soruları quiz’e eklendi.');};
   const removeAiPreviewQuestion=(index)=>setAiPreviewQuestions(aiPreviewQuestions.filter((_,i)=>i!==index));
@@ -167,10 +141,7 @@ const addQuestion = async (
 const deleteQuestion = async (id) => {
   if (!confirm("Bu soru silinsin mi?")) return;
 
-  await deleteQuestionRequest(user, id);
-
-  await loadQuizzes();
-  await loadSelectedQuestions(selectedQuizId);
+  await deleteQuestionRequestState(id);
 };  
 const editQuestion = async (q) => {
   const question = prompt("Soru metni:", q.question);
@@ -201,12 +172,9 @@ const editQuestion = async (q) => {
     time: Number.isNaN(time) ? q.time || 15 : time,
   };
 
-  const d = await updateQuestionRequest(user, q.id, payload);
+  const d = await updateQuestionRequestState(q.id, payload);
 
   if (d.error) return alert(d.error);
-
-  await loadQuizzes();
-  await loadSelectedQuestions(selectedQuizId);
 };  const importExcel=async(e)=>{if(!selectedQuizId)return alert('Quiz seç'); const file=e.target.files[0]; if(!file)return; try{setImportSummary(null);setImportPreview(null);const d=await previewImportRequest(user,selectedQuizId,file); if(d.error){alert(d.message||d.error); e.target.value=''; return;} setImportPreview(d); const summary=d.preview_payload?.summary||{}; const issues=d.preview_payload?.issues||[]; const mappingErrors=d.mapping_errors||[]; let message='Excel ön izleme tamamlandı.\n\n'; message+=`Dosya: ${d.filename||file.name}\n`; message+=`Session: ${d.session_id||'-'}\n`; message+=`Toplam satır: ${summary.total_rows??0}\n`; message+=`Önizleme satırı: ${summary.preview_rows??0}\n`; message+=`Import edilebilir: ${summary.importable_rows??0}\n`; message+=`Bloklanan: ${summary.blocked_rows??0}\n`; message+=`Hata: ${summary.error_count??0}\n`; message+=`Uyarı: ${summary.warning_count??0}\n`; if(mappingErrors.length>0){message+='\nMapping hataları:\n'; mappingErrors.slice(0,8).forEach(err=>{message+=`Satır ${err.row_no}: ${err.message}\n`;}); if(mappingErrors.length>8)message+=`... ${mappingErrors.length-8} hata daha\n`;} if(issues.length>0){message+='\nValidation detayları:\n'; issues.slice(0,10).forEach(issue=>{message+=`Satır ${issue.row_no} | ${issue.severity} | ${issue.code}: ${issue.message}\n`;}); if(issues.length>10)message+=`... ${issues.length-10} detay daha\n`;} message+='\nUygunsa ekrandaki Import Et butonu ile veritabanına aktarabilirsin.'; alert(message); console.log('QBDS Preview Result',d); e.target.value='';}catch(err){console.error(err); alert('Excel ön izleme sırasında hata oluştu. Backend preview endpoint çalışıyor mu kontrol et.'); e.target.value='';}};
   const commitImport=async()=>{if(!selectedQuizId)return alert('Quiz seç');if(!importPreview)return alert('Önce Excel ön izleme yap.');const items=importPreview.importable_payloads||[];if(items.length===0)return alert('Import edilebilir soru yok.');if(!confirm(`${items.length} soru veritabanına aktarılsın mı?`))return;try{setImporting(true);const d=await commitImportRequest(user,selectedQuizId,{session_id:importPreview.session_id,filename:importPreview.filename,duplicate_policy:'skip',overwrite:false,items});setImportSummary(d);if(d.error){alert(d.message||d.error);return;}alert(`Import tamamlandı.\nAktarılan: ${d.imported}\nAtlanan: ${d.skipped}\nSession: ${d.session_id}`);setImportPreview(null);await loadQuizzes();await loadSelectedQuestions(selectedQuizId);}catch(err){console.error(err);alert('Import commit sırasında hata oluştu.');}finally{setImporting(false);}};
   const createRoom = async () => {
