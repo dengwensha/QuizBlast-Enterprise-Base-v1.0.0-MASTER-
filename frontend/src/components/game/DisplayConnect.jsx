@@ -1,3 +1,5 @@
+import React from "react";
+
 export default function DisplayConnect({ roomPin, setRoomPin, connectDisplay, setMode, styles }) {
   return (
     <div style={styles.splash}>

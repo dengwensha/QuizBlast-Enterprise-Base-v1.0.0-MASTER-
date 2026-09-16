@@ -1,3 +1,5 @@
+import React from "react";
+
 export default function LeaderboardBoard({ visibleLeaderboard, live = false, styles }) {
   return (
     <div style={live ? styles.liveBoard : styles.board}>

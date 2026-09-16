@@ -1,4 +1,7 @@
+import React from "react";
+
 import ResultReveal from "./ResultReveal";
+
 import LeaderboardBoard from "./LeaderboardBoard";
 
 export default function HostLiveStage({
