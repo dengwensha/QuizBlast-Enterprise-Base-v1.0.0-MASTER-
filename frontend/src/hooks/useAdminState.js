@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 function useAdminState({
   selectedQuizId,
   createQuizRequestState,
@@ -22,6 +22,7 @@ function useAdminState({
   const [aiQuestionType, setAiQuestionType] = useState("Çoktan Seçmeli");
   const [aiInstruction, setAiInstruction] = useState("");
   const [aiPreviewQuestions, setAiPreviewQuestions] = useState([]);
+  const aiAddInProgressRef = useRef(false);
   const createQuiz = async () => {
     if (!newQuizTitle.trim()) {
       return alert("Quiz adı gir.");
@@ -79,13 +80,52 @@ function useAdminState({
   const addAiPreviewToQuiz = async () => {
     if (!selectedQuizId) return alert("Önce quiz seç.");
     if (aiPreviewQuestions.length === 0) return alert("Önce AI soruları oluştur.");
-    for (const q of aiPreviewQuestions) {
-      await addQuestion(q.question, q.image_url, q.options, q.correct, q.time);
+    if (aiAddInProgressRef.current) return;
+
+    aiAddInProgressRef.current = true;
+    const previewAtStart = [...aiPreviewQuestions];
+    const failedQuestions = [];
+    let importedCount = 0;
+
+    try {
+      for (const q of previewAtStart) {
+        try {
+          const d = await addQuestionRequestState({
+            question: q.question,
+            image_url: q.image_url || "",
+            options: q.options,
+            correct: q.correct,
+            time: q.time
+          });
+
+          if (d?.error) {
+            failedQuestions.push({ ...q, error: d.error });
+          } else {
+            importedCount += 1;
+          }
+        } catch (error) {
+          console.error(error);
+          failedQuestions.push({ ...q, error: "request_failed" });
+        }
+      }
+
+      if (importedCount > 0) {
+        await loadQuizzes();
+        await loadSelectedQuestions(selectedQuizId);
+      }
+
+      setAiPreviewQuestions(failedQuestions);
+
+      if (failedQuestions.length === 0) {
+        alert(`${importedCount} AI sorusu quiz’e eklendi.`);
+      } else if (importedCount === 0) {
+        alert("AI soruları eklenemedi. Önizleme korunuyor; tekrar deneyebilirsin.");
+      } else {
+        alert(`${importedCount} soru eklendi, ${failedQuestions.length} soru eklenemedi. Başarısız sorular önizlemede tutuldu.`);
+      }
+    } finally {
+      aiAddInProgressRef.current = false;
     }
-    await loadQuizzes();
-    await loadSelectedQuestions(selectedQuizId);
-    setAiPreviewQuestions([]);
-    alert("AI soruları quiz’e eklendi.");
   };
   const removeAiPreviewQuestion = (index) => setAiPreviewQuestions(aiPreviewQuestions.filter((_, i) => i !== index));
   const editAiPreviewQuestion = (index) => {
