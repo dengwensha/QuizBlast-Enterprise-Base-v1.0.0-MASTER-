@@ -112,6 +112,7 @@ export default function App() {
     },
   });
   const admin = useAdminState({
+    user,
     selectedQuizId,
     createQuizRequestState,
     deleteQuizRequestState,

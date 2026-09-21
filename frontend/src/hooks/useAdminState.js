@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 function useAdminState({
+  user,
   selectedQuizId,
   createQuizRequestState,
   deleteQuizRequestState,
@@ -23,6 +24,23 @@ function useAdminState({
   const [aiInstruction, setAiInstruction] = useState("");
   const [aiPreviewQuestions, setAiPreviewQuestions] = useState([]);
   const aiAddInProgressRef = useRef(false);
+
+  useLayoutEffect(() => {
+    setNewQuizTitle("");
+    setNewQuestion("");
+    setNewImageUrl("");
+    setNewOptions(["", "", "", ""]);
+    setNewCorrect(0);
+    setNewTime(15);
+    setAiPrompt("");
+    setAiAudience("Serbest");
+    setAiCount(5);
+    setAiDifficulty("Orta");
+    setAiQuestionType("Çoktan Seçmeli");
+    setAiInstruction("");
+    setAiPreviewQuestions([]);
+    aiAddInProgressRef.current = false;
+  }, [user?.email, user?.token]);
   const createQuiz = async () => {
     if (!newQuizTitle.trim()) {
       return alert("Quiz adı gir.");
