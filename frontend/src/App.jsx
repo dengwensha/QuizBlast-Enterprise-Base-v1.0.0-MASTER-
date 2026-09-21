@@ -1,11 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import * as XLSX from "xlsx";
 import { QRCodeCanvas } from "qrcode.react";
 import confetti from "canvas-confetti";
 
 import AdminView from "./components/admin/AdminView.jsx";
-import LeaderboardBoard from "./components/game/LeaderboardBoard";
-import ResultReveal from "./components/game/ResultReveal";
 import GameOver from "./components/game/GameOver";
 import DisplayConnect from "./components/game/DisplayConnect";
 import JoinScreen from "./components/game/JoinScreen";
