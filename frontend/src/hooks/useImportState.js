@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   previewImportRequest,
   commitImportRequest
@@ -9,25 +9,62 @@ function useImportState({ user, selectedQuizId, onImportCommitted }) {
   const [importing, setImporting] = useState(false);
   const [importSummary, setImportSummary] = useState(null);
 
+  const contextRef = useRef(null);
+  const email = user?.email;
+  const token = user?.token;
+  const quizId = String(selectedQuizId || "");
+
+  // Each committed context gets a new identity, including A -> B -> A.
+  // Layout cleanup invalidates requests before the next user interaction.
+  useLayoutEffect(() => {
+    const context = { email, token, quizId, previewRequest: 0, preview: null, committing: false };
+    contextRef.current = context;
+    setImportPreview(null);
+    setImportSummary(null);
+    setImporting(false);
+    return () => {
+      if (contextRef.current === context) contextRef.current = null;
+    };
+  }, [email, token, quizId]);
+
+  const currentContext = () => {
+    const context = contextRef.current;
+    return context && context.email === email && context.token === token &&
+      context.quizId === quizId ? context : null;
+  };
+
   const importExcel = async (e) => {
     if (!selectedQuizId) return alert("Quiz seç");
 
-    const file = e.target.files[0];
+    const input = e.target;
+    const file = input.files[0];
+    input.value = "";
     if (!file) return;
+    const context = currentContext();
+    if (!context || !token || context.committing) return;
+    context.preview = null;
+    const request = ++context.previewRequest;
+    const isCurrent = () => contextRef.current === context &&
+      context.previewRequest === request;
 
     try {
       setImportSummary(null);
       setImportPreview(null);
 
-      const d = await previewImportRequest(user, selectedQuizId, file);
-
+      const d = await previewImportRequest(user, context.quizId, file);
+      if (!isCurrent()) return;
       if (d.error) {
         alert(d.message || d.error);
-        e.target.value = "";
+        return;
+      }
+      if (String(d.quiz_id) !== context.quizId) {
+        alert("Önizleme quiz bilgisi eşleşmiyor. Dosyayı yeniden seç.");
         return;
       }
 
-      setImportPreview(d);
+      const preview = { data: d, context };
+      context.preview = preview;
+      setImportPreview(preview);
 
       const summary = d.preview_payload?.summary || {};
       const issues = d.preview_payload?.issues || [];
@@ -72,21 +109,30 @@ function useImportState({ user, selectedQuizId, onImportCommitted }) {
 
       alert(message);
       console.log("QBDS Preview Result", d);
-      e.target.value = "";
     } catch (err) {
+      if (!isCurrent()) return;
       console.error(err);
       alert(
         "Excel ön izleme sırasında hata oluştu. Backend preview endpoint çalışıyor mu kontrol et."
       );
-      e.target.value = "";
     }
   };
 
   const commitImport = async () => {
     if (!selectedQuizId) return alert("Quiz seç");
-    if (!importPreview) return alert("Önce Excel ön izleme yap.");
-
-    const items = importPreview.importable_payloads || [];
+    const context = currentContext();
+    if (!context || !token || context.committing) return;
+    if (!importPreview || importPreview.context !== context ||
+        context.preview !== importPreview) {
+      return alert("Önce Excel ön izleme yap.");
+    }
+    const preview = importPreview.data;
+    if (String(preview.quiz_id) !== context.quizId) {
+      setImportPreview(null);
+      return alert("Quiz değişti. Excel ön izlemesini yeniden yap.");
+    }
+    const isCurrent = () => contextRef.current === context;
+    const items = preview.importable_payloads || [];
 
     if (items.length === 0) {
       return alert("Import edilebilir soru yok.");
@@ -96,17 +142,21 @@ function useImportState({ user, selectedQuizId, onImportCommitted }) {
       return;
     }
 
+    if (!isCurrent()) return;
+    context.committing = true;
+    ++context.previewRequest;
     try {
       setImporting(true);
 
-      const d = await commitImportRequest(user, selectedQuizId, {
-        session_id: importPreview.session_id,
-        filename: importPreview.filename,
+      const d = await commitImportRequest(user, context.quizId, {
+        session_id: preview.session_id,
+        filename: preview.filename,
         duplicate_policy: "skip",
         overwrite: false,
         items
       });
 
+      if (!isCurrent()) return;
       setImportSummary(d);
 
       if (d.error) {
@@ -118,18 +168,21 @@ function useImportState({ user, selectedQuizId, onImportCommitted }) {
         `Import tamamlandı.\nAktarılan: ${d.imported}\nAtlanan: ${d.skipped}\nSession: ${d.session_id}`
       );
 
+      context.preview = null;
       setImportPreview(null);
-      await onImportCommitted(selectedQuizId);
+      await onImportCommitted(context.quizId);
     } catch (err) {
+      if (!isCurrent()) return;
       console.error(err);
       alert("Import commit sırasında hata oluştu.");
     } finally {
-      setImporting(false);
+      context.committing = false;
+      if (isCurrent()) setImporting(false);
     }
   };
 
   return {
-    importPreview,
+    importPreview: importPreview?.data || null,
     importing,
     importSummary,
     importExcel,
