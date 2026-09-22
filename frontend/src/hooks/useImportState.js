@@ -62,7 +62,7 @@ function useImportState({ user, selectedQuizId, onImportCommitted }) {
         return;
       }
 
-      const preview = { data: d, context };
+      const preview = { data: d, context, file };
       context.preview = preview;
       setImportPreview(preview);
 
@@ -133,8 +133,9 @@ function useImportState({ user, selectedQuizId, onImportCommitted }) {
     }
     const isCurrent = () => contextRef.current === context;
     const items = preview.importable_payloads || [];
+    const file = importPreview.file;
 
-    if (items.length === 0) {
+    if (items.length === 0 || !file) {
       return alert("Import edilebilir soru yok.");
     }
 
@@ -148,13 +149,7 @@ function useImportState({ user, selectedQuizId, onImportCommitted }) {
     try {
       setImporting(true);
 
-      const d = await commitImportRequest(user, context.quizId, {
-        session_id: preview.session_id,
-        filename: preview.filename,
-        duplicate_policy: "skip",
-        overwrite: false,
-        items
-      });
+      const d = await commitImportRequest(user, context.quizId, file);
 
       if (!isCurrent()) return;
       setImportSummary(d);

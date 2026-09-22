@@ -1,8 +1,23 @@
 import {
   API,
   authHeaders,
-  jsonAuthHeaders,
 } from "./api";
+
+async function readImportResponse(response) {
+  const data = await response.json();
+
+  if (!response.ok) {
+    const detail = data.detail || data.error || `http_${response.status}`;
+
+    return {
+      ...data,
+      error: data.error || detail,
+      message: data.message || detail,
+    };
+  }
+
+  return data;
+}
 
 export async function previewImportRequest(user, quizId, file) {
   const formData = new FormData();
@@ -14,15 +29,18 @@ export async function previewImportRequest(user, quizId, file) {
     body: formData,
   });
 
-  return response.json();
+  return readImportResponse(response);
 }
 
-export async function commitImportRequest(user, quizId, payload) {
+export async function commitImportRequest(user, quizId, file) {
+  const formData = new FormData();
+  formData.append("file", file);
+
   const response = await fetch(`${API}/quizzes/${quizId}/import/commit`, {
     method: "POST",
-    headers: jsonAuthHeaders(user),
-    body: JSON.stringify(payload),
+    headers: authHeaders(user),
+    body: formData,
   });
 
-  return response.json();
+  return readImportResponse(response);
 }

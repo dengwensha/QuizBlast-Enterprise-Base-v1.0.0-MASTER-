@@ -97,20 +97,6 @@ class QuestionCreate(BaseModel):
 class UserRegister(BaseModel): email: str; password: str
 class UserLogin(BaseModel): email: str; password: str
 
-class ImportCommitItem(BaseModel):
-    question: str
-    options: list[str]
-    correct: int
-    time: int = 15
-    image_url: str | None = None
-
-class ImportCommitRequest(BaseModel):
-    session_id: str | None = None
-    filename: str | None = None
-    duplicate_policy: str = 'skip'
-    overwrite: bool = False
-    items: list[ImportCommitItem]
-
 pwd_context=CryptContext(schemes=['bcrypt'], deprecated='auto')
 
 @contextmanager
@@ -440,42 +426,76 @@ async def preview_quiz_import(
 
 
 @app.post('/quizzes/{quiz_id}/import/commit')
-def commit_quiz_import(
+async def commit_quiz_import(
     quiz_id: int,
-    data: ImportCommitRequest,
+    file: UploadFile = File(...),
     authorization: str | None = Header(default=None)
 ):
     """
-    Sprint 2.3.2B Enterprise Import Commit Endpoint.
+    SR-03 hardened Enterprise Import Commit Endpoint.
 
-    Commits preview-approved importable rows to database in one transaction.
-    Initial implementation receives importable payloads from the frontend preview state.
+    Re-reads the uploaded workbook and re-runs the canonical mapping and
+    validation pipeline before committing server-approved rows in one
+    transaction. No preview payload supplied by the client is trusted.
     """
-    email = get_current_email(authorization)
+    email = require_authenticated_email(
+        authorization,
+        SECRET_KEY,
+        ALGORITHM,
+    )
+    filename = file.filename or ''
 
-    if not email:
-        return {'error': 'unauthorized'}
+    if not filename.lower().endswith(('.xlsx', '.xlsm')):
+        raise HTTPException(
+            status_code=415,
+            detail='invalid_import_file_type',
+        )
 
-    session_id = data.session_id or generate_import_session_id()
+    content = await file.read()
+
+    try:
+        raw_rows = read_excel_rows_from_bytes(content)
+        pipeline_result = run_qbds_import_pipeline(
+            raw_rows,
+            first_data_row_no=2,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail='invalid_import_file',
+        ) from exc
+
+    items = pipeline_result.importable_payloads
+    preview_summary = (
+        pipeline_result.preview_payload or {}
+    ).get('summary', {})
+    blocked_rows = int(preview_summary.get('blocked_rows', 0) or 0)
+    mapping_errors = len(pipeline_result.mapping_errors)
+    failed = blocked_rows + mapping_errors
+    validation_warnings = int(
+        preview_summary.get('warning_count', 0) or 0
+    )
+
+    if not items:
+        raise HTTPException(
+            status_code=422,
+            detail='no_importable_rows',
+        )
+
+    session_id = generate_import_session_id()
     started_at = time.time()
-
-    if not data.items:
-        return {
-            'error': 'empty_import',
-            'message': 'Import edilecek soru bulunamadı.',
-            'session_id': session_id
-        }
-
     imported = 0
     skipped = 0
-    failed = 0
 
     try:
         with db_session() as db:
             quiz = db.query(Quiz).filter(Quiz.id == quiz_id, Quiz.owner_email == email).first()
 
             if not quiz:
-                return {'error': 'quiz_not_found'}
+                raise HTTPException(
+                    status_code=404,
+                    detail='quiz_not_found',
+                )
 
             existing_texts = {
                 normalize_question_text(q.question)
@@ -485,36 +505,32 @@ def commit_quiz_import(
 
             history = ImportHistory(
                 session_id=session_id,
-                filename=data.filename,
+                filename=filename,
                 owner_email=email,
                 quiz_id=quiz_id,
-                total_rows=len(data.items),
+                total_rows=len(raw_rows),
                 status='RUNNING'
             )
             db.add(history)
 
-            for item in data.items:
-                if len(item.options) != 4:
-                    failed += 1
-                    raise ValueError('Her soru 4 seçenek içermelidir.')
-
-                normalized = normalize_question_text(item.question)
+            for item in items:
+                normalized = normalize_question_text(item['question'])
                 is_duplicate = normalized in existing_texts or normalized in batch_texts
 
-                if is_duplicate and data.duplicate_policy == 'skip' and not data.overwrite:
+                if is_duplicate:
                     skipped += 1
                     continue
 
                 q = Question(
                     quiz_id=quiz_id,
-                    question=item.question,
-                    image_url=item.image_url,
-                    option1=item.options[0],
-                    option2=item.options[1],
-                    option3=item.options[2],
-                    option4=item.options[3],
-                    correct=item.correct,
-                    time=item.time
+                    question=item['question'],
+                    image_url=item.get('image_url'),
+                    option1=item['options'][0],
+                    option2=item['options'][1],
+                    option3=item['options'][2],
+                    option4=item['options'][3],
+                    correct=item['correct'],
+                    time=item['time']
                 )
                 db.add(q)
                 imported += 1
@@ -522,7 +538,7 @@ def commit_quiz_import(
 
             history.imported_rows = imported
             history.skipped_rows = skipped
-            history.warning_rows = skipped
+            history.warning_rows = validation_warnings + skipped
             history.error_rows = failed
             history.status = 'SUCCESS'
             history.message = 'Import commit tamamlandı.'
@@ -534,25 +550,27 @@ def commit_quiz_import(
             'session_id': session_id,
             'imported': imported,
             'skipped': skipped,
-            'warnings': skipped,
+            'warnings': validation_warnings + skipped,
             'failed': failed,
             'duration': f'{duration}s'
         }
 
+    except HTTPException:
+        raise
     except Exception as exc:
         # Main transaction is rolled back by SQLAlchemy if commit is not reached.
         try:
             with db_session() as db:
                 failed_history = ImportHistory(
                     session_id=session_id,
-                    filename=data.filename,
+                    filename=filename,
                     owner_email=email,
                     quiz_id=quiz_id,
-                    total_rows=len(data.items),
+                    total_rows=len(raw_rows),
                     imported_rows=0,
                     skipped_rows=0,
                     warning_rows=0,
-                    error_rows=len(data.items),
+                    error_rows=len(raw_rows),
                     status='FAILED',
                     message=str(exc)
                 )
@@ -567,7 +585,7 @@ def commit_quiz_import(
             'session_id': session_id,
             'imported': 0,
             'skipped': 0,
-            'failed': len(data.items)
+            'failed': len(raw_rows)
         }
 
 @app.get('/imports/history')
