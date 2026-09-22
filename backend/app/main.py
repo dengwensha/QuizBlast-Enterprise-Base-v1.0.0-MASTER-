@@ -1,5 +1,5 @@
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, UploadFile, File, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime
@@ -16,13 +16,25 @@ from app.services.host_authorization import (
     require_room_host,
 )
 
+from app.services.http_perimeter import (
+    CORS_HEADERS,
+    CORS_METHODS,
+    SlidingWindowRateLimiter,
+    parse_allowed_origins,
+    read_positive_int,
+)
+
 DATABASE_URL=os.getenv('DATABASE_URL','postgresql://quizblast:quizblast@postgres:5432/quizblast')
 SECRET_KEY=os.getenv('SECRET_KEY')
 if not SECRET_KEY:
     raise RuntimeError('SECRET_KEY env var not set')
 ALGORITHM='HS256'
 ACCESS_TOKEN_EXPIRE_MINUTES=60*24
-CORS_ORIGINS=[o.strip() for o in os.getenv('CORS_ORIGINS','http://localhost:5173').split(',') if o.strip()]
+CORS_ORIGINS=parse_allowed_origins(os.getenv('CORS_ORIGINS','http://localhost:5173'))
+AUTH_RATE_LIMIT_WINDOW_SECONDS=read_positive_int(os.getenv('AUTH_RATE_LIMIT_WINDOW_SECONDS','60'),'AUTH_RATE_LIMIT_WINDOW_SECONDS')
+AUTH_LOGIN_RATE_LIMIT=read_positive_int(os.getenv('AUTH_LOGIN_RATE_LIMIT','5'),'AUTH_LOGIN_RATE_LIMIT')
+AUTH_REGISTER_RATE_LIMIT=read_positive_int(os.getenv('AUTH_REGISTER_RATE_LIMIT','3'),'AUTH_REGISTER_RATE_LIMIT')
+auth_rate_limiter=SlidingWindowRateLimiter(AUTH_RATE_LIMIT_WINDOW_SECONDS)
 
 engine=create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal=sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -83,7 +95,13 @@ while not connected:
         time.sleep(2)
 
 app=FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_origin_regex=os.getenv('CORS_ORIGIN_REGEX','http://.*:5173'), allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(CORS_ORIGINS),
+    allow_credentials=False,
+    allow_methods=list(CORS_METHODS),
+    allow_headers=list(CORS_HEADERS),
+)
 
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
 
@@ -153,7 +171,12 @@ def visible_player_count(room_pin):
 def root(): return {'status':'running'}
 
 @app.post('/auth/register')
-def register_user(data: UserRegister):
+def register_user(data: UserRegister, request: Request):
+    client_host=request.client.host if request.client else 'unknown'
+    auth_rate_limiter.enforce(
+        f'{client_host}:/auth/register',
+        AUTH_REGISTER_RATE_LIMIT,
+    )
     with db_session() as db:
         existing=db.query(User).filter(User.email==data.email).first()
         if existing: return {'error':'user_already_exists'}
@@ -162,7 +185,12 @@ def register_user(data: UserRegister):
         return {'status':'registered','user_id':user.id,'email':user.email}
 
 @app.post('/auth/login')
-def login_user(data: UserLogin):
+def login_user(data: UserLogin, request: Request):
+    client_host=request.client.host if request.client else 'unknown'
+    auth_rate_limiter.enforce(
+        f'{client_host}:/auth/login',
+        AUTH_LOGIN_RATE_LIMIT,
+    )
     with db_session() as db:
         user=db.query(User).filter(User.email==data.email).first()
         if not user or not verify_password(data.password, user.password_hash):
