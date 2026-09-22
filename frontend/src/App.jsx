@@ -133,7 +133,10 @@ export default function App() {
   const createRoom = async () => {
   if (!selectedQuizId) return alert("Quiz seç");
 
-  const d = await createRoomRequest(selectedQuizId);
+  const d = await createRoomRequest(
+    selectedQuizId,
+    user.token
+  );
 
   if (d.error) return alert(d.error);
 
@@ -141,9 +144,27 @@ export default function App() {
   connectWebsocket(d.room_pin, "HOST");
 };
   const joinRoom=()=>{if(!roomPin.trim())return alert('PIN gir'); if(!name.trim())return alert('İsim gir'); connectWebsocket(roomPin,name);}; const connectDisplay=()=>{if(!roomPin.trim())return alert('PIN gir'); connectWebsocket(roomPin,'DISPLAY');};
-  const startGame=async()=>{playTone(700,100,'triangle'); await startGameRequest(roomPin);};
+  const startGame = async () => {
+    playTone(700, 100, 'triangle');
+
+    const result = await startGameRequest(
+      roomPin,
+      user.token
+    );
+
+    if (result.error) {
+      alert(result.error);
+    }
+  };
   const nextQuestion = async () => {
-  await nextQuestionRequest(roomPin);
+  const result = await nextQuestionRequest(
+    roomPin,
+    user.token
+  );
+
+  if (result.error) {
+    alert(result.error);
+  }
 };
 
   if(!user) return <div style={styles.splash}><div style={styles.joinCard}><h1>QuizBlast 🚀</h1><h2>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</h2><input placeholder="E-posta" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={styles.input}/><input placeholder="Şifre" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={styles.input}/><button onClick={authMode==='login'?login:register} style={styles.joinButton}>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</button><button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} style={{...styles.joinButton,marginTop:10,background:'#333'}}>{authMode==='login'?'Hesap oluştur':'Giriş ekranına dön'}</button></div></div>;

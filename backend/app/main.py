@@ -11,6 +11,10 @@ from contextlib import contextmanager
 import os, random, asyncio, time, uuid
 from app.services.excel_reader import read_excel_rows_from_bytes
 from app.services.import_pipeline import run_qbds_import_pipeline, build_pipeline_user_message
+from app.services.host_authorization import (
+    require_authenticated_email,
+    require_room_host,
+)
 
 DATABASE_URL=os.getenv('DATABASE_URL','postgresql://quizblast:quizblast@postgres:5432/quizblast')
 SECRET_KEY=os.getenv('SECRET_KEY')
@@ -81,7 +85,7 @@ while not connected:
 app=FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_origin_regex=os.getenv('CORS_ORIGIN_REGEX','http://.*:5173'), allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
 
-rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
+rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
 
 class QuizCreate(BaseModel): title: str
 class QuestionCreate(BaseModel):
@@ -259,37 +263,124 @@ def update_question(question_id:int, data: QuestionCreate, authorization: str | 
         db.commit()
         return {'status':'question_updated'}
 
-@app.get('/create-room/{quiz_id}')
-def create_room(quiz_id:int):
+@app.post('/create-room/{quiz_id}')
+def create_room(
+    quiz_id: int,
+    authorization: str | None = Header(default=None),
+):
+    email = require_authenticated_email(
+        authorization,
+        SECRET_KEY,
+        ALGORITHM,
+    )
+
     with db_session() as db:
-        quiz=db.query(Quiz).filter(Quiz.id==quiz_id).first()
-        if not quiz: return {'error':'quiz_not_found'}
-    pin=generate_pin()
-    rooms[pin]=[]; scores[pin]={}; current_question_index[pin]=0; answered_players[pin]=set()
-    room_quiz_map[pin]=quiz_id; answer_stats_map[pin]=[0,0,0,0]; waiting_next_question[pin]=False; question_start_time[pin]=None
-    return {'room_pin':pin,'quiz_id':quiz_id}
+        quiz = db.query(Quiz).filter(
+            Quiz.id == quiz_id,
+            Quiz.owner_email == email,
+        ).first()
 
-@app.get('/start-game/{room_pin}')
-async def start_game(room_pin:str):
-    if room_pin not in rooms: return {'error':'room_not_found'}
-    if visible_player_count(room_pin)==0: return {'error':'no_players'}
-    current_question_index[room_pin]=0; answered_players[room_pin]=set(); answer_stats_map[room_pin]=[0,0,0,0]
-    waiting_next_question[room_pin]=False; question_start_time[room_pin]=None
-    old_task=game_tasks.get(room_pin)
-    if old_task and not old_task.done(): old_task.cancel()
-    game_tasks[room_pin]=asyncio.create_task(game_loop(room_pin))
-    return {'status':'started'}
+        if not quiz:
+            raise HTTPException(
+                status_code=404,
+                detail='quiz_not_found',
+            )
 
-@app.get('/next-question/{room_pin}')
-async def next_question(room_pin:str):
-    if room_pin not in rooms: return {'error':'room_not_found'}
-    questions=get_room_questions(room_pin)
-    current_question_index[room_pin]=current_question_index.get(room_pin,0)+1
-    waiting_next_question[room_pin]=False
-    if current_question_index[room_pin]>=len(questions):
-        await safe_broadcast_json(room_pin, {'type':'game_over'})
-        return {'status':'game_over'}
-    return {'status':'ok','question_index':current_question_index[room_pin]}
+    pin = generate_pin()
+
+    while pin in rooms:
+        pin = generate_pin()
+
+    rooms[pin] = []
+    scores[pin] = {}
+    current_question_index[pin] = 0
+    answered_players[pin] = set()
+    room_quiz_map[pin] = quiz_id
+    room_host_map[pin] = email
+    answer_stats_map[pin] = [0, 0, 0, 0]
+    waiting_next_question[pin] = False
+    question_start_time[pin] = None
+
+    return {
+        'room_pin': pin,
+        'quiz_id': quiz_id,
+    }
+
+
+@app.post('/start-game/{room_pin}')
+async def start_game(
+    room_pin: str,
+    authorization: str | None = Header(default=None),
+):
+    email = require_authenticated_email(
+        authorization,
+        SECRET_KEY,
+        ALGORITHM,
+    )
+
+    require_room_host(
+        room_pin,
+        email,
+        rooms,
+        room_host_map,
+    )
+
+    if visible_player_count(room_pin) == 0:
+        return {'error': 'no_players'}
+
+    current_question_index[room_pin] = 0
+    answered_players[room_pin] = set()
+    answer_stats_map[room_pin] = [0, 0, 0, 0]
+    waiting_next_question[room_pin] = False
+    question_start_time[room_pin] = None
+
+    old_task = game_tasks.get(room_pin)
+
+    if old_task and not old_task.done():
+        old_task.cancel()
+
+    game_tasks[room_pin] = asyncio.create_task(
+        game_loop(room_pin)
+    )
+
+    return {'status': 'started'}
+
+
+@app.post('/next-question/{room_pin}')
+async def next_question(
+    room_pin: str,
+    authorization: str | None = Header(default=None),
+):
+    email = require_authenticated_email(
+        authorization,
+        SECRET_KEY,
+        ALGORITHM,
+    )
+
+    require_room_host(
+        room_pin,
+        email,
+        rooms,
+        room_host_map,
+    )
+
+    questions = get_room_questions(room_pin)
+    current_question_index[room_pin] = (
+        current_question_index.get(room_pin, 0) + 1
+    )
+    waiting_next_question[room_pin] = False
+
+    if current_question_index[room_pin] >= len(questions):
+        await safe_broadcast_json(
+            room_pin,
+            {'type': 'game_over'},
+        )
+        return {'status': 'game_over'}
+
+    return {
+        'status': 'ok',
+        'question_index': current_question_index[room_pin],
+    }
 
 
 @app.post('/quizzes/{quiz_id}/import/preview')
