@@ -131,6 +131,11 @@ jobs:
           docker compose logs backend
           exit 1
 
+      - name: Verify host player display game flow
+        run: |
+          docker compose exec -T backend \
+            python -m app.tests.test_game_flow_manual
+
       - name: Verify frontend static serving and SPA fallback
         shell: bash
         run: |
