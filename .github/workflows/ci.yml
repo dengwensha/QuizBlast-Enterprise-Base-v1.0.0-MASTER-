@@ -1,0 +1,147 @@
+name: Production Build Verification
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      SECRET_KEY: ci-only-secret-not-for-production
+      CORS_ORIGINS: http://localhost:5173
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Validate pinned Python dependencies
+        shell: bash
+        run: |
+          invalid=0
+
+          while IFS= read -r requirement; do
+            case "$requirement" in
+              ""|\#*)
+                continue
+                ;;
+            esac
+
+            if [[ "$requirement" != *"=="* ]]; then
+              echo "Unpinned requirement: $requirement"
+              invalid=1
+            fi
+          done < backend/requirements.txt
+
+          if [[ "$invalid" -ne 0 ]]; then
+            exit 1
+          fi
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+      - name: Build production images
+        run: docker compose build --pull backend frontend
+
+      - name: Start infrastructure
+        run: docker compose up -d postgres redis
+
+      - name: Wait for PostgreSQL
+        shell: bash
+        run: |
+          for attempt in $(seq 1 30); do
+            if docker compose exec -T postgres \
+              pg_isready -U quizblast -d quizblast; then
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          docker compose logs postgres
+          exit 1
+
+      - name: Wait for Redis
+        shell: bash
+        run: |
+          for attempt in $(seq 1 30); do
+            if docker compose exec -T redis redis-cli ping |
+              grep -q "PONG"; then
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          docker compose logs redis
+          exit 1
+
+      - name: Run backend regression modules
+        shell: bash
+        run: |
+          modules=(
+            app.tests.test_duplicate_detector_manual
+            app.tests.test_host_authorization_manual
+            app.tests.test_http_perimeter_manual
+            app.tests.test_import_commit_trust_boundary_manual
+            app.tests.test_import_pipeline_manual
+            app.tests.test_import_preview_manual
+            app.tests.test_import_report_manual
+            app.tests.test_qbds_mapper_manual
+            app.tests.test_validation_engine_manual
+          )
+
+          for module in "${modules[@]}"; do
+            echo "RUN — $module"
+
+            docker compose run --rm --no-deps backend \
+              python -m "$module"
+          done
+
+      - name: Start production application
+        run: docker compose up -d backend frontend
+
+      - name: Verify frontend static serving and SPA fallback
+        shell: bash
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error \
+              http://localhost:5173/ \
+              --output /tmp/quizblast-index.html; then
+              break
+            fi
+
+            if [[ "$attempt" -eq 30 ]]; then
+              docker compose logs frontend
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          grep -q '<div id="root"></div>' \
+            /tmp/quizblast-index.html
+
+          curl --fail --silent --show-error \
+            http://localhost:5173/host/deep-link-check \
+            --output /tmp/quizblast-deep-link.html
+
+          cmp --silent \
+            /tmp/quizblast-index.html \
+            /tmp/quizblast-deep-link.html
+
+      - name: Show final service state
+        run: docker compose ps
+
+      - name: Clean up containers and volumes
+        if: always()
+        run: docker compose down --volumes --remove-orphans
