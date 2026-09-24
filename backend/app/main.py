@@ -342,6 +342,10 @@ async def start_game(
         room_host_map,
     )
 
+    old_task = game_tasks.get(room_pin)
+    if old_task and not old_task.done():
+        raise HTTPException(status_code=409, detail='game_already_running')
+
     if visible_player_count(room_pin) == 0:
         return {'error': 'no_players'}
 
@@ -353,11 +357,6 @@ async def start_game(
     answer_stats_map[room_pin] = [0, 0, 0, 0]
     waiting_next_question[room_pin] = False
     question_start_time[room_pin] = None
-
-    old_task = game_tasks.get(room_pin)
-
-    if old_task and not old_task.done():
-        old_task.cancel()
 
     game_tasks[room_pin] = asyncio.create_task(
         game_loop(room_pin)

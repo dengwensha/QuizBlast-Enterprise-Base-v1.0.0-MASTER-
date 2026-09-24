@@ -81,6 +81,11 @@ async def run_game_flow():
                     )
 
                 status, rejected = await asyncio.to_thread(
+                    post, f'/start-game/{pin}', None, token
+                )
+                assert status == 409 and rejected['detail'] == 'game_already_running'
+
+                status, rejected = await asyncio.to_thread(
                     post, f'/next-question/{pin}', None, token
                 )
                 assert status == 409 and rejected['detail'] == 'question_result_not_ready'
