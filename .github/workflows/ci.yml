@@ -113,6 +113,24 @@ jobs:
       - name: Start production application
         run: docker compose up -d backend frontend
 
+      - name: Verify backend readiness
+        shell: bash
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error \
+              http://localhost:8001/ \
+              --output /tmp/quizblast-backend-status.json && \
+              grep -q '"status":"running"' \
+                /tmp/quizblast-backend-status.json; then
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          docker compose logs backend
+          exit 1
+
       - name: Verify frontend static serving and SPA fallback
         shell: bash
         run: |
