@@ -65,7 +65,20 @@ async def run_game_flow():
     assert status == 200 and room['room_pin']
     pin = room['room_pin']
 
-    async with connect(f'{WS_URL}/ws/{pin}/HOST') as host:
+    async with connect(f'{WS_URL}/ws/{pin}/HOST') as denied:
+        event = json.loads(await asyncio.wait_for(denied.recv(), timeout=5))
+        assert event == {'type': 'join_error', 'reason': 'host_unauthorized'}
+
+    async with connect(
+        f'{WS_URL}/ws/{pin}/host', subprotocols=['quizblast-host', 'invalid-token']
+    ) as denied:
+        event = json.loads(await asyncio.wait_for(denied.recv(), timeout=5))
+        assert event == {'type': 'join_error', 'reason': 'host_unauthorized'}
+
+    async with connect(
+        f'{WS_URL}/ws/{pin}/HOST', subprotocols=['quizblast-host', token]
+    ) as host:
+        assert host.subprotocol == 'quizblast-host'
         async with connect(f'{WS_URL}/ws/{pin}/Ada') as player:
             async with connect(f'{WS_URL}/ws/{pin}/DISPLAY') as display:
                 status, started = await asyncio.to_thread(post, f'/start-game/{pin}', None, token)

@@ -141,7 +141,7 @@ export default function App() {
   if (d.error) return alert(d.error);
 
   setRoomPin(d.room_pin);
-  connectWebsocket(d.room_pin, "HOST");
+  connectWebsocket(d.room_pin, "HOST", user.token);
 };
   const joinRoom=()=>{if(!roomPin.trim())return alert('PIN gir'); if(!name.trim())return alert('İsim gir'); connectWebsocket(roomPin,name);}; const connectDisplay=()=>{if(!roomPin.trim())return alert('PIN gir'); connectWebsocket(roomPin,'DISPLAY');};
   const startGame = async () => {

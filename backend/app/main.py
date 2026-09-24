@@ -660,12 +660,23 @@ def get_import_history(authorization: str | None = Header(default=None)):
 
 @app.websocket('/ws/{room_pin}/{player_name}')
 async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str):
-    await websocket.accept()
     clean_name=player_name.strip()
+    is_host=clean_name.casefold()=='host'
+    protocols=[part.strip() for part in websocket.headers.get('sec-websocket-protocol','').split(',')]
+    await websocket.accept(subprotocol='quizblast-host' if is_host and len(protocols)==2 and protocols[0]=='quizblast-host' else None)
     if not clean_name:
         await websocket.send_json({'type':'join_error','reason':'invalid_name'}); await websocket.close(); return
     if room_pin not in rooms:
         await websocket.send_json({'type':'join_error','reason':'room_not_found'}); await websocket.close(); return
+    if is_host:
+        try:
+            if len(protocols)!=2 or protocols[0]!='quizblast-host':
+                raise HTTPException(status_code=401, detail='missing_host_token')
+            email=require_authenticated_email(f'Bearer {protocols[1]}',SECRET_KEY,ALGORITHM)
+            require_room_host(room_pin,email,rooms,room_host_map)
+        except HTTPException:
+            await websocket.send_json({'type':'join_error','reason':'host_unauthorized'}); await websocket.close(); return
+        clean_name='HOST'
     normalized_name=clean_name.casefold()
     existing={p['name'].strip().casefold() for p in rooms.get(room_pin,[])}
     if normalized_name in existing:

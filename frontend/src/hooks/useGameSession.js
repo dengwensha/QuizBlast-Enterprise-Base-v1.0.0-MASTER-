@@ -83,13 +83,16 @@ export function useGameSession({
     resetGame();
   };
 
-  const connectWebsocket = (pin, who) => {
+  const connectWebsocket = (pin, who, hostToken) => {
     closeSocket();
     setJoined(false);
     setPlayerName(who);
 
     const ws = new WebSocket(
-      `${WS}/ws/${pin}/${encodeURIComponent(who)}`
+      `${WS}/ws/${pin}/${encodeURIComponent(who)}`,
+      who === "HOST" && hostToken
+        ? ["quizblast-host", hostToken]
+        : undefined
     );
 
     ws.onopen = () => {};
