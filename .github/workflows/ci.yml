@@ -91,6 +91,7 @@ jobs:
           modules=(
             app.tests.test_answer_acceptance
             app.tests.test_game_progression
+            app.tests.test_room_connections
             app.tests.test_duplicate_detector_manual
             app.tests.test_host_authorization_manual
             app.tests.test_http_perimeter_manual

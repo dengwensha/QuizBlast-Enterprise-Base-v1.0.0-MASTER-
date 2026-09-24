@@ -84,6 +84,8 @@ export function useGameSession({
   };
 
   const connectWebsocket = (pin, who) => {
+    closeSocket();
+    setJoined(false);
     setPlayerName(who);
 
     const ws = new WebSocket(
@@ -171,6 +173,8 @@ export function useGameSession({
       if (socketRef.current === ws) {
         socketRef.current = null;
         setSocket(null);
+        setJoined(false);
+        setTimeLeft(0);
       }
     };
 
@@ -187,6 +191,7 @@ export function useGameSession({
 
     if (
       !activeSocket ||
+      activeSocket.readyState !== WebSocket.OPEN ||
       answered ||
       timeLeft <= 0
     ) {

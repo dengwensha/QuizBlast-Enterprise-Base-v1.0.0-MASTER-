@@ -17,6 +17,7 @@ from app.services.host_authorization import (
 )
 from app.services.answer_acceptance import valid_answer, answer_is_open
 from app.services.game_progression import next_question_index
+from app.services.room_connections import remove_connection
 
 from app.services.http_perimeter import (
     CORS_HEADERS,
@@ -669,8 +670,8 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
     if room_pin not in scores: scores[room_pin]={}
     if clean_name not in {'HOST','DISPLAY'} and clean_name not in scores[room_pin]:
         scores[room_pin][clean_name]=0
-    await broadcast_players(room_pin)
     try:
+        await broadcast_players(room_pin)
         while True:
             data=await websocket.receive_json()
             if not isinstance(data, dict): continue
@@ -696,7 +697,9 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
                 await safe_broadcast_json(room_pin, {'type':'answer_count','count':len(answered_players[room_pin]),'total':visible_player_count(room_pin)})
                 await safe_broadcast_json(room_pin, {'type':'leaderboard','scores':leaderboard})
     except WebSocketDisconnect:
-        rooms[room_pin]=[p for p in rooms.get(room_pin,[]) if p['name']!=clean_name]
+        pass
+    finally:
+        rooms[room_pin]=remove_connection(rooms.get(room_pin,[]),websocket)
         await broadcast_players(room_pin)
 
 async def game_loop(room_pin):
