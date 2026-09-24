@@ -15,6 +15,7 @@ from app.services.host_authorization import (
     require_authenticated_email,
     require_room_host,
 )
+from app.services.answer_acceptance import valid_answer, answer_is_open
 
 from app.services.http_perimeter import (
     CORS_HEADERS,
@@ -663,20 +664,22 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
     try:
         while True:
             data=await websocket.receive_json()
+            if not isinstance(data, dict): continue
             if data.get('type')=='answer':
                 if clean_name in {'HOST','DISPLAY'}: continue
                 if clean_name in answered_players[room_pin]: continue
+                selected_answer=valid_answer(data.get('answer'))
+                if selected_answer is None: continue
                 questions=get_room_questions(room_pin); idx=current_question_index[room_pin]
                 if idx>=len(questions): continue
                 q=questions[idx]; question_time=int(q['time'] or 15)
                 started_at=question_start_time.get(room_pin)
-                if not started_at: continue
-                elapsed=time.time()-started_at
-                if elapsed>question_time: continue
+                now=time.time()
+                if not answer_is_open(started_at, question_time, now): continue
+                elapsed=now-started_at
                 answered_players[room_pin].add(clean_name)
-                selected_answer=int(data.get('answer',-1))
                 if room_pin not in answer_stats_map: answer_stats_map[room_pin]=[0,0,0,0]
-                if 0 <= selected_answer <= 3: answer_stats_map[room_pin][selected_answer]+=1
+                answer_stats_map[room_pin][selected_answer]+=1
                 server_time_left=max(0, question_time-elapsed)
                 if selected_answer==q['correct']:
                     scores[room_pin][clean_name]+=100+int(server_time_left*10)
@@ -696,6 +699,7 @@ async def game_loop(room_pin):
         await send_question(room_pin)
         question_time=int(questions[idx]['time'] or 15)
         await asyncio.sleep(question_time)
+        question_start_time[room_pin]=None
         q=questions[idx]
         await safe_broadcast_json(room_pin, {'type':'question_result','correct':q['correct'],'stats':answer_stats_map.get(room_pin,[0,0,0,0])})
         leaderboard=sorted(scores.get(room_pin,{}).items(), key=lambda x:x[1], reverse=True)
