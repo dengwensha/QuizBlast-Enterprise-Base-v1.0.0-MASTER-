@@ -352,6 +352,11 @@ async def start_game(
     if not get_room_questions(room_pin):
         raise HTTPException(status_code=409, detail='no_questions')
 
+    scores[room_pin] = {
+        player['name']: 0
+        for player in rooms[room_pin]
+        if player['name'] not in {'HOST', 'DISPLAY'}
+    }
     current_question_index[room_pin] = 0
     answered_players[room_pin] = set()
     answer_stats_map[room_pin] = [0, 0, 0, 0]

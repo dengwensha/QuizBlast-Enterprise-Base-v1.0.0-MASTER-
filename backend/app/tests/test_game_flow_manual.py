@@ -98,6 +98,11 @@ async def run_game_flow():
                         event.get('type') == 'answer_count' and event['count'] == 1
                         for event in events
                     )
+                    assert any(
+                        event.get('type') == 'leaderboard'
+                        and event['scores'][0][1] > 0
+                        for event in events
+                    )
 
                 status, advanced = await asyncio.to_thread(
                     post, f'/next-question/{pin}', None, token
@@ -110,6 +115,30 @@ async def run_game_flow():
                     post, f'/next-question/{pin}', None, token
                 )
                 assert status == 409 and rejected['detail'] == 'question_result_not_ready'
+
+                for attempt in range(20):
+                    status, replay = await asyncio.to_thread(
+                        post, f'/start-game/{pin}', None, token
+                    )
+                    if status == 200:
+                        break
+                    assert status == 409 and replay['detail'] == 'game_already_running'
+                    await asyncio.sleep(0.1)
+                assert status == 200 and replay['status'] == 'started'
+
+                for socket in (host, player, display):
+                    question, _ = await receive_until(socket, 'question')
+                    assert question['index'] == 0
+
+                await player.send(json.dumps({'type': 'answer', 'answer': 1}))
+                for socket in (host, player, display):
+                    result, events = await receive_until(socket, 'question_result')
+                    assert result['stats'] == [0, 1, 0, 0]
+                    assert any(
+                        event.get('type') == 'leaderboard'
+                        and event['scores'] == [['Ada', 0]]
+                        for event in events
+                    )
 
 
 if __name__ == '__main__':
