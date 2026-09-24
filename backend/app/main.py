@@ -16,6 +16,7 @@ from app.services.host_authorization import (
     require_room_host,
 )
 from app.services.answer_acceptance import valid_answer, answer_is_open
+from app.services.game_progression import next_question_index
 
 from app.services.http_perimeter import (
     CORS_HEADERS,
@@ -343,6 +344,9 @@ async def start_game(
     if visible_player_count(room_pin) == 0:
         return {'error': 'no_players'}
 
+    if not get_room_questions(room_pin):
+        raise HTTPException(status_code=409, detail='no_questions')
+
     current_question_index[room_pin] = 0
     answered_players[room_pin] = set()
     answer_stats_map[room_pin] = [0, 0, 0, 0]
@@ -380,9 +384,14 @@ async def next_question(
     )
 
     questions = get_room_questions(room_pin)
-    current_question_index[room_pin] = (
-        current_question_index.get(room_pin, 0) + 1
+    next_index = next_question_index(
+        current_question_index.get(room_pin, 0),
+        len(questions),
+        waiting_next_question.get(room_pin, False),
     )
+    if next_index is None:
+        raise HTTPException(status_code=409, detail='question_result_not_ready')
+    current_question_index[room_pin] = next_index
     waiting_next_question[room_pin] = False
 
     if current_question_index[room_pin] >= len(questions):
@@ -694,7 +703,7 @@ async def game_loop(room_pin):
     while True:
         questions=get_room_questions(room_pin); idx=current_question_index.get(room_pin,0)
         if idx>=len(questions):
-            await safe_broadcast_json(room_pin, {'type':'game_over'}); break
+            break
         waiting_next_question[room_pin]=False
         await send_question(room_pin)
         question_time=int(questions[idx]['time'] or 15)
