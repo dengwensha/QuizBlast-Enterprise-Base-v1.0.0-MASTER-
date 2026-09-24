@@ -17,7 +17,7 @@ from app.services.host_authorization import (
 )
 from app.services.answer_acceptance import valid_answer, answer_is_open
 from app.services.game_progression import next_question_index
-from app.services.room_connections import remove_connection
+from app.services.room_connections import remove_connection, send_to_room
 
 from app.services.http_perimeter import (
     CORS_HEADERS,
@@ -733,13 +733,7 @@ async def send_question(room_pin):
     await safe_broadcast_json(room_pin, {'type':'question','question':q['question'],'image_url':q.get('image_url'),'options':q['options'],'index':idx,'time':q['time']})
 
 async def safe_broadcast_json(room_pin, payload):
-    alive=[]
-    for player in rooms.get(room_pin,[]):
-        try:
-            await player['socket'].send_json(payload); alive.append(player)
-        except Exception:
-            pass
-    rooms[room_pin]=alive
+    await send_to_room(rooms, room_pin, payload)
 
 async def broadcast_players(room_pin):
     await safe_broadcast_json(room_pin, {'type':'players','players':[p['name'] for p in rooms.get(room_pin,[])]})
