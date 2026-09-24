@@ -153,6 +153,43 @@ async def run_game_flow():
                         for event in events
                     )
 
+    status, room = await asyncio.to_thread(post, f'/create-room/{quiz_id}', None, token)
+    assert status == 200 and room['room_pin']
+    pin = room['room_pin']
+    async with connect(
+        f'{WS_URL}/ws/{pin}/HOST', subprotocols=['quizblast-host', token]
+    ) as host:
+        ada, bora = await asyncio.gather(
+            connect(f'{WS_URL}/ws/{pin}/Ada'),
+            connect(f'{WS_URL}/ws/{pin}/Bora'),
+        )
+        try:
+            for socket in (host, ada, bora):
+                while True:
+                    event = json.loads(await asyncio.wait_for(socket.recv(), timeout=5))
+                    if event.get('type') == 'players' and set(event['players']) == {
+                        'HOST', 'Ada', 'Bora'
+                    }:
+                        break
+
+            status, started = await asyncio.to_thread(post, f'/start-game/{pin}', None, token)
+            assert status == 200 and started['status'] == 'started'
+            for socket in (host, ada, bora):
+                await receive_until(socket, 'question')
+
+            await ada.send(json.dumps({'type': 'answer', 'answer': 0}))
+            for socket in (host, ada, bora):
+                result, events = await receive_until(socket, 'question_result')
+                assert result['stats'] == [1, 0, 0, 0]
+                assert any(
+                    event.get('type') == 'answer_count'
+                    and event['count'] == 1
+                    and event['total'] == 2
+                    for event in events
+                )
+        finally:
+            await asyncio.gather(ada.close(), bora.close())
+
 
 if __name__ == '__main__':
     asyncio.run(run_game_flow())
