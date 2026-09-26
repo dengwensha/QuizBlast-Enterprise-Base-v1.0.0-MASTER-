@@ -83,7 +83,7 @@ test("host, player and display recover after backend and browser restart", async
     await display.getByRole("button", { name: "Connect Display" }).click();
     await expect(display.getByRole("button", { name: "Oyundan Çık" })).toBeVisible();
     try {
-      await expect(host.getByText("Ada", { exact: true })).toBeVisible();
+      await expect(host.getByText("👤 Ada", { exact: true })).toBeVisible();
     } catch (error) {
       throw new Error(`Host players missing. Host: ${await host.locator("body").innerText()}. Player: ${await player.locator("body").innerText()}. Traffic: ${traffic.slice(-40).join(" | ")}`, { cause: error });
     }
