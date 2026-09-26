@@ -66,9 +66,16 @@ test("host, player and display recover after backend and browser restart", async
     await display.getByRole("button", { name: "Connect Display" }).click();
     await expect(display.getByRole("button", { name: "Oyundan Çık" })).toBeVisible();
 
+    const startResponse = host.waitForResponse((response) => response.url().includes(`/start-game/${pin}`));
     await host.getByRole("button", { name: "▶ Oyunu Başlat" }).click();
-    for (const page of [host, player, display]) {
-      await expect(page.getByText("Will this game resume?")).toBeVisible();
+    const started = await startResponse;
+    expect(started.status(), await started.text()).toBe(200);
+    for (const [role, page] of [["host", host], ["player", player], ["display", display]]) {
+      try {
+        await expect(page.getByText("Will this game resume?")).toBeVisible({ timeout: 10_000 });
+      } catch (error) {
+        throw new Error(`${role} did not show the question; screen: ${await page.locator("body").innerText()}`, { cause: error });
+      }
     }
     await player.getByRole("button", { name: "Yes" }).click();
     await expect(player.getByText("✅ Cevabın alındı")).toBeVisible();
