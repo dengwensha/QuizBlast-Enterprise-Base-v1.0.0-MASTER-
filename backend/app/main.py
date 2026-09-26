@@ -727,7 +727,13 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
     clean_name=player_name.strip()
     is_host=clean_name.casefold()=='host'
     protocols=[part.strip() for part in websocket.headers.get('sec-websocket-protocol','').split(',')]
-    await websocket.accept(subprotocol='quizblast-host' if is_host and len(protocols)==2 and protocols[0]=='quizblast-host' else None)
+    negotiated_protocol = (
+        'quizblast-host' if is_host and len(protocols)==2 and protocols[0]=='quizblast-host'
+        else 'quizblast-player' if not is_host and clean_name.casefold()!='display'
+            and len(protocols)==2 and protocols[0]=='quizblast-player'
+        else None
+    )
+    await websocket.accept(subprotocol=negotiated_protocol)
     if not clean_name:
         await websocket.send_json({'type':'join_error','reason':'invalid_name'}); await websocket.close(); return
     if room_pin not in rooms:

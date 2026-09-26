@@ -75,6 +75,7 @@ async def run():
         bora_token = secrets.token_hex(32)
         bora = await connect(f'{WS}/ws/{pin}/Bora',
                              subprotocols=['quizblast-player', bora_token])
+        assert bora.subprotocol == 'quizblast-player'
         sockets.extend([host, ada, bora])
         ada_token = (await event_of(ada, 'player_session'))['token']
         await asyncio.to_thread(post, f'/start-game/{pin}', None, token)
@@ -107,6 +108,7 @@ async def run():
                              subprotocols=['quizblast-player', ada_token])
         bora2 = await connect(f'{WS}/ws/{pin}/Bora',
                               subprotocols=['quizblast-player', bora_token])
+        assert ada2.subprotocol == bora2.subprotocol == 'quizblast-player'
         sockets.extend([ada2, bora2])
         for socket, answered in [(ada2, True), (bora2, False)]:
             state = await event_of(socket, 'question')
