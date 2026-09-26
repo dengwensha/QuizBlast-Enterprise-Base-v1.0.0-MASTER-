@@ -152,6 +152,10 @@ jobs:
         working-directory: frontend
         run: npx playwright test tests/recovery.spec.js --reporter=line
 
+      - name: Show backend logs on browser test failure
+        if: failure()
+        run: docker compose logs --tail=200 backend
+
       - name: Verify frontend static serving and SPA fallback
         shell: bash
         run: |
