@@ -28,6 +28,20 @@ async function authenticatedContext(browser, user, activeSession) {
 
 test("host, player and display recover after backend and browser restart", async ({ browser, request }) => {
   test.setTimeout(150_000);
+  const traffic = [];
+  const watch = (page, role) => {
+    page.on("pageerror", (error) => traffic.push(`${role} error ${error.message}`));
+    page.on("websocket", (socket) => {
+      traffic.push(`${role} websocket opened`);
+      socket.on("close", () => traffic.push(`${role} websocket closed`));
+      socket.on("framereceived", ({ payload }) => {
+        try {
+          const message = JSON.parse(String(payload));
+          traffic.push(`${role} received ${message.type} ${message.players?.join(",") || message.reason || ""}`);
+        } catch { traffic.push(`${role} received non-JSON frame`); }
+      });
+    });
+  };
   const email = `browser-recovery-${Date.now()}@example.com`;
   await post(request, "/auth/register", { email, password: "integration-password" });
   const login = await post(request, "/auth/login", { email, password: "integration-password" });
@@ -47,11 +61,13 @@ test("host, player and display recover after backend and browser restart", async
   try {
     hostContext = await authenticatedContext(browser, user, { pin, who: "HOST" });
     const host = await hostContext.newPage();
+    watch(host, "host");
     await host.goto("/");
     await expect(host.getByRole("button", { name: "▶ Oyunu Başlat" })).toBeVisible();
 
     playerContext = await authenticatedContext(browser, user);
     const player = await playerContext.newPage();
+    watch(player, "player");
     await player.goto("/");
     await player.getByRole("button", { name: "🎮 Join Game" }).click();
     await player.getByPlaceholder("Room PIN").fill(pin);
@@ -60,12 +76,17 @@ test("host, player and display recover after backend and browser restart", async
     await expect(player.getByRole("button", { name: "Oyundan Çık" })).toBeVisible();
 
     const display = await displayContext.newPage();
+    watch(display, "display");
     await display.goto("/");
     await display.getByRole("button", { name: "📺 Display Screen" }).click();
     await display.getByPlaceholder("Room PIN").fill(pin);
     await display.getByRole("button", { name: "Connect Display" }).click();
     await expect(display.getByRole("button", { name: "Oyundan Çık" })).toBeVisible();
-    await expect(host.getByText("Ada", { exact: true })).toBeVisible();
+    try {
+      await expect(host.getByText("Ada", { exact: true })).toBeVisible();
+    } catch (error) {
+      throw new Error(`Host players missing. Host: ${await host.locator("body").innerText()}. Player: ${await player.locator("body").innerText()}. Traffic: ${traffic.slice(-40).join(" | ")}`, { cause: error });
+    }
 
     const startResponse = host.waitForResponse((response) => response.url().includes(`/start-game/${pin}`));
     await host.getByRole("button", { name: "▶ Oyunu Başlat" }).click();
