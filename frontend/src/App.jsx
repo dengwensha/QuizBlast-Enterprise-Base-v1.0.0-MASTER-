@@ -45,7 +45,7 @@ export default function App() {
   const fireSmallConfetti=()=>confetti({particleCount:60,spread:70,origin:{y:.7}}); const fireBigConfetti=()=>{const end=Date.now()+3000; const i=setInterval(()=>{if(Date.now()>end){clearInterval(i);return;} confetti({particleCount:40,spread:120,startVelocity:40,origin:{x:Math.random(),y:Math.random()*.5}})},250)};
   const [mode,setMode]=useState(() => {
     try {
-      const saved=JSON.parse(sessionStorage.getItem('quizblast_active_session'));
+      const saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
       return saved?.who==='HOST'?'host':saved?.who==='DISPLAY'?'display':saved?.who?'player':null;
     } catch { return null; }
   });
@@ -134,7 +134,7 @@ export default function App() {
   const leaveGame=()=>{closeSession(); setMode(null);};
   useEffect(() => {
     let saved;
-    try { saved=JSON.parse(sessionStorage.getItem('quizblast_active_session')); }
+    try { saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session')); }
     catch { return; }
     if (saved?.pin && saved?.who && user?.token) {
       setRoomPin(saved.pin);

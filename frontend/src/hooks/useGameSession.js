@@ -91,6 +91,7 @@ export function useGameSession({
   const closeSession = () => {
     closeSocket();
     sessionStorage.removeItem("quizblast_active_session");
+    localStorage.removeItem("quizblast_active_session");
     resetGame();
   };
 
@@ -103,11 +104,11 @@ export function useGameSession({
 
     const open = () => {
     const playerKey = `quizblast_player_${pin}_${who}`;
-    let playerToken = sessionStorage.getItem(playerKey);
+    let playerToken = localStorage.getItem(playerKey);
     if (who !== "HOST" && who !== "DISPLAY" && !playerToken) {
       playerToken = Array.from(crypto.getRandomValues(new Uint8Array(32)),
         (byte) => byte.toString(16).padStart(2, "0")).join("");
-      sessionStorage.setItem(playerKey, playerToken);
+      localStorage.setItem(playerKey, playerToken);
     }
 
     const ws = new WebSocket(
@@ -132,6 +133,7 @@ export function useGameSession({
         clearTimeout(reconnectTimerRef.current);
         setReconnecting(false);
         sessionStorage.removeItem("quizblast_active_session");
+        localStorage.removeItem("quizblast_active_session");
         alert(
           data.reason === "duplicate_name"
             ? "Bu isim zaten odada. Farklı bir isim gir."
@@ -156,13 +158,14 @@ export function useGameSession({
       }
 
       if (data.type === "player_session") {
-        sessionStorage.setItem(`quizblast_player_${pin}_${who}`, data.token);
+        localStorage.setItem(`quizblast_player_${pin}_${who}`, data.token);
       }
 
       if (data.type === "players") {
         setJoined(true);
         setPlayers(data.players);
         sessionStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who }));
+        localStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who }));
 
         setTotalPlayers(
           data.players.filter(
