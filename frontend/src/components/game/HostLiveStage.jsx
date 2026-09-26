@@ -33,6 +33,7 @@ export default function HostLiveStage({
         )}
 
         <div
+          data-testid="game-timer"
           style={{
             ...styles.liveTimer,
             background: timeLeft <= 5 ? "#e21b3c" : "#46178f",

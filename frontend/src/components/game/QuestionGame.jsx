@@ -56,7 +56,7 @@ export default function QuestionGame({
           <img src={questionImage} alt="Soru görseli" style={styles.questionImage} />
         )}
 
-        <div style={styles.timerCircle}>{timeLeft}</div>
+        <div data-testid="game-timer" style={styles.timerCircle}>{timeLeft}</div>
 
         <div style={styles.progressOuter}>
           <div
