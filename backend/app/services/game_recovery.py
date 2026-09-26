@@ -88,3 +88,36 @@ def freeze_after_restart(room):
     """Use the last persisted clock sample; downtime does not consume time."""
     if room.phase == 'question':
         room.deadline_epoch = None
+
+
+def persist_game_state(session, pin, *, phase, index, scores, answered, stats,
+                       remaining=None, deadline=None):
+    """Commit a transition and its player effects atomically."""
+    room = session.get(GameRoom, pin)
+    if room is None:
+        raise ValueError('room_not_persisted')
+    room.phase = phase
+    room.question_index = index
+    room.answer_stats = list(stats)
+    room.remaining_seconds = remaining
+    room.deadline_epoch = deadline
+    for player in room.players:
+        player.score = scores.get(player.name, player.score)
+        player.answered_question_index = index if player.name in answered else None
+    session.commit()
+
+
+def room_state(room):
+    """Detach recovery data before closing the database session."""
+    return {
+        'pin': room.pin,
+        'quiz_id': room.quiz_id,
+        'host_email': room.host_email,
+        'phase': room.phase,
+        'index': room.question_index,
+        'remaining': room.remaining_seconds,
+        'scores': {player.name: player.score for player in room.players},
+        'answered': {player.name for player in room.players
+                     if player.answered_question_index == room.question_index},
+        'stats': list(room.answer_stats),
+    }

@@ -30,6 +30,9 @@ export function useGameSession({
   const [joined, setJoined] = useState(false);
   const [socket, setSocket] = useState(null);
   const socketRef = useRef(null);
+  const reconnectTimerRef = useRef(null);
+  const connectionRef = useRef(null);
+  const [reconnecting, setReconnecting] = useState(false);
 
   const [players, setPlayers] = useState([]);
   const [question, setQuestion] = useState(null);
@@ -37,10 +40,12 @@ export function useGameSession({
   const [options, setOptions] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [totalQuestions, setTotalQuestions] = useState(0);
   const [questionResult, setQuestionResult] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [answerCount, setAnswerCount] = useState(0);
   const [totalPlayers, setTotalPlayers] = useState(0);
 
@@ -58,12 +63,17 @@ export function useGameSession({
     setTimeLeft(0);
     setAnswered(false);
     setGameOver(false);
+    setPaused(false);
     setAnswerCount(0);
     setTotalPlayers(0);
     setCurrentQuestionIndex(0);
+    setTotalQuestions(0);
   };
 
   const closeSocket = () => {
+    connectionRef.current = null;
+    clearTimeout(reconnectTimerRef.current);
+    setReconnecting(false);
     const activeSocket = socketRef.current;
 
     if (activeSocket) {
@@ -80,32 +90,55 @@ export function useGameSession({
 
   const closeSession = () => {
     closeSocket();
+    sessionStorage.removeItem("quizblast_active_session");
     resetGame();
   };
 
   const connectWebsocket = (pin, who, hostToken) => {
     closeSocket();
+    const connection = { pin, who, hostToken, attempt: 0 };
+    connectionRef.current = connection;
     setJoined(false);
     setPlayerName(who);
+
+    const open = () => {
+    const playerKey = `quizblast_player_${pin}_${who}`;
+    let playerToken = sessionStorage.getItem(playerKey);
+    if (who !== "HOST" && who !== "DISPLAY" && !playerToken) {
+      playerToken = Array.from(crypto.getRandomValues(new Uint8Array(32)),
+        (byte) => byte.toString(16).padStart(2, "0")).join("");
+      sessionStorage.setItem(playerKey, playerToken);
+    }
 
     const ws = new WebSocket(
       `${WS}/ws/${pin}/${encodeURIComponent(who)}`,
       who === "HOST" && hostToken
         ? ["quizblast-host", hostToken]
-        : undefined
+        : who !== "DISPLAY" && playerToken
+          ? ["quizblast-player", playerToken]
+          : undefined
     );
 
-    ws.onopen = () => {};
+    ws.onopen = () => {
+      connection.attempt = 0;
+      setReconnecting(false);
+    };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
       if (data.type === "join_error") {
+        connectionRef.current = null;
+        clearTimeout(reconnectTimerRef.current);
+        setReconnecting(false);
+        sessionStorage.removeItem("quizblast_active_session");
         alert(
           data.reason === "duplicate_name"
             ? "Bu isim zaten odada. Farklı bir isim gir."
             : data.reason === "room_not_found"
               ? "Oda bulunamadı. PIN kontrol et."
+              : data.reason === "player_unauthorized"
+                ? "Oyuncu oturumu doğrulanamadı. Önceki oyun anahtarı gerekli."
               : "Geçersiz giriş."
         );
 
@@ -122,9 +155,14 @@ export function useGameSession({
         return;
       }
 
+      if (data.type === "player_session") {
+        sessionStorage.setItem(`quizblast_player_${pin}_${who}`, data.token);
+      }
+
       if (data.type === "players") {
         setJoined(true);
         setPlayers(data.players);
+        sessionStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who }));
 
         setTotalPlayers(
           data.players.filter(
@@ -143,14 +181,21 @@ export function useGameSession({
         setQuestionImage(data.image_url || "");
         setOptions(data.options);
         setCurrentQuestionIndex(data.index || 0);
-        setTimeLeft(data.time);
-        setAnswered(false);
+        setTotalQuestions(data.question_count || 0);
+        setTimeLeft(Math.ceil(data.time));
+        setPaused(Boolean(data.paused));
+        setAnswered(Boolean(data.answered));
         setGameOver(false);
         setAnswerCount(0);
       }
 
       if (data.type === "answer_count") {
         setAnswerCount(data.count);
+      }
+
+      if (data.type === "game_paused") {
+        setPaused(true);
+        setTimeLeft(Math.ceil(data.remaining));
       }
 
       if (data.type === "question_result") {
@@ -178,6 +223,12 @@ export function useGameSession({
         setSocket(null);
         setJoined(false);
         setTimeLeft(0);
+        if (connectionRef.current === connection) {
+          setReconnecting(true);
+          const delay = Math.min(1000 * 2 ** connection.attempt, 5000);
+          connection.attempt += 1;
+          reconnectTimerRef.current = setTimeout(open, delay);
+        }
       }
     };
 
@@ -187,6 +238,8 @@ export function useGameSession({
 
     socketRef.current = ws;
     setSocket(ws);
+    };
+    open();
   };
 
   const sendAnswer = (answerIndex) => {
@@ -196,6 +249,7 @@ export function useGameSession({
       !activeSocket ||
       activeSocket.readyState !== WebSocket.OPEN ||
       answered ||
+      paused ||
       timeLeft <= 0
     ) {
       return;
@@ -213,7 +267,7 @@ export function useGameSession({
   };
 
   useEffect(() => {
-    if (!joined || timeLeft <= 0) {
+    if (!joined || paused || timeLeft <= 0) {
       return;
     }
 
@@ -231,10 +285,12 @@ export function useGameSession({
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [joined, timeLeft]);
+  }, [joined, paused, timeLeft]);
 
   useEffect(() => {
     return () => {
+      connectionRef.current = null;
+      clearTimeout(reconnectTimerRef.current);
       const activeSocket = socketRef.current;
 
       if (activeSocket) {
@@ -257,16 +313,19 @@ export function useGameSession({
     setName,
     playerName,
     joined,
+    reconnecting,
     players,
     question,
     questionImage,
     options,
     leaderboard,
     currentQuestionIndex,
+    totalQuestions,
     questionResult,
     timeLeft,
     answered,
     gameOver,
+    paused,
     answerCount,
     totalPlayers,
     connectWebsocket,

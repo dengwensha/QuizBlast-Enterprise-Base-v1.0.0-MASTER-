@@ -18,6 +18,12 @@ from app.services.host_authorization import (
 from app.services.answer_acceptance import valid_answer, answer_is_open
 from app.services.game_progression import next_question_index
 from app.services.room_connections import remove_connection, send_to_room
+from app.services.game_recovery import (
+    GamePlayer, GameRoom, RecoveryBase, checkpoint_question,
+    freeze_after_restart, new_player_token, pause_question,
+    persist_game_state, player_token_matches, resume_question, room_state,
+    token_digest,
+)
 
 from app.services.http_perimeter import (
     CORS_HEADERS,
@@ -91,6 +97,7 @@ connected=False
 while not connected:
     try:
         Base.metadata.create_all(bind=engine)
+        RecoveryBase.metadata.create_all(bind=engine)
         connected=True
         print('PostgreSQL connected.')
     except Exception as e:
@@ -107,6 +114,44 @@ app.add_middleware(
 )
 
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
+game_phase={}; remaining_seconds={}; question_deadline={}
+
+
+def save_game(room_pin):
+    with db_session() as db:
+        persist_game_state(
+            db, room_pin, phase=game_phase[room_pin],
+            index=current_question_index[room_pin], scores=scores[room_pin],
+            answered=answered_players[room_pin], stats=answer_stats_map[room_pin],
+            remaining=remaining_seconds.get(room_pin),
+            deadline=question_deadline.get(room_pin),
+        )
+
+
+@app.on_event('startup')
+async def restore_active_rooms():
+    with db_session() as db:
+        snapshots=[]
+        for record in db.query(GameRoom).all():
+            freeze_after_restart(record)
+            snapshots.append(room_state(record))
+        db.commit()
+    for state in snapshots:
+        pin=state['pin']
+        rooms[pin]=[]
+        scores[pin]=state['scores']
+        current_question_index[pin]=state['index']
+        answered_players[pin]=state['answered']
+        room_quiz_map[pin]=state['quiz_id']
+        room_host_map[pin]=state['host_email']
+        answer_stats_map[pin]=state['stats']
+        game_phase[pin]=state['phase']
+        remaining_seconds[pin]=state['remaining']
+        question_deadline[pin]=None
+        waiting_next_question[pin]=state['phase']=='result'
+        question_start_time[pin]=None
+        if state['phase'] in {'question','result'}:
+            game_tasks[pin]=asyncio.create_task(game_loop(pin))
 
 class QuizCreate(BaseModel): title: str
 class QuestionCreate(BaseModel):
@@ -308,6 +353,10 @@ def create_room(
     while pin in rooms:
         pin = generate_pin()
 
+    with db_session() as db:
+        db.add(GameRoom(pin=pin, quiz_id=quiz_id, host_email=email,
+                        phase='lobby', question_index=0, answer_stats=[0,0,0,0]))
+        db.commit()
     rooms[pin] = []
     scores[pin] = {}
     current_question_index[pin] = 0
@@ -317,6 +366,9 @@ def create_room(
     answer_stats_map[pin] = [0, 0, 0, 0]
     waiting_next_question[pin] = False
     question_start_time[pin] = None
+    game_phase[pin] = 'lobby'
+    remaining_seconds[pin] = None
+    question_deadline[pin] = None
 
     return {
         'room_pin': pin,
@@ -343,7 +395,7 @@ async def start_game(
     )
 
     old_task = game_tasks.get(room_pin)
-    if old_task and not old_task.done():
+    if game_phase[room_pin] in {'question', 'result'} or (old_task and not old_task.done()):
         raise HTTPException(status_code=409, detail='game_already_running')
 
     if visible_player_count(room_pin) == 0:
@@ -362,6 +414,10 @@ async def start_game(
     answer_stats_map[room_pin] = [0, 0, 0, 0]
     waiting_next_question[room_pin] = False
     question_start_time[room_pin] = None
+    game_phase[room_pin] = 'question'
+    remaining_seconds[room_pin] = None
+    question_deadline[room_pin] = None
+    save_game(room_pin)
 
     game_tasks[room_pin] = asyncio.create_task(
         game_loop(room_pin)
@@ -400,12 +456,20 @@ async def next_question(
     waiting_next_question[room_pin] = False
 
     if current_question_index[room_pin] >= len(questions):
+        game_phase[room_pin] = 'completed'
+        remaining_seconds[room_pin] = None
+        question_deadline[room_pin] = None
+        save_game(room_pin)
         await safe_broadcast_json(
             room_pin,
             {'type': 'game_over'},
         )
         return {'status': 'game_over'}
 
+    game_phase[room_pin] = 'question'
+    remaining_seconds[room_pin] = None
+    question_deadline[room_pin] = None
+    save_game(room_pin)
     return {
         'status': 'ok',
         'question_index': current_question_index[room_pin],
@@ -677,21 +741,77 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
         except HTTPException:
             await websocket.send_json({'type':'join_error','reason':'host_unauthorized'}); await websocket.close(); return
         clean_name='HOST'
+    elif clean_name.casefold()=='display':
+        clean_name='DISPLAY'
     normalized_name=clean_name.casefold()
     existing={p['name'].strip().casefold() for p in rooms.get(room_pin,[])}
-    if normalized_name in existing:
+    if normalized_name in existing and normalized_name=='display':
         await websocket.send_json({'type':'join_error','reason':'duplicate_name'}); await websocket.close(); return
+    player_token=None
+    returning_player=False
+    if not is_host and normalized_name != 'display':
+        supplied_token=(protocols[1] if len(protocols)==2 and protocols[0]=='quizblast-player' else None)
+        if supplied_token and len(supplied_token)>128:
+            await websocket.send_json({'type':'join_error','reason':'player_unauthorized'})
+            await websocket.close()
+            return
+        with db_session() as db:
+            record=db.get(GameRoom,room_pin)
+            saved=next((p for p in record.players if p.name.casefold()==normalized_name),None)
+            if saved:
+                if not supplied_token or not player_token_matches(saved,supplied_token):
+                    await websocket.send_json({'type':'join_error','reason':'player_unauthorized'})
+                    await websocket.close()
+                    return
+                clean_name=saved.name
+                returning_player=True
+            else:
+                if supplied_token:
+                    digest=token_digest(supplied_token)
+                else:
+                    player_token,digest=new_player_token()
+                record.players.append(GamePlayer(name=clean_name,token_hash=digest))
+                db.commit()
+        if normalized_name in existing and returning_player:
+            old_connections=[p['socket'] for p in rooms[room_pin]
+                             if p['name'].casefold()==normalized_name]
+            rooms[room_pin]=[p for p in rooms[room_pin]
+                            if p['name'].casefold()!=normalized_name]
+            for old_socket in old_connections:
+                await old_socket.close()
+    if is_host and normalized_name in existing:
+        old_connections=[p['socket'] for p in rooms[room_pin]
+                         if p['name']=='HOST']
+        rooms[room_pin]=[p for p in rooms[room_pin] if p['name']!='HOST']
+        for old_socket in old_connections:
+            await old_socket.close()
     rooms[room_pin].append({'name':clean_name,'socket':websocket})
     if room_pin not in scores: scores[room_pin]={}
     if clean_name not in {'HOST','DISPLAY'} and clean_name not in scores[room_pin]:
         scores[room_pin][clean_name]=0
     try:
+        if player_token:
+            await websocket.send_json({'type':'player_session','token':player_token})
         await broadcast_players(room_pin)
+        if is_host and game_phase[room_pin]=='question' and question_deadline.get(room_pin) is None and remaining_seconds.get(room_pin) is not None:
+            with db_session() as db:
+                record=db.get(GameRoom,room_pin)
+                resume_question(record)
+                remaining_seconds[room_pin]=record.remaining_seconds
+                question_deadline[room_pin]=record.deadline_epoch
+                db.commit()
+            q=get_room_questions(room_pin)[current_question_index[room_pin]]
+            question_start_time[room_pin]=time.time()-(int(q['time'] or 15)-remaining_seconds[room_pin])
+            for participant in tuple(rooms[room_pin]):
+                await send_current_state(participant['socket'],room_pin,participant['name'])
+        else:
+            await send_current_state(websocket,room_pin,clean_name)
         while True:
             data=await websocket.receive_json()
             if not isinstance(data, dict): continue
             if data.get('type')=='answer':
                 if clean_name in {'HOST','DISPLAY'}: continue
+                if game_phase.get(room_pin)!='question' or question_deadline.get(room_pin) is None: continue
                 if clean_name in answered_players[room_pin]: continue
                 selected_answer=valid_answer(data.get('answer'))
                 if selected_answer is None: continue
@@ -708,6 +828,7 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
                 server_time_left=max(0, question_time-elapsed)
                 if selected_answer==q['correct']:
                     scores[room_pin][clean_name]+=100+int(server_time_left*10)
+                save_game(room_pin)
                 leaderboard=sorted(scores[room_pin].items(), key=lambda x:x[1], reverse=True)
                 await safe_broadcast_json(room_pin, {'type':'answer_count','count':len(answered_players[room_pin]),'total':visible_player_count(room_pin)})
                 await safe_broadcast_json(room_pin, {'type':'leaderboard','scores':leaderboard})
@@ -715,33 +836,92 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
         pass
     finally:
         rooms[room_pin]=remove_connection(rooms.get(room_pin,[]),websocket)
+        if is_host and not any(p['name']=='HOST' for p in rooms.get(room_pin,[])) and game_phase.get(room_pin)=='question':
+            with db_session() as db:
+                record=db.get(GameRoom,room_pin)
+                pause_question(record)
+                remaining_seconds[room_pin]=record.remaining_seconds
+                question_deadline[room_pin]=None
+                db.commit()
+            question_start_time[room_pin]=None
+            await safe_broadcast_json(room_pin, {'type':'game_paused',
+                'remaining':remaining_seconds[room_pin]})
         await broadcast_players(room_pin)
 
+
+async def send_current_state(websocket,room_pin,player_name):
+    phase=game_phase.get(room_pin)
+    idx=current_question_index[room_pin]
+    questions=get_room_questions(room_pin)
+    if phase in {'question','result'} and idx<len(questions):
+        q=questions[idx]
+        deadline=question_deadline.get(room_pin)
+        time_left=max(0,deadline-time.time()) if deadline is not None else remaining_seconds.get(room_pin)
+        if time_left is not None:
+            await websocket.send_json({'type':'question','question':q['question'],
+                'image_url':q.get('image_url'),'options':q['options'],'index':idx,
+                'question_count':len(questions),
+                'time':time_left if phase=='question' else 0,
+                'paused':phase=='question' and deadline is None,
+                'answered':player_name in answered_players[room_pin]})
+        await websocket.send_json({'type':'answer_count',
+            'count':len(answered_players[room_pin]),'total':visible_player_count(room_pin)})
+        if phase=='result':
+            await websocket.send_json({'type':'question_result','correct':q['correct'],
+                'stats':answer_stats_map[room_pin]})
+        await websocket.send_json({'type':'leaderboard',
+            'scores':sorted(scores[room_pin].items(),key=lambda x:x[1],reverse=True)})
+    elif phase=='completed':
+        await websocket.send_json({'type':'leaderboard',
+            'scores':sorted(scores[room_pin].items(),key=lambda x:x[1],reverse=True)})
+        await websocket.send_json({'type':'game_over'})
+
 async def game_loop(room_pin):
-    while True:
-        questions=get_room_questions(room_pin); idx=current_question_index.get(room_pin,0)
+    while game_phase.get(room_pin) in {'question','result'}:
+        if game_phase[room_pin]=='result':
+            await asyncio.sleep(0.1)
+            continue
+        questions=get_room_questions(room_pin); idx=current_question_index[room_pin]
         if idx>=len(questions):
             break
-        waiting_next_question[room_pin]=False
-        await send_question(room_pin)
-        question_time=int(questions[idx]['time'] or 15)
-        await asyncio.sleep(question_time)
+        if question_deadline.get(room_pin) is None:
+            if remaining_seconds.get(room_pin) is None and any(
+                p['name']=='HOST' for p in rooms.get(room_pin,[])
+            ):
+                await send_question(room_pin)
+            else:
+                await asyncio.sleep(0.1)
+            continue
+        if time.time()<question_deadline[room_pin]:
+            with db_session() as db:
+                record=db.get(GameRoom,room_pin)
+                checkpoint_question(record)
+                remaining_seconds[room_pin]=record.remaining_seconds
+                db.commit()
+            await asyncio.sleep(min(0.25,max(0,question_deadline[room_pin]-time.time())))
+            continue
         question_start_time[room_pin]=None
-        q=questions[idx]
-        await safe_broadcast_json(room_pin, {'type':'question_result','correct':q['correct'],'stats':answer_stats_map.get(room_pin,[0,0,0,0])})
-        leaderboard=sorted(scores.get(room_pin,{}).items(), key=lambda x:x[1], reverse=True)
-        await safe_broadcast_json(room_pin, {'type':'leaderboard','scores':leaderboard})
+        question_deadline[room_pin]=None
+        remaining_seconds[room_pin]=0
+        game_phase[room_pin]='result'
         waiting_next_question[room_pin]=True
-        while waiting_next_question.get(room_pin,False):
-            await asyncio.sleep(0.25)
+        save_game(room_pin)
+        q=questions[idx]
+        await safe_broadcast_json(room_pin, {'type':'question_result','correct':q['correct'],'stats':answer_stats_map[room_pin]})
+        leaderboard=sorted(scores[room_pin].items(), key=lambda x:x[1], reverse=True)
+        await safe_broadcast_json(room_pin, {'type':'leaderboard','scores':leaderboard})
 
 async def send_question(room_pin):
     questions=get_room_questions(room_pin); idx=current_question_index.get(room_pin,0)
     if idx>=len(questions): return
     answered_players[room_pin]=set(); answer_stats_map[room_pin]=[0,0,0,0]
-    question_start_time[room_pin]=time.time()
     q=questions[idx]
-    await safe_broadcast_json(room_pin, {'type':'question','question':q['question'],'image_url':q.get('image_url'),'options':q['options'],'index':idx,'time':q['time']})
+    question_time=int(q['time'] or 15)
+    question_start_time[room_pin]=time.time()
+    remaining_seconds[room_pin]=question_time
+    question_deadline[room_pin]=question_start_time[room_pin]+question_time
+    save_game(room_pin)
+    await safe_broadcast_json(room_pin, {'type':'question','question':q['question'],'image_url':q.get('image_url'),'options':q['options'],'index':idx,'question_count':len(questions),'time':q['time']})
 
 async def safe_broadcast_json(room_pin, payload):
     await send_to_room(rooms, room_pin, payload)

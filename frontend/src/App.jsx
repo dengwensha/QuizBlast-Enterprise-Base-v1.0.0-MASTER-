@@ -43,7 +43,12 @@ export default function App() {
   } = useAuth();
   const playTone=(f=600,d=120,t='sine')=>{try{const A=window.AudioContext||window.webkitAudioContext; const c=new A(); const o=c.createOscillator(); const g=c.createGain(); o.type=t; o.frequency.value=f; o.connect(g); g.connect(c.destination); g.gain.setValueAtTime(.08,c.currentTime); g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d/1000); o.start(); o.stop(c.currentTime+d/1000);}catch(e){}};
   const fireSmallConfetti=()=>confetti({particleCount:60,spread:70,origin:{y:.7}}); const fireBigConfetti=()=>{const end=Date.now()+3000; const i=setInterval(()=>{if(Date.now()>end){clearInterval(i);return;} confetti({particleCount:40,spread:120,startVelocity:40,origin:{x:Math.random(),y:Math.random()*.5}})},250)};
-  const [mode,setMode]=useState(null);
+  const [mode,setMode]=useState(() => {
+    try {
+      const saved=JSON.parse(sessionStorage.getItem('quizblast_active_session'));
+      return saved?.who==='HOST'?'host':saved?.who==='DISPLAY'?'display':saved?.who?'player':null;
+    } catch { return null; }
+  });
   const {
     roomPin,
     setRoomPin,
@@ -51,16 +56,19 @@ export default function App() {
     setName,
     playerName,
     joined,
+    reconnecting,
     players,
     question,
     questionImage,
     options,
     leaderboard,
     currentQuestionIndex,
+    totalQuestions,
     questionResult,
     timeLeft,
     answered,
     gameOver,
+    paused,
     answerCount,
     totalPlayers,
     connectWebsocket,
@@ -125,6 +133,15 @@ export default function App() {
   const logout=()=>{closeSession(); clearAuth(); setMode(null); clearQuizState();};
   const leaveGame=()=>{closeSession(); setMode(null);};
   useEffect(() => {
+    let saved;
+    try { saved=JSON.parse(sessionStorage.getItem('quizblast_active_session')); }
+    catch { return; }
+    if (saved?.pin && saved?.who && user?.token) {
+      setRoomPin(saved.pin);
+      connectWebsocket(saved.pin,saved.who,saved.who==='HOST'?user.token:undefined);
+    }
+  }, [user?.token]);
+  useEffect(() => {
     if ((mode === "admin" || mode === "host") && selectedQuizId) {
       loadSelectedQuestions(selectedQuizId);
     }
@@ -170,6 +187,7 @@ export default function App() {
   if(!user) return <div style={styles.splash}><div style={styles.joinCard}><h1>QuizBlast 🚀</h1><h2>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</h2><input placeholder="E-posta" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={styles.input}/><input placeholder="Şifre" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={styles.input}/><button onClick={authMode==='login'?login:register} style={styles.joinButton}>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</button><button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} style={{...styles.joinButton,marginTop:10,background:'#333'}}>{authMode==='login'?'Hesap oluştur':'Giriş ekranına dön'}</button></div></div>;
   if(!mode) return <div style={styles.splash}><div style={styles.center}><h1 style={styles.logo}>QuizBlast 🚀</h1><p style={styles.subtitle}>Multiplayer Quiz Platform</p><p>{user.email}</p><button onClick={()=>{setMode('host');loadQuizzes();}} style={styles.mainButton}>🎤 Host Game</button><button onClick={()=>setMode('player')} style={styles.mainButton}>🎮 Join Game</button><button onClick={()=>setMode('display')} style={styles.mainButton}>📺 Display Screen</button><button onClick={()=>{setMode('admin');loadQuizzes();}} style={styles.mainButton}>🧠 Admin Panel</button><button onClick={logout} style={{...styles.mainButton,background:'#e21b3c',color:'white'}}>Çıkış Yap</button></div></div>;
   if(mode==='admin') return <AdminView styles={styles} admin={admin} {...{quizzes,selectedQuizId,setSelectedQuizId,selectedQuestions,importExcel,commitImport,importPreview,importing,importSummary,setMode}} />;
+  if(reconnecting) return <div style={styles.splash}><div style={styles.center}><h2>Odaya yeniden bağlanılıyor...</h2><button onClick={leaveGame} style={styles.mainButton}>Oyundan Çık</button></div></div>;
   if(mode==='host'&&!joined) return <HostSetup {...{quizzes,selectedQuizId,setSelectedQuizId,loadSelectedQuestions,finalLimit,setFinalLimit,createRoom,selectedQuestions,setMode,styles}} />;
   if(mode==='player'&&!joined) return <JoinScreen {...{roomPin,setRoomPin,name,setName,joinRoom,setMode}}styles={styles} />;
   if(mode==='display'&&!joined) return <DisplayConnect {...{roomPin,setRoomPin,connectDisplay,setMode}} styles={styles}/>;
@@ -241,12 +259,13 @@ return (
           options={options}
           sendAnswer={sendAnswer}
           answered={answered}
+          paused={paused}
           questionResult={questionResult}
           optionColors={optionColors}
           visibleLeaderboard={visibleLeaderboard}
           nextQuestion={nextQuestion}
           currentQuestionIndex={currentQuestionIndex}
-          totalQuestions={selectedQuestions.length}
+          totalQuestions={totalQuestions || selectedQuestions.length}
           styles={styles}
         />
       )}

@@ -15,6 +15,7 @@ export default function QuestionGame({
   options,
   sendAnswer,
   answered,
+  paused,
   questionResult,
   optionColors,
   visibleLeaderboard,
@@ -47,6 +48,7 @@ export default function QuestionGame({
 
   return (
     <>
+      {paused && <p role="status">Host bekleniyor; oyun duraklatıldı.</p>}
       <div style={styles.questionCard}>
         <h1>{question}</h1>
 
@@ -74,11 +76,11 @@ export default function QuestionGame({
             <button
               key={i}
               onClick={() => sendAnswer(i)}
-              disabled={answered || timeLeft <= 0}
+              disabled={answered || paused || timeLeft <= 0}
               style={{
                 ...styles.answerButton,
                 background: optionColors[i],
-                opacity: answered || timeLeft <= 0 ? 0.6 : 1,
+                opacity: answered || paused || timeLeft <= 0 ? 0.6 : 1,
               }}
             >
               {opt}

@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.services.game_recovery import (
     GamePlayer, GameRoom, RecoveryBase, new_player_token,
-    checkpoint_question, freeze_after_restart, pause_question, player_token_matches, resume_question,
-    token_digest,
+    checkpoint_question, freeze_after_restart, pause_question, persist_game_state,
+    player_token_matches, resume_question, room_state, token_digest,
 )
 
 
@@ -57,6 +57,22 @@ class GameRecoveryTests(unittest.TestCase):
         self.assertIsNone(room.deadline_epoch)
         resume_question(room, now=1000.0)
         self.assertEqual(room.deadline_epoch, 1007.0)
+
+    def test_transition_restores_score_and_answer_in_new_session(self):
+        engine = create_engine('sqlite://')
+        RecoveryBase.metadata.create_all(engine)
+        with Session(engine) as db:
+            db.add(GameRoom(pin='100100', quiz_id=7, host_email='h@example.com',
+                            players=[GamePlayer(name='Ada', token_hash='a' * 64)]))
+            db.commit()
+            persist_game_state(db, '100100', phase='result', index=1,
+                               scores={'Ada': 260}, answered={'Ada'}, stats=[1, 0, 0, 0])
+        with Session(engine) as db:
+            snapshot = room_state(db.get(GameRoom, '100100'))
+            self.assertEqual(snapshot['scores'], {'Ada': 260})
+            self.assertEqual(snapshot['answered'], {'Ada'})
+            self.assertEqual(snapshot['phase'], 'result')
+            self.assertEqual(snapshot['stats'], [1, 0, 0, 0])
 
 
 if __name__ == '__main__':
