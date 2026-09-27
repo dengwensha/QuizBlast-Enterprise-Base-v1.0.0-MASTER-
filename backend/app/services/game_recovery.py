@@ -35,6 +35,9 @@ class GameRoom(RecoveryBase):
     identity: Mapped['RoomIdentity'] = relationship(
         back_populates='room', cascade='all, delete-orphan', uselist=False
     )
+    retention: Mapped['ClosedRoomRetention'] = relationship(
+        back_populates='room', cascade='all, delete-orphan', uselist=False
+    )
 
 
 class RoomIdentity(RecoveryBase):
@@ -43,6 +46,40 @@ class RoomIdentity(RecoveryBase):
     pin: Mapped[str] = mapped_column(ForeignKey('game_rooms.pin'), primary_key=True)
     instance_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     room: Mapped[GameRoom] = relationship(back_populates='identity')
+
+
+class ClosedRoomRetention(RecoveryBase):
+    __tablename__ = 'closed_room_retention'
+
+    pin: Mapped[str] = mapped_column(ForeignKey('game_rooms.pin'), primary_key=True)
+    closed_at: Mapped[float] = mapped_column(Float, nullable=False)
+    room: Mapped[GameRoom] = relationship(back_populates='retention')
+
+
+CLOSED_ROOM_RETENTION_SECONDS = 15 * 24 * 60 * 60
+
+
+def backfill_closed_room_retention(session, now=None):
+    """Start the 15-day clock at deployment for legacy closed rooms."""
+    now = time.time() if now is None else now
+    for room in session.query(GameRoom).outerjoin(ClosedRoomRetention).filter(
+        GameRoom.phase == 'closed', ClosedRoomRetention.pin.is_(None)
+    ).all():
+        room.retention = ClosedRoomRetention(closed_at=now)
+    session.flush()
+
+
+def purge_expired_closed_rooms(session, now=None, limit=100):
+    """Delete only expired closed rooms, including owned players and identity."""
+    now = time.time() if now is None else now
+    expired = session.query(GameRoom).join(ClosedRoomRetention).filter(
+        GameRoom.phase == 'closed',
+        ClosedRoomRetention.closed_at <= now - CLOSED_ROOM_RETENTION_SECONDS,
+    ).order_by(ClosedRoomRetention.closed_at, GameRoom.pin).limit(limit).all()
+    for room in expired:
+        session.delete(room)
+    session.flush()
+    return len(expired)
 
 
 class GamePlayer(RecoveryBase):

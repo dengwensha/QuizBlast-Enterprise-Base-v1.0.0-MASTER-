@@ -7,7 +7,7 @@ from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 import os, random, asyncio, time, uuid
 from app.services.excel_reader import read_excel_rows_from_bytes
 from app.services.import_pipeline import run_qbds_import_pipeline, build_pipeline_user_message
@@ -19,7 +19,9 @@ from app.services.answer_acceptance import valid_answer, answer_is_open
 from app.services.game_progression import next_question_index
 from app.services.room_connections import remove_connection, send_to_room
 from app.services.game_recovery import (
-    GamePlayer, GameRoom, RoomIdentity, RecoveryBase, backfill_room_identities, checkpoint_question,
+    GamePlayer, GameRoom, RoomIdentity, ClosedRoomRetention, RecoveryBase,
+    backfill_room_identities, backfill_closed_room_retention,
+    purge_expired_closed_rooms, checkpoint_question,
     freeze_after_restart, new_player_token, pause_question,
     persist_game_state, player_token_matches, resume_question, room_state,
     token_digest,
@@ -116,6 +118,7 @@ app.add_middleware(
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
 game_phase={}; remaining_seconds={}; question_deadline={}
 room_instance_map={}
+closed_room_cleanup_task=None
 
 
 def save_game(room_pin):
@@ -131,8 +134,10 @@ def save_game(room_pin):
 
 @app.on_event('startup')
 async def restore_active_rooms():
+    global closed_room_cleanup_task
     with db_session() as db:
         snapshots=[]
+        backfill_closed_room_retention(db)
         backfill_room_identities(db)
         for record in db.query(GameRoom).filter(GameRoom.phase != 'closed').all():
             freeze_after_restart(record)
@@ -155,6 +160,33 @@ async def restore_active_rooms():
         question_start_time[pin]=None
         if state['phase'] in {'question','result'}:
             game_tasks[pin]=asyncio.create_task(game_loop(pin))
+    closed_room_cleanup_task=asyncio.create_task(cleanup_closed_rooms_periodically())
+
+
+def purge_closed_room_batches():
+    while True:
+        with db_session() as db:
+            count=purge_expired_closed_rooms(db)
+            db.commit()
+        if count < 100:
+            return
+
+
+async def cleanup_closed_rooms_periodically():
+    while True:
+        try:
+            await asyncio.to_thread(purge_closed_room_batches)
+        except Exception as exc:
+            print('Closed room cleanup failed:', exc)
+        await asyncio.sleep(60 * 60)
+
+
+@app.on_event('shutdown')
+async def stop_closed_room_cleanup():
+    if closed_room_cleanup_task:
+        closed_room_cleanup_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await closed_room_cleanup_task
 
 class QuizCreate(BaseModel): title: str
 class QuestionCreate(BaseModel):
@@ -414,6 +446,7 @@ async def close_room(room_pin: str, authorization: str | None = Header(default=N
             raise HTTPException(status_code=409, detail='room_closed')
         record.phase = 'closed'
         record.deadline_epoch = None
+        record.retention = ClosedRoomRetention(closed_at=time.time())
         db.commit()
 
     game_phase[room_pin] = 'closed'

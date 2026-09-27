@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import uuid
+import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -195,8 +196,17 @@ async def run():
         await asyncio.to_thread(process.wait, 5)
         replacement_id = uuid.uuid4().hex
         with main_app.db_session() as db:
-            db.delete(db.get(main_app.GameRoom, pin))
-            db.flush()
+            old_room = db.get(main_app.GameRoom, pin)
+            assert old_room.retention is not None
+            old_room.retention.closed_at = time.time() - 16 * 24 * 60 * 60
+            assert db.get(main_app.GameRoom, live_pin).retention is not None
+            db.commit()
+            assert main_app.purge_expired_closed_rooms(db) == 1
+            db.commit()
+            assert db.get(main_app.GameRoom, pin) is None
+            assert db.get(main_app.RoomIdentity, pin) is None
+            assert db.get(main_app.GamePlayer, (pin, 'Ada')) is None
+            assert db.get(main_app.GameRoom, live_pin) is not None
             db.add(main_app.GameRoom(
                 pin=pin, quiz_id=quiz['id'], host_email=email,
                 phase='lobby', answer_stats=[0, 0, 0, 0],
