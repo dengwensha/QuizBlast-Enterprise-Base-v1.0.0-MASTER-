@@ -100,11 +100,16 @@ export function useQuizState(user) {
       return;
     }
 
-    await deleteQuizRequest(user, quizId);
+    const result = await deleteQuizRequest(user, quizId);
+
+    if (result.detail || result.error) {
+      return result;
+    }
 
     setSelectedQuizId("");
 
     await loadQuizzes();
+    return result;
   };
 
   const addQuestionRequestState = async (payload) => {

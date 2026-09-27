@@ -31,10 +31,11 @@ export async function createQuizRequest(user, title) {
 }
 
 export async function deleteQuizRequest(user, quizId) {
-  await fetch(`${API}/quizzes/${quizId}`, {
+  const response = await fetch(`${API}/quizzes/${quizId}`, {
     method: "DELETE",
     headers: authHeaders(user),
   });
+  return response.json();
 }
 export async function addQuestionRequest(user, quizId, payload) {
   const r = await fetch(`${API}/quizzes/${quizId}/questions`, {

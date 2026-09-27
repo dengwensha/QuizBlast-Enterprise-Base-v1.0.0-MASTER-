@@ -58,7 +58,12 @@ function useAdminState({
     if (!confirm("Bu quiz ve tüm sorular silinsin mi?")) {
       return;
     }
-    await deleteQuizRequestState();
+    const result = await deleteQuizRequestState();
+    if (result?.detail === "quiz_has_game_rooms") {
+      alert("Bu quiz bir oyun odasında kullanılıyor. Oda açıkken veya tekrar oynatılabilirken silinemez.");
+    } else if (result?.detail || result?.error) {
+      alert(result.detail || result.error);
+    }
   };
   const addQuestion = async (q = newQuestion, img = newImageUrl, opts = newOptions, c = Number(newCorrect), tm = Number(newTime)) => {
     if (!selectedQuizId) return alert("Quiz seç");

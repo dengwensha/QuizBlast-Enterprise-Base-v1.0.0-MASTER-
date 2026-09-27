@@ -290,8 +290,10 @@ def delete_quiz(quiz_id:int, authorization: str | None = Header(default=None)):
     email=get_current_email(authorization)
     if not email: return {'error':'unauthorized'}
     with db_session() as db:
-        quiz=db.query(Quiz).filter(Quiz.id==quiz_id, Quiz.owner_email==email).first()
+        quiz=db.query(Quiz).filter(Quiz.id==quiz_id, Quiz.owner_email==email).with_for_update().first()
         if not quiz: return {'error':'quiz_not_found'}
+        if db.query(GameRoom.pin).filter(GameRoom.quiz_id == quiz_id).first():
+            raise HTTPException(status_code=409, detail='quiz_has_game_rooms')
         db.delete(quiz); db.commit()
         return {'status':'quiz_deleted'}
 
@@ -340,20 +342,15 @@ def create_room(
         quiz = db.query(Quiz).filter(
             Quiz.id == quiz_id,
             Quiz.owner_email == email,
-        ).first()
+        ).with_for_update().first()
 
         if not quiz:
-            raise HTTPException(
-                status_code=404,
-                detail='quiz_not_found',
-            )
+            raise HTTPException(status_code=404, detail='quiz_not_found')
 
-    pin = generate_pin()
-
-    while pin in rooms:
         pin = generate_pin()
+        while pin in rooms:
+            pin = generate_pin()
 
-    with db_session() as db:
         db.add(GameRoom(pin=pin, quiz_id=quiz_id, host_email=email,
                         phase='lobby', question_index=0, answer_stats=[0,0,0,0]))
         db.commit()
