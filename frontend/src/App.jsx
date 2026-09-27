@@ -48,7 +48,7 @@ export default function App() {
   const [mode,setMode]=useState(() => {
     try {
       const saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
-      return saved?.who==='HOST'?'host':saved?.who==='DISPLAY'?'display':saved?.who?'player':null;
+      return !saved?.instanceId ? null : saved.who==='HOST'?'host':saved.who==='DISPLAY'?'display':saved.who?'player':null;
     } catch { return null; }
   });
   const {
@@ -140,9 +140,14 @@ export default function App() {
     let saved;
     try { saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session')); }
     catch { return; }
-    if (saved?.pin && saved?.who && user?.token && (saved.who !== 'HOST' || !tokenExpired(user.token))) {
+    if (saved?.pin && saved?.who && !saved?.instanceId) {
+      sessionStorage.removeItem('quizblast_active_session');
+      localStorage.removeItem('quizblast_active_session');
+      return;
+    }
+    if (saved?.pin && saved?.who && saved?.instanceId && user?.token && (saved.who !== 'HOST' || !tokenExpired(user.token))) {
       setRoomPin(saved.pin);
-      connectWebsocket(saved.pin,saved.who,saved.who==='HOST'?user.token:undefined);
+      connectWebsocket(saved.pin,saved.who,saved.who==='HOST'?user.token:undefined,saved.instanceId);
     }
   }, [user?.token]);
   useEffect(() => {

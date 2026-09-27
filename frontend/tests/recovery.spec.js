@@ -54,12 +54,13 @@ test("host, player and display recover after backend and browser restart", async
     time: 45,
   }, user.token);
   const { room_pin: pin } = await post(request, `/create-room/${quiz.id}`, {}, user.token);
+  const { instance_id: instanceId } = await (await request.get(`${apiUrl}/room-instance/${pin}`)).json();
 
   let hostContext;
   let playerContext;
   const displayContext = await authenticatedContext(browser, user);
   try {
-    hostContext = await authenticatedContext(browser, user, { pin, who: "HOST" });
+    hostContext = await authenticatedContext(browser, user, { pin, who: "HOST", instanceId });
     const host = await hostContext.newPage();
     watch(host, "host");
     await host.goto("/");

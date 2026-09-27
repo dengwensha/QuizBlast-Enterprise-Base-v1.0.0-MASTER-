@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import secrets
 import time
+import uuid
 
 from sqlalchemy import Float, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -31,6 +32,17 @@ class GameRoom(RecoveryBase):
     players: Mapped[list['GamePlayer']] = relationship(
         back_populates='room', cascade='all, delete-orphan'
     )
+    identity: Mapped['RoomIdentity'] = relationship(
+        back_populates='room', cascade='all, delete-orphan', uselist=False
+    )
+
+
+class RoomIdentity(RecoveryBase):
+    __tablename__ = 'game_room_identities'
+
+    pin: Mapped[str] = mapped_column(ForeignKey('game_rooms.pin'), primary_key=True)
+    instance_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    room: Mapped[GameRoom] = relationship(back_populates='identity')
 
 
 class GamePlayer(RecoveryBase):
@@ -42,6 +54,15 @@ class GamePlayer(RecoveryBase):
     score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     answered_question_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     room: Mapped[GameRoom] = relationship(back_populates='players')
+
+
+def backfill_room_identities(session):
+    """Give rooms created before instance tracking a stable identity."""
+    for room in session.query(GameRoom).outerjoin(RoomIdentity).filter(
+        RoomIdentity.pin.is_(None)
+    ).all():
+        room.identity = RoomIdentity(instance_id=uuid.uuid4().hex)
+    session.flush()
 
 
 def new_player_token():

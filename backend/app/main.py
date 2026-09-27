@@ -19,7 +19,7 @@ from app.services.answer_acceptance import valid_answer, answer_is_open
 from app.services.game_progression import next_question_index
 from app.services.room_connections import remove_connection, send_to_room
 from app.services.game_recovery import (
-    GamePlayer, GameRoom, RecoveryBase, checkpoint_question,
+    GamePlayer, GameRoom, RoomIdentity, RecoveryBase, backfill_room_identities, checkpoint_question,
     freeze_after_restart, new_player_token, pause_question,
     persist_game_state, player_token_matches, resume_question, room_state,
     token_digest,
@@ -115,6 +115,7 @@ app.add_middleware(
 
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
 game_phase={}; remaining_seconds={}; question_deadline={}
+room_instance_map={}
 
 
 def save_game(room_pin):
@@ -132,9 +133,11 @@ def save_game(room_pin):
 async def restore_active_rooms():
     with db_session() as db:
         snapshots=[]
+        backfill_room_identities(db)
         for record in db.query(GameRoom).filter(GameRoom.phase != 'closed').all():
             freeze_after_restart(record)
             snapshots.append(room_state(record))
+            room_instance_map[record.pin]=record.identity.instance_id
         db.commit()
     for state in snapshots:
         pin=state['pin']
@@ -224,6 +227,14 @@ def lock_editable_quiz(db, quiz_id, email):
 
 def visible_player_count(room_pin):
     return len([p for p in rooms.get(room_pin,[]) if p['name'] not in {'HOST','DISPLAY'}])
+
+@app.get('/room-instance/{room_pin}')
+def get_room_instance(room_pin: str):
+    with db_session() as db:
+        record=db.get(GameRoom,room_pin)
+        if not record or record.phase=='closed':
+            raise HTTPException(status_code=404, detail='room_not_found')
+        return {'instance_id':record.identity.instance_id}
 
 @app.get('/')
 def root(): return {'status':'running'}
@@ -367,10 +378,13 @@ def create_room(
         while pin in rooms or db.get(GameRoom, pin) is not None:
             pin = generate_pin()
 
+        instance_id=uuid.uuid4().hex
         db.add(GameRoom(pin=pin, quiz_id=quiz_id, host_email=email,
-                        phase='lobby', question_index=0, answer_stats=[0,0,0,0]))
+                        phase='lobby', question_index=0, answer_stats=[0,0,0,0],
+                        identity=RoomIdentity(instance_id=instance_id)))
         db.commit()
     rooms[pin] = []
+    room_instance_map[pin]=instance_id
     scores[pin] = {}
     current_question_index[pin] = 0
     answered_players[pin] = set()
@@ -411,7 +425,7 @@ async def close_room(room_pin: str, authorization: str | None = Header(default=N
     for state in (rooms, scores, current_question_index, answered_players,
                   room_quiz_map, room_host_map, answer_stats_map,
                   waiting_next_question, question_start_time, game_phase,
-                  remaining_seconds, question_deadline):
+                  remaining_seconds, question_deadline, room_instance_map):
         state.pop(room_pin, None)
     for participant in connections:
         try:
@@ -786,6 +800,8 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
             record=db.get(GameRoom,room_pin)
             reason='room_closed' if record and record.phase=='closed' else 'room_not_found'
         await websocket.send_json({'type':'join_error','reason':reason}); await websocket.close(); return
+    if websocket.query_params.get('instance') != room_instance_map[room_pin]:
+        await websocket.send_json({'type':'join_error','reason':'room_instance_mismatch'}); await websocket.close(); return
     if is_host:
         try:
             if len(protocols)!=2 or protocols[0]!='quizblast-host':

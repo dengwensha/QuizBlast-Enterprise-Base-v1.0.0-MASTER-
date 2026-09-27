@@ -1,18 +1,38 @@
 """Persisted room and player state survives a new database session."""
 
 import unittest
+import uuid
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.services.game_recovery import (
-    GamePlayer, GameRoom, RecoveryBase, new_player_token,
+    GamePlayer, GameRoom, RoomIdentity, RecoveryBase, backfill_room_identities, new_player_token,
     checkpoint_question, freeze_after_restart, pause_question, persist_game_state,
     player_token_matches, resume_question, room_state, token_digest,
 )
 
 
 class GameRecoveryTests(unittest.TestCase):
+    def test_legacy_room_identity_is_stable_and_new_room_gets_distinct_id(self):
+        engine = create_engine('sqlite://')
+        RecoveryBase.metadata.create_all(engine)
+        with Session(engine) as db:
+            db.add(GameRoom(pin='123456', quiz_id=7, host_email='host@example.com'))
+            db.commit()
+            backfill_room_identities(db)
+            original = db.get(RoomIdentity, '123456').instance_id
+            db.commit()
+            backfill_room_identities(db)
+            self.assertEqual(db.get(RoomIdentity, '123456').instance_id, original)
+            db.delete(db.get(GameRoom, '123456'))
+            db.commit()
+            replacement = RoomIdentity(instance_id=uuid.uuid4().hex)
+            db.add(GameRoom(pin='123456', quiz_id=8, host_email='host@example.com',
+                            identity=replacement))
+            db.commit()
+            self.assertNotEqual(db.get(RoomIdentity, '123456').instance_id, original)
+
     def test_room_and_answer_ownership_survive_new_session(self):
         engine = create_engine('sqlite://')
         RecoveryBase.metadata.create_all(engine)

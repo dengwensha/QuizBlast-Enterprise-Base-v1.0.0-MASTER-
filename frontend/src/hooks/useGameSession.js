@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { WS } from "../services/api";
+import { API, WS } from "../services/api";
 
 export function useGameSession({
   onQuestion,
@@ -101,24 +101,51 @@ export function useGameSession({
     resetGame();
   };
 
-  const connectWebsocket = (pin, who, hostToken) => {
+  const connectWebsocket = (pin, who, hostToken, expectedInstanceId) => {
     closeSocket();
-    const connection = { pin, who, hostToken, attempt: 0 };
+    const connection = { pin, who, hostToken, expectedInstanceId, instanceId: null, attempt: 0 };
     connectionRef.current = connection;
     setJoined(false);
     setPlayerName(who);
 
-    const open = () => {
-    const playerKey = `quizblast_player_${pin}_${who}`;
-    let playerToken = localStorage.getItem(playerKey);
-    if (who !== "HOST" && who !== "DISPLAY" && !playerToken) {
-      playerToken = Array.from(crypto.getRandomValues(new Uint8Array(32)),
-        (byte) => byte.toString(16).padStart(2, "0")).join("");
-      localStorage.setItem(playerKey, playerToken);
+    const open = async () => {
+    if (!connection.instanceId) {
+      try {
+        const response = await fetch(`${API}/room-instance/${pin}`);
+        if (!response.ok) {
+          if (response.status === 404) {
+            if (expectedInstanceId) {
+              closeSession();
+              callbacksRef.current.onRoomClosed?.();
+            } else {
+              connectionRef.current = null;
+              setReconnecting(false);
+              alert("Oda bulunamadı. PIN kontrol et.");
+            }
+            return;
+          }
+          throw new Error(`room_instance_http_${response.status}`);
+        }
+        const data = await response.json();
+        if (expectedInstanceId && data.instance_id !== expectedInstanceId) {
+          closeSession();
+          callbacksRef.current.onRoomClosed?.();
+          return;
+        }
+        connection.instanceId = data.instance_id;
+      } catch (error) {
+        if (connectionRef.current !== connection) return;
+        setReconnecting(true);
+        reconnectTimerRef.current = setTimeout(open, 3000);
+        return;
+      }
     }
+    if (connectionRef.current !== connection) return;
+    const playerKey = `quizblast_player_${connection.instanceId}_${who}`;
+    let playerToken = localStorage.getItem(playerKey);
 
     const ws = new WebSocket(
-      `${WS}/ws/${pin}/${encodeURIComponent(who)}`,
+      `${WS}/ws/${pin}/${encodeURIComponent(who)}?instance=${connection.instanceId}`,
       who === "HOST" && hostToken
         ? ["quizblast-host", hostToken]
         : who !== "DISPLAY" && playerToken
@@ -146,6 +173,8 @@ export function useGameSession({
           callbacksRef.current.onHostUnauthorized?.();
         } else if (data.reason === "room_closed") {
           callbacksRef.current.onRoomClosed?.();
+        } else if (data.reason === "room_instance_mismatch") {
+          callbacksRef.current.onRoomClosed?.();
         } else {
         alert(
           data.reason === "duplicate_name"
@@ -172,7 +201,7 @@ export function useGameSession({
       }
 
       if (data.type === "player_session") {
-        localStorage.setItem(`quizblast_player_${pin}_${who}`, data.token);
+        localStorage.setItem(playerKey, data.token);
       }
 
       if (data.type === "room_closed") {
@@ -184,8 +213,8 @@ export function useGameSession({
       if (data.type === "players") {
         setJoined(true);
         setPlayers(data.players);
-        sessionStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who }));
-        localStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who }));
+        sessionStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who, instanceId: connection.instanceId }));
+        localStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who, instanceId: connection.instanceId }));
 
         setTotalPlayers(
           data.players.filter(

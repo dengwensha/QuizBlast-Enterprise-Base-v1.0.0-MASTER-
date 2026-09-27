@@ -64,23 +64,30 @@ async def run_game_flow():
     status, room = await asyncio.to_thread(post, f'/create-room/{quiz_id}', None, token)
     assert status == 200 and room['room_pin']
     pin = room['room_pin']
+    with urlopen(BASE_URL + f'/room-instance/{pin}', timeout=5) as response:
+        instance = json.load(response)['instance_id']
 
-    async with connect(f'{WS_URL}/ws/{pin}/HOST') as denied:
+    async with connect(f'{WS_URL}/ws/{pin}/HOST?instance=wrong',
+                       subprotocols=['quizblast-host', token]) as denied:
+        event = json.loads(await asyncio.wait_for(denied.recv(), timeout=5))
+        assert event == {'type': 'join_error', 'reason': 'room_instance_mismatch'}
+
+    async with connect(f'{WS_URL}/ws/{pin}/HOST?instance={instance}') as denied:
         event = json.loads(await asyncio.wait_for(denied.recv(), timeout=5))
         assert event == {'type': 'join_error', 'reason': 'host_unauthorized'}
 
     async with connect(
-        f'{WS_URL}/ws/{pin}/host', subprotocols=['quizblast-host', 'invalid-token']
+        f'{WS_URL}/ws/{pin}/host?instance={instance}', subprotocols=['quizblast-host', 'invalid-token']
     ) as denied:
         event = json.loads(await asyncio.wait_for(denied.recv(), timeout=5))
         assert event == {'type': 'join_error', 'reason': 'host_unauthorized'}
 
     async with connect(
-        f'{WS_URL}/ws/{pin}/HOST', subprotocols=['quizblast-host', token]
+        f'{WS_URL}/ws/{pin}/HOST?instance={instance}', subprotocols=['quizblast-host', token]
     ) as host:
         assert host.subprotocol == 'quizblast-host'
-        async with connect(f'{WS_URL}/ws/{pin}/Ada') as player:
-            async with connect(f'{WS_URL}/ws/{pin}/DISPLAY') as display:
+        async with connect(f'{WS_URL}/ws/{pin}/Ada?instance={instance}') as player:
+            async with connect(f'{WS_URL}/ws/{pin}/DISPLAY?instance={instance}') as display:
                 status, started = await asyncio.to_thread(post, f'/start-game/{pin}', None, token)
                 assert status == 200 and started['status'] == 'started'
 
@@ -156,12 +163,14 @@ async def run_game_flow():
     status, room = await asyncio.to_thread(post, f'/create-room/{quiz_id}', None, token)
     assert status == 200 and room['room_pin']
     pin = room['room_pin']
+    with urlopen(BASE_URL + f'/room-instance/{pin}', timeout=5) as response:
+        instance = json.load(response)['instance_id']
     async with connect(
-        f'{WS_URL}/ws/{pin}/HOST', subprotocols=['quizblast-host', token]
+        f'{WS_URL}/ws/{pin}/HOST?instance={instance}', subprotocols=['quizblast-host', token]
     ) as host:
         ada, bora = await asyncio.gather(
-            connect(f'{WS_URL}/ws/{pin}/Ada'),
-            connect(f'{WS_URL}/ws/{pin}/Bora'),
+            connect(f'{WS_URL}/ws/{pin}/Ada?instance={instance}'),
+            connect(f'{WS_URL}/ws/{pin}/Bora?instance={instance}'),
         )
         try:
             for socket in (host, ada, bora):
