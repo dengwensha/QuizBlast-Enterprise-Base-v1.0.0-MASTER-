@@ -212,6 +212,14 @@ def get_room_questions(room_pin):
         qs=db.query(Question).filter(Question.quiz_id==quiz_id).all()
         return [serialize_question(q) for q in qs]
 
+def lock_editable_quiz(db, quiz_id, email):
+    quiz = db.query(Quiz).filter(
+        Quiz.id == quiz_id, Quiz.owner_email == email,
+    ).with_for_update().first()
+    if quiz and db.query(GameRoom.pin).filter(GameRoom.quiz_id == quiz_id).first():
+        raise HTTPException(status_code=409, detail='quiz_has_game_rooms')
+    return quiz
+
 def visible_player_count(room_pin):
     return len([p for p in rooms.get(room_pin,[]) if p['name'] not in {'HOST','DISPLAY'}])
 
@@ -269,7 +277,7 @@ def add_question(quiz_id:int, data: QuestionCreate, authorization: str | None = 
     email=get_current_email(authorization)
     if not email: return {'error':'unauthorized'}
     with db_session() as db:
-        quiz=db.query(Quiz).filter(Quiz.id==quiz_id, Quiz.owner_email==email).first()
+        quiz=lock_editable_quiz(db, quiz_id, email)
         if not quiz: return {'error':'quiz_not_found'}
         q=Question(quiz_id=quiz_id,question=data.question,image_url=data.image_url,option1=data.options[0],option2=data.options[1],option3=data.options[2],option4=data.options[3],correct=data.correct,time=data.time)
         db.add(q); db.commit()
@@ -302,7 +310,10 @@ def delete_question(question_id:int, authorization: str | None = Header(default=
     email=get_current_email(authorization)
     if not email: return {'error':'unauthorized'}
     with db_session() as db:
-        q=db.query(Question).join(Quiz).filter(Question.id==question_id, Quiz.owner_email==email).first()
+        quiz_id=db.query(Question.quiz_id).filter(Question.id==question_id).scalar()
+        if quiz_id is None or not lock_editable_quiz(db, quiz_id, email):
+            return {'error':'question_not_found'}
+        q=db.get(Question, question_id)
         if not q: return {'error':'question_not_found'}
         db.delete(q); db.commit()
         return {'status':'question_deleted'}
@@ -314,7 +325,10 @@ def update_question(question_id:int, data: QuestionCreate, authorization: str | 
     email=get_current_email(authorization)
     if not email: return {'error':'unauthorized'}
     with db_session() as db:
-        q=db.query(Question).join(Quiz).filter(Question.id==question_id, Quiz.owner_email==email).first()
+        quiz_id=db.query(Question.quiz_id).filter(Question.id==question_id).scalar()
+        if quiz_id is None or not lock_editable_quiz(db, quiz_id, email):
+            return {'error':'question_not_found'}
+        q=db.get(Question, question_id)
         if not q: return {'error':'question_not_found'}
         q.question=data.question
         q.image_url=data.image_url
@@ -593,7 +607,7 @@ async def commit_quiz_import(
 
     try:
         with db_session() as db:
-            quiz = db.query(Quiz).filter(Quiz.id == quiz_id, Quiz.owner_email == email).first()
+            quiz = lock_editable_quiz(db, quiz_id, email)
 
             if not quiz:
                 raise HTTPException(

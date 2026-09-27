@@ -129,8 +129,10 @@ export function useQuizState(user) {
   };
 
   const deleteQuestionRequestState = async (questionId) => {
-    await deleteQuestionRequest(user, questionId);
+    const result = await deleteQuestionRequest(user, questionId);
+    if (result.error) return result;
     await refreshSelectedQuiz();
+    return result;
   };
 
   const updateQuestionRequestState = async (questionId, payload) => {

@@ -12,7 +12,9 @@ async function readImportResponse(response) {
     return {
       ...data,
       error: data.error || detail,
-      message: data.message || detail,
+      message: data.message || (detail === "quiz_has_game_rooms"
+        ? "Bu quiz bir oyun odasında kullanılıyor. Soruları içe aktarılamaz."
+        : detail),
     };
   }
 

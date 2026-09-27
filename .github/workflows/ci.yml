@@ -93,6 +93,7 @@ jobs:
             app.tests.test_game_progression
             app.tests.test_game_recovery
             app.tests.test_quiz_room_deletion_manual
+            app.tests.test_quiz_question_freeze_manual
             app.tests.test_room_connections
             app.tests.test_duplicate_detector_manual
             app.tests.test_host_authorization_manual

@@ -77,7 +77,9 @@ function useAdminState({
       correct: c,
       time: tm
     });
-    if (d.error) return alert(d.error);
+    if (d.error) return alert(d.error === "quiz_has_game_rooms"
+      ? "Bu quiz bir oyun odasında kullanılıyor. Soruları değiştirilemez."
+      : d.error);
     setNewQuestion("");
     setNewImageUrl("");
     setNewOptions(["", "", "", ""]);
@@ -141,6 +143,8 @@ function useAdminState({
 
       if (failedQuestions.length === 0) {
         alert(`${importedCount} AI sorusu quiz’e eklendi.`);
+      } else if (failedQuestions.some((q) => q.error === "quiz_has_game_rooms")) {
+        alert("Bu quiz bir oyun odasında kullanılıyor. Soruları değiştirilemez; önizleme korundu.");
       } else if (importedCount === 0) {
         alert("AI soruları eklenemedi. Önizleme korunuyor; tekrar deneyebilirsin.");
       } else {
@@ -178,7 +182,10 @@ function useAdminState({
   };
   const deleteQuestion = async (id) => {
     if (!confirm("Bu soru silinsin mi?")) return;
-    await deleteQuestionRequestState(id);
+    const result = await deleteQuestionRequestState(id);
+    if (result?.error) alert(result.error === "quiz_has_game_rooms"
+      ? "Bu quiz bir oyun odasında kullanılıyor. Soruları değiştirilemez."
+      : result.error);
   };
   const editQuestion = async (q) => {
     const question = prompt("Soru metni:", q.question);
@@ -202,7 +209,9 @@ function useAdminState({
       time: Number.isNaN(time) ? q.time || 15 : time
     };
     const d = await updateQuestionRequestState(q.id, payload);
-    if (d.error) return alert(d.error);
+    if (d.error) return alert(d.error === "quiz_has_game_rooms"
+      ? "Bu quiz bir oyun odasında kullanılıyor. Soruları değiştirilemez."
+      : d.error);
   };
   return {
     newQuizTitle,

@@ -1,5 +1,10 @@
 import { API, authHeaders, jsonAuthHeaders } from "./api";
 
+async function readQuestionMutation(response) {
+  const data = await response.json();
+  return data.detail ? { ...data, error: data.detail } : data;
+}
+
 export async function fetchQuizzes(user) {
   const r = await fetch(`${API}/quizzes`, {
     headers: authHeaders(user),
@@ -44,13 +49,14 @@ export async function addQuestionRequest(user, quizId, payload) {
     body: JSON.stringify(payload),
   });
 
-  return await r.json();
+  return readQuestionMutation(r);
 }
 export async function deleteQuestionRequest(user, questionId) {
-  await fetch(`${API}/questions/${questionId}`, {
+  const response = await fetch(`${API}/questions/${questionId}`, {
     method: "DELETE",
     headers: authHeaders(user),
   });
+  return readQuestionMutation(response);
 }
 export async function updateQuestionRequest(user, questionId, payload) {
   const r = await fetch(`${API}/questions/${questionId}`, {
@@ -59,5 +65,5 @@ export async function updateQuestionRequest(user, questionId, payload) {
     body: JSON.stringify(payload),
   });
 
-  return await r.json();
+  return readQuestionMutation(r);
 }
