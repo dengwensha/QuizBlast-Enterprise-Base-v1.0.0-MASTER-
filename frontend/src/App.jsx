@@ -40,6 +40,7 @@ export default function App() {
     register,
     login,
     clearAuth,
+    tokenExpired,
   } = useAuth();
   const playTone=(f=600,d=120,t='sine')=>{try{const A=window.AudioContext||window.webkitAudioContext; const c=new A(); const o=c.createOscillator(); const g=c.createGain(); o.type=t; o.frequency.value=f; o.connect(g); g.connect(c.destination); g.gain.setValueAtTime(.08,c.currentTime); g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d/1000); o.start(); o.stop(c.currentTime+d/1000);}catch(e){}};
   const fireSmallConfetti=()=>confetti({particleCount:60,spread:70,origin:{y:.7}}); const fireBigConfetti=()=>{const end=Date.now()+3000; const i=setInterval(()=>{if(Date.now()>end){clearInterval(i);return;} confetti({particleCount:40,spread:120,startVelocity:40,origin:{x:Math.random(),y:Math.random()*.5}})},250)};
@@ -87,6 +88,7 @@ export default function App() {
       setTimeout(()=>playTone(920,220,'triangle'),300);
     },
     onCountdown: () => playTone(520,80,'square'),
+    onHostUnauthorized: () => clearAuth(true),
   });
   const {
     quizzes,
@@ -136,7 +138,7 @@ export default function App() {
     let saved;
     try { saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session')); }
     catch { return; }
-    if (saved?.pin && saved?.who && user?.token) {
+    if (saved?.pin && saved?.who && user?.token && (saved.who !== 'HOST' || !tokenExpired(user.token))) {
       setRoomPin(saved.pin);
       connectWebsocket(saved.pin,saved.who,saved.who==='HOST'?user.token:undefined);
     }

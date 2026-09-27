@@ -7,12 +7,14 @@ export function useGameSession({
   onQuestionResult,
   onGameOver,
   onCountdown,
+  onHostUnauthorized,
 } = {}) {
   const callbacksRef = useRef({
     onQuestion,
     onQuestionResult,
     onGameOver,
     onCountdown,
+    onHostUnauthorized,
   });
 
   callbacksRef.current = {
@@ -20,6 +22,7 @@ export function useGameSession({
     onQuestionResult,
     onGameOver,
     onCountdown,
+    onHostUnauthorized,
   };
 
   const [roomPin, setRoomPin] = useState(
@@ -132,8 +135,13 @@ export function useGameSession({
         connectionRef.current = null;
         clearTimeout(reconnectTimerRef.current);
         setReconnecting(false);
-        sessionStorage.removeItem("quizblast_active_session");
-        localStorage.removeItem("quizblast_active_session");
+        if (data.reason !== "host_unauthorized") {
+          sessionStorage.removeItem("quizblast_active_session");
+          localStorage.removeItem("quizblast_active_session");
+        }
+        if (data.reason === "host_unauthorized") {
+          callbacksRef.current.onHostUnauthorized?.();
+        } else {
         alert(
           data.reason === "duplicate_name"
             ? "Bu isim zaten odada. Farklı bir isim gir."
@@ -143,6 +151,7 @@ export function useGameSession({
                 ? "Oyuncu oturumu doğrulanamadı. Önceki oyun anahtarı gerekli."
               : "Geçersiz giriş."
         );
+        }
 
         setJoined(false);
         socketRef.current = null;

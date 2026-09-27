@@ -5,10 +5,22 @@ import {
   loginRequest,
 } from "../services/authService";
 
+function tokenExpired(token) {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof payload.exp !== "number" || payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 export function useAuth() {
   const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem("quizblast_user");
-    return storedUser ? JSON.parse(storedUser) : null;
+    try {
+      const parsed = storedUser ? JSON.parse(storedUser) : null;
+      return parsed?.token && !tokenExpired(parsed.token) ? parsed : null;
+    } catch { return null; }
   });
   const [authMode, setAuthMode] = useState("login");
   const [authEmail, setAuthEmail] = useState("");
@@ -40,6 +52,12 @@ export function useAuth() {
         return alert("Giriş başarısız");
       }
 
+      const savedSession = JSON.parse(sessionStorage.getItem("quizblast_active_session") || localStorage.getItem("quizblast_active_session") || "null");
+      const previousUser = JSON.parse(localStorage.getItem("quizblast_user") || "null");
+      if (savedSession?.who === "HOST" && previousUser?.email && previousUser.email !== data.email) {
+        return alert("Oyuna dönmek için aynı host hesabıyla giriş yap.");
+      }
+
       const authenticatedUser = {
         email: data.email,
         token: data.access_token,
@@ -58,8 +76,8 @@ export function useAuth() {
     }
   };
 
-  const clearAuth = () => {
-    localStorage.removeItem("quizblast_user");
+  const clearAuth = (preservePreviousUser = false) => {
+    if (!preservePreviousUser) localStorage.removeItem("quizblast_user");
     setUser(null);
   };
 
@@ -71,6 +89,7 @@ export function useAuth() {
     setAuthEmail,
     authPassword,
     setAuthPassword,
+    tokenExpired,
     register,
     login,
     clearAuth,

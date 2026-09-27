@@ -142,6 +142,19 @@ test("host, player and display recover after backend and browser restart", async
     await expect(returnedPlayer.getByRole("status")).toBeHidden();
     await expect(returnedPlayer.getByRole("button", { name: "Yes" })).toBeDisabled();
     expect(Number(await returnedPlayer.getByTestId("game-timer").innerText())).toBeLessThanOrEqual(pausedTime);
+
+    await returnedHost.evaluate(() => {
+      const account = JSON.parse(localStorage.getItem("quizblast_user"));
+      account.token = "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjB9.invalid";
+      localStorage.setItem("quizblast_user", JSON.stringify(account));
+    });
+    await returnedHost.reload();
+    await expect(returnedHost.getByRole("heading", { name: "Giriş Yap" })).toBeVisible();
+    expect(await returnedHost.evaluate(() => JSON.parse(localStorage.getItem("quizblast_active_session")).pin)).toBe(pin);
+    await returnedHost.getByPlaceholder("E-posta").fill(email);
+    await returnedHost.getByPlaceholder("Şifre").fill("integration-password");
+    await returnedHost.getByRole("button", { name: "Giriş Yap" }).click();
+    await expect(returnedHost.getByText("Will this game resume?")).toBeVisible();
   } finally {
     await hostContext?.close();
     await playerContext?.close();
