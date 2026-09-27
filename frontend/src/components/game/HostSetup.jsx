@@ -13,6 +13,9 @@ export default function HostSetup({
   createRoom,
   selectedQuestions,
   styles,
+  hostRooms,
+  hostRoomsError,
+  returnToRoom,
 }) {
   return (
     <div style={styles.app}>
@@ -28,6 +31,16 @@ export default function HostSetup({
       </div>
 
       <div style={styles.container}>
+        {hostRooms.length > 0 && <div style={styles.card}>
+          <h2>Açık odalarım</h2>
+          {hostRooms.map(room => <div key={room.instance_id}>
+            <span>PIN: {room.pin} · Quiz #{room.quiz_id} · {room.phase}</span>{' '}
+            <button type="button" onClick={() => returnToRoom(room)} style={styles.purpleButton}>
+              Odaya Dön
+            </button>
+          </div>)}
+        </div>}
+        {hostRoomsError && <p role="alert">Açık odalar yüklenemedi. Sayfayı yenileyip tekrar deneyin.</p>}
         <div style={styles.card}>
           <h2>Quiz Seç</h2>
 

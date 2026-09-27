@@ -26,6 +26,35 @@ async function authenticatedContext(browser, user, activeSession) {
   return context;
 }
 
+test("host recovers an open room after browser storage is lost", async ({ browser, request }) => {
+  const email = `host-return-${Date.now()}@example.com`;
+  await post(request, "/auth/register", { email, password: "integration-password" });
+  const login = await post(request, "/auth/login", { email, password: "integration-password" });
+  const user = { email, token: login.access_token };
+  const quiz = await post(request, "/quizzes", { title: "Return to room" }, user.token);
+  await post(request, `/quizzes/${quiz.id}/questions`, {
+    question: "Still here?", options: ["A", "B", "C", "D"], correct: 0, time: 30,
+  }, user.token);
+  const { room_pin: pin } = await post(request, `/create-room/${quiz.id}`, {}, user.token);
+  const context = await browser.newContext({ baseURL: frontendUrl });
+  try {
+    const page = await context.newPage();
+    await page.goto("/");
+    await page.getByPlaceholder("E-posta").fill(email);
+    await page.getByPlaceholder("Şifre").fill("integration-password");
+    await page.getByRole("button", { name: "Giriş Yap" }).click();
+    await page.getByRole("button", { name: "🎤 Host Game" }).click();
+    await expect(page.getByText(`PIN: ${pin}`, { exact: false })).toBeVisible();
+    await page.getByRole("button", { name: "Odaya Dön" }).click();
+    await expect(page.getByRole("heading", { name: `PIN: ${pin}` })).toBeVisible();
+    const restored = await page.evaluate(() => JSON.parse(localStorage.getItem("quizblast_active_session")));
+    expect(restored).toMatchObject({ pin, who: "HOST" });
+    expect(restored.instanceId).toHaveLength(32);
+  } finally {
+    await context.close();
+  }
+});
+
 test("host, player and display recover after backend and browser restart", async ({ browser, request }) => {
   test.setTimeout(150_000);
   const traffic = [];

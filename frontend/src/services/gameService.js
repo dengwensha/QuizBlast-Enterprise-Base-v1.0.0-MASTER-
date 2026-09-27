@@ -18,6 +18,14 @@ export async function createRoomRequest(quizId, token) {
   return response.json();
 }
 
+export async function listHostRoomsRequest(token) {
+  const response = await fetch(`${API}/host/rooms`, {
+    headers: createAuthorizationHeaders(token),
+  });
+  if (!response.ok) throw new Error(`host_rooms_http_${response.status}`);
+  return response.json();
+}
+
 export async function startGameRequest(roomPin, token) {
   const response = await fetch(
     `${API}/start-game/${roomPin}`,

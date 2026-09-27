@@ -268,6 +268,16 @@ def get_room_instance(room_pin: str):
             raise HTTPException(status_code=404, detail='room_not_found')
         return {'instance_id':record.identity.instance_id}
 
+@app.get('/host/rooms')
+def list_host_rooms(authorization: str | None = Header(default=None)):
+    email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
+    with db_session() as db:
+        records = db.query(GameRoom).filter(
+            GameRoom.host_email == email, GameRoom.phase != 'closed'
+        ).order_by(GameRoom.pin).all()
+        return [{'pin': room.pin, 'instance_id': room.identity.instance_id,
+                 'quiz_id': room.quiz_id, 'phase': room.phase} for room in records]
+
 @app.get('/')
 def root(): return {'status':'running'}
 

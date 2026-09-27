@@ -19,6 +19,7 @@ import {
   startGameRequest,
   nextQuestionRequest,
   closeRoomRequest,
+  listHostRoomsRequest,
 } from "./services/gameService";
 
 import { useAuth } from "./hooks/useAuth";
@@ -51,6 +52,8 @@ export default function App() {
       return !saved?.instanceId ? null : saved.who==='HOST'?'host':saved.who==='DISPLAY'?'display':saved.who?'player':null;
     } catch { return null; }
   });
+  const [hostRooms, setHostRooms] = useState([]);
+  const [hostRoomsError, setHostRoomsError] = useState(false);
   const {
     roomPin,
     setRoomPin,
@@ -155,6 +158,14 @@ export default function App() {
       loadSelectedQuestions(selectedQuizId);
     }
   }, [mode, selectedQuizId]);
+  useEffect(() => {
+    if (mode !== 'host' || !user?.token) return;
+    let current = true;
+    listHostRoomsRequest(user.token)
+      .then(rooms => { if (current) { setHostRooms(rooms); setHostRoomsError(false); } })
+      .catch(() => { if (current) setHostRoomsError(true); });
+    return () => { current = false; };
+  }, [mode, user?.token, joined]);
 
   const createRoom = async () => {
   if (!selectedQuizId) return alert("Quiz seç");
@@ -169,6 +180,10 @@ export default function App() {
   setRoomPin(d.room_pin);
   connectWebsocket(d.room_pin, "HOST", user.token);
 };
+  const returnToRoom = (room) => {
+    setRoomPin(room.pin);
+    connectWebsocket(room.pin, 'HOST', user.token, room.instance_id);
+  };
   const joinRoom=()=>{if(!roomPin.trim())return alert('PIN gir'); if(!name.trim())return alert('İsim gir'); connectWebsocket(roomPin,name);}; const connectDisplay=()=>{if(!roomPin.trim())return alert('PIN gir'); connectWebsocket(roomPin,'DISPLAY');};
   const startGame = async () => {
     playTone(700, 100, 'triangle');
@@ -207,7 +222,7 @@ export default function App() {
   if(!mode) return <div style={styles.splash}><div style={styles.center}><h1 style={styles.logo}>QuizBlast 🚀</h1><p style={styles.subtitle}>Multiplayer Quiz Platform</p><p>{user.email}</p><button onClick={()=>{setMode('host');loadQuizzes();}} style={styles.mainButton}>🎤 Host Game</button><button onClick={()=>setMode('player')} style={styles.mainButton}>🎮 Join Game</button><button onClick={()=>setMode('display')} style={styles.mainButton}>📺 Display Screen</button><button onClick={()=>{setMode('admin');loadQuizzes();}} style={styles.mainButton}>🧠 Admin Panel</button><button onClick={logout} style={{...styles.mainButton,background:'#e21b3c',color:'white'}}>Çıkış Yap</button></div></div>;
   if(mode==='admin') return <AdminView styles={styles} admin={admin} {...{quizzes,selectedQuizId,setSelectedQuizId,selectedQuestions,importExcel,commitImport,importPreview,importing,importSummary,setMode}} />;
   if(reconnecting) return <div style={styles.splash}><div style={styles.center}><h2>Odaya yeniden bağlanılıyor...</h2><button onClick={leaveGame} style={styles.mainButton}>Oyundan Çık</button></div></div>;
-  if(mode==='host'&&!joined) return <HostSetup {...{quizzes,selectedQuizId,setSelectedQuizId,loadSelectedQuestions,finalLimit,setFinalLimit,createRoom,selectedQuestions,setMode,styles}} />;
+  if(mode==='host'&&!joined) return <HostSetup {...{quizzes,selectedQuizId,setSelectedQuizId,loadSelectedQuestions,finalLimit,setFinalLimit,createRoom,selectedQuestions,setMode,styles,hostRooms,hostRoomsError,returnToRoom}} />;
   if(mode==='player'&&!joined) return <JoinScreen {...{roomPin,setRoomPin,name,setName,joinRoom,setMode}}styles={styles} />;
   if(mode==='display'&&!joined) return <DisplayConnect {...{roomPin,setRoomPin,connectDisplay,setMode}} styles={styles}/>;
 

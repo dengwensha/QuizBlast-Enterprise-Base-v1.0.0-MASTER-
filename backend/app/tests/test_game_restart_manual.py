@@ -36,6 +36,13 @@ def post_error(path, token):
     raise AssertionError(f'{path} unexpectedly succeeded')
 
 
+def host_rooms(token=None):
+    request = Request(BASE + '/host/rooms', headers=(
+        {'Authorization': f'Bearer {token}'} if token else {}))
+    with urlopen(request, timeout=5) as response:
+        return json.load(response)
+
+
 def start_backend():
     process = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app',
                                 '--host', '127.0.0.1', '--port', '8002'],
@@ -83,6 +90,13 @@ async def run():
         pin = room['room_pin']
         with urlopen(BASE + f'/room-instance/{pin}') as response:
             instance = json.load(response)['instance_id']
+        assert {'pin': pin, 'instance_id': instance, 'quiz_id': quiz['id'],
+                'phase': 'lobby'} in await asyncio.to_thread(host_rooms, token)
+        try:
+            await asyncio.to_thread(host_rooms)
+            raise AssertionError('unauthenticated room listing succeeded')
+        except HTTPError as error:
+            assert error.code == 401
         host = await connect(f'{WS}/ws/{pin}/HOST?instance={instance}', subprotocols=['quizblast-host', token])
         ada = await connect(f'{WS}/ws/{pin}/Ada?instance={instance}')
         bora_token = secrets.token_hex(32)
@@ -130,6 +144,9 @@ async def run():
             board = await event_of(socket, 'leaderboard')
             assert dict(board['scores'])['Ada'] == score
         await asyncio.sleep(2)
+        own_rooms = await asyncio.to_thread(host_rooms, token)
+        assert any(room['pin'] == pin and room['instance_id'] == instance
+                   and room['phase'] == 'question' for room in own_rooms)
         host2 = await connect(f'{WS}/ws/{pin}/HOST?instance={instance}',
                               subprotocols=['quizblast-host', token])
         sockets.append(host2)
@@ -163,10 +180,13 @@ async def run():
                                 {'email': other_email, 'password': 'integration-password'})
         other_login = await asyncio.to_thread(post, '/auth/login',
                                               {'email': other_email, 'password': 'integration-password'})
+        assert all(room['pin'] != pin for room in
+                   await asyncio.to_thread(host_rooms, other_login['access_token']))
         denied_status, denied = await asyncio.to_thread(post_error, f'/close-room/{pin}', other_login['access_token'])
         assert denied_status == 403 and denied['detail'] == 'host_forbidden'
         closed = await asyncio.to_thread(post, f'/close-room/{pin}', None, token)
         assert closed['status'] == 'room_closed'
+        assert all(room['pin'] != pin for room in await asyncio.to_thread(host_rooms, token))
         for socket in (host3, ada3):
             assert (await event_of(socket, 'room_closed'))['type'] == 'room_closed'
         rejected = await connect(f'{WS}/ws/{pin}/HOST', subprotocols=['quizblast-host', token])
