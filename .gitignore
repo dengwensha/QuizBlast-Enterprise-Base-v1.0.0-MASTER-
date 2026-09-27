@@ -5,15 +5,17 @@ dist/
 **/dist/
 build/
 **/build/
-
 coverage/
-*.log
 
 .env
 .env.local
 
+*.log
 __pycache__/
 *.pyc
+*.pyo
 
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
