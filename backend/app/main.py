@@ -132,7 +132,7 @@ def save_game(room_pin):
 async def restore_active_rooms():
     with db_session() as db:
         snapshots=[]
-        for record in db.query(GameRoom).all():
+        for record in db.query(GameRoom).filter(GameRoom.phase != 'closed').all():
             freeze_after_restart(record)
             snapshots.append(room_state(record))
         db.commit()
@@ -216,7 +216,9 @@ def lock_editable_quiz(db, quiz_id, email):
     quiz = db.query(Quiz).filter(
         Quiz.id == quiz_id, Quiz.owner_email == email,
     ).with_for_update().first()
-    if quiz and db.query(GameRoom.pin).filter(GameRoom.quiz_id == quiz_id).first():
+    if quiz and db.query(GameRoom.pin).filter(
+        GameRoom.quiz_id == quiz_id, GameRoom.phase != 'closed',
+    ).first():
         raise HTTPException(status_code=409, detail='quiz_has_game_rooms')
     return quiz
 
@@ -362,7 +364,7 @@ def create_room(
             raise HTTPException(status_code=404, detail='quiz_not_found')
 
         pin = generate_pin()
-        while pin in rooms:
+        while pin in rooms or db.get(GameRoom, pin) is not None:
             pin = generate_pin()
 
         db.add(GameRoom(pin=pin, quiz_id=quiz_id, host_email=email,
@@ -385,6 +387,38 @@ def create_room(
         'room_pin': pin,
         'quiz_id': quiz_id,
     }
+
+
+@app.post('/close-room/{room_pin}')
+async def close_room(room_pin: str, authorization: str | None = Header(default=None)):
+    email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
+    require_room_host(room_pin, email, rooms, room_host_map)
+    with db_session() as db:
+        db.query(Quiz).filter(Quiz.id == room_quiz_map[room_pin]).with_for_update().one()
+        record = db.get(GameRoom, room_pin)
+        if record.phase == 'closed':
+            raise HTTPException(status_code=409, detail='room_closed')
+        record.phase = 'closed'
+        record.deadline_epoch = None
+        db.commit()
+
+    game_phase[room_pin] = 'closed'
+    task = game_tasks.pop(room_pin, None)
+    if task and not task.done():
+        task.cancel()
+    connections = tuple(rooms.get(room_pin, []))
+    await safe_broadcast_json(room_pin, {'type': 'room_closed'})
+    for state in (rooms, scores, current_question_index, answered_players,
+                  room_quiz_map, room_host_map, answer_stats_map,
+                  waiting_next_question, question_start_time, game_phase,
+                  remaining_seconds, question_deadline):
+        state.pop(room_pin, None)
+    for participant in connections:
+        try:
+            await participant['socket'].close()
+        except Exception:
+            pass
+    return {'status': 'room_closed'}
 
 
 @app.post('/start-game/{room_pin}')
@@ -748,7 +782,10 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
     if not clean_name:
         await websocket.send_json({'type':'join_error','reason':'invalid_name'}); await websocket.close(); return
     if room_pin not in rooms:
-        await websocket.send_json({'type':'join_error','reason':'room_not_found'}); await websocket.close(); return
+        with db_session() as db:
+            record=db.get(GameRoom,room_pin)
+            reason='room_closed' if record and record.phase=='closed' else 'room_not_found'
+        await websocket.send_json({'type':'join_error','reason':reason}); await websocket.close(); return
     if is_host:
         try:
             if len(protocols)!=2 or protocols[0]!='quizblast-host':
@@ -852,18 +889,19 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
     except WebSocketDisconnect:
         pass
     finally:
-        rooms[room_pin]=remove_connection(rooms.get(room_pin,[]),websocket)
-        if is_host and not any(p['name']=='HOST' for p in rooms.get(room_pin,[])) and game_phase.get(room_pin)=='question':
-            with db_session() as db:
-                record=db.get(GameRoom,room_pin)
-                pause_question(record)
-                remaining_seconds[room_pin]=record.remaining_seconds
-                question_deadline[room_pin]=None
-                db.commit()
-            question_start_time[room_pin]=None
-            await safe_broadcast_json(room_pin, {'type':'game_paused',
-                'remaining':remaining_seconds[room_pin]})
-        await broadcast_players(room_pin)
+        if room_pin in rooms:
+            rooms[room_pin]=remove_connection(rooms[room_pin],websocket)
+            if is_host and not any(p['name']=='HOST' for p in rooms[room_pin]) and game_phase.get(room_pin)=='question':
+                with db_session() as db:
+                    record=db.get(GameRoom,room_pin)
+                    pause_question(record)
+                    remaining_seconds[room_pin]=record.remaining_seconds
+                    question_deadline[room_pin]=None
+                    db.commit()
+                question_start_time[room_pin]=None
+                await safe_broadcast_json(room_pin, {'type':'game_paused',
+                    'remaining':remaining_seconds[room_pin]})
+            await broadcast_players(room_pin)
 
 
 async def send_current_state(websocket,room_pin,player_name):

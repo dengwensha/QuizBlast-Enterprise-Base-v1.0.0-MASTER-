@@ -155,6 +155,12 @@ test("host, player and display recover after backend and browser restart", async
     await returnedHost.getByPlaceholder("Şifre").fill("integration-password");
     await returnedHost.getByRole("button", { name: "Giriş Yap" }).click();
     await expect(returnedHost.getByText("Will this game resume?")).toBeVisible();
+    returnedHost.once("dialog", (dialog) => dialog.accept());
+    const closedResponse = returnedHost.waitForResponse((response) => response.url().includes(`/close-room/${pin}`));
+    await returnedHost.getByRole("button", { name: "Odayı Kapat" }).click();
+    expect((await closedResponse).status()).toBe(200);
+    await expect(returnedPlayer.getByRole("button", { name: "🎮 Join Game" })).toBeVisible();
+    await expect(display.getByRole("button", { name: "📺 Display Screen" })).toBeVisible();
   } finally {
     await hostContext?.close();
     await playerContext?.close();

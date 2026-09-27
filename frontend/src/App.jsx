@@ -18,6 +18,7 @@ import {
   createRoomRequest,
   startGameRequest,
   nextQuestionRequest,
+  closeRoomRequest,
 } from "./services/gameService";
 
 import { useAuth } from "./hooks/useAuth";
@@ -89,6 +90,7 @@ export default function App() {
     },
     onCountdown: () => playTone(520,80,'square'),
     onHostUnauthorized: () => clearAuth(true),
+    onRoomClosed: () => { setMode(null); alert('Oda kapatıldı.'); },
   });
   const {
     quizzes,
@@ -185,6 +187,16 @@ export default function App() {
     alert(result.error);
   }
 };
+  const closeRoom = async () => {
+    if (!confirm('Oda kapatılsın mı? Oyuncular ayrılacak ve bu PIN ile yeniden oynanamayacak.')) return;
+    const result = await closeRoomRequest(roomPin, user.token);
+    if (result.status === 'room_closed') {
+      closeSession();
+      setMode(null);
+    } else {
+      alert(result.detail || result.error || 'Oda kapatılamadı.');
+    }
+  };
 
   if(!user) return <div style={styles.splash}><div style={styles.joinCard}><h1>QuizBlast 🚀</h1><h2>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</h2><input placeholder="E-posta" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={styles.input}/><input placeholder="Şifre" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={styles.input}/><button onClick={authMode==='login'?login:register} style={styles.joinButton}>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</button><button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} style={{...styles.joinButton,marginTop:10,background:'#333'}}>{authMode==='login'?'Hesap oluştur':'Giriş ekranına dön'}</button></div></div>;
   if(!mode) return <div style={styles.splash}><div style={styles.center}><h1 style={styles.logo}>QuizBlast 🚀</h1><p style={styles.subtitle}>Multiplayer Quiz Platform</p><p>{user.email}</p><button onClick={()=>{setMode('host');loadQuizzes();}} style={styles.mainButton}>🎤 Host Game</button><button onClick={()=>setMode('player')} style={styles.mainButton}>🎮 Join Game</button><button onClick={()=>setMode('display')} style={styles.mainButton}>📺 Display Screen</button><button onClick={()=>{setMode('admin');loadQuizzes();}} style={styles.mainButton}>🧠 Admin Panel</button><button onClick={logout} style={{...styles.mainButton,background:'#e21b3c',color:'white'}}>Çıkış Yap</button></div></div>;
@@ -213,6 +225,12 @@ return (
       {mode === "host" && (
         <button onClick={startGame} style={styles.hostButton}>
           ▶ Oyunu Başlat
+        </button>
+      )}
+
+      {mode === "host" && joined && (
+        <button onClick={closeRoom} style={{...styles.hostButton, background:'#e21b3c', color:'white'}}>
+          Odayı Kapat
         </button>
       )}
 

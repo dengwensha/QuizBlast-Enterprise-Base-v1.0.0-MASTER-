@@ -7,7 +7,7 @@ import signal
 import subprocess
 import sys
 import uuid
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from websockets.asyncio.client import connect
@@ -23,6 +23,14 @@ def post(path, data=None, token=None):
                                **({'Authorization': f'Bearer {token}'} if token else {})})
     with urlopen(request, timeout=5) as response:
         return json.load(response)
+
+
+def post_error(path, token):
+    try:
+        post(path, None, token)
+    except HTTPError as error:
+        return error.code, json.load(error)
+    raise AssertionError(f'{path} unexpectedly succeeded')
 
 
 def start_backend():
@@ -142,6 +150,50 @@ async def run():
             assert restored['stats'] == [2, 0, 0, 0]
         finish = await asyncio.to_thread(post, f'/next-question/{pin}', None, token)
         assert finish['status'] == 'game_over'
+
+        denied_status, denied = await asyncio.to_thread(post_error, f'/close-room/{pin}', 'invalid-token')
+        assert denied_status == 401 and denied['detail'] == 'invalid_authentication_credentials'
+        other_email = f'other-host-{uuid.uuid4().hex}@example.com'
+        await asyncio.to_thread(post, '/auth/register',
+                                {'email': other_email, 'password': 'integration-password'})
+        other_login = await asyncio.to_thread(post, '/auth/login',
+                                              {'email': other_email, 'password': 'integration-password'})
+        denied_status, denied = await asyncio.to_thread(post_error, f'/close-room/{pin}', other_login['access_token'])
+        assert denied_status == 403 and denied['detail'] == 'host_forbidden'
+        closed = await asyncio.to_thread(post, f'/close-room/{pin}', None, token)
+        assert closed['status'] == 'room_closed'
+        for socket in (host3, ada3):
+            assert (await event_of(socket, 'room_closed'))['type'] == 'room_closed'
+        rejected = await connect(f'{WS}/ws/{pin}/HOST', subprotocols=['quizblast-host', token])
+        sockets.append(rejected)
+        assert (await event_of(rejected, 'join_error'))['reason'] == 'room_closed'
+        rejected_status, rejected_body = await asyncio.to_thread(post_error, f'/start-game/{pin}', token)
+        assert rejected_status == 404 and rejected_body['detail'] == 'room_not_found'
+
+        live_room = await asyncio.to_thread(post, f"/create-room/{quiz['id']}", None, token)
+        live_pin = live_room['room_pin']
+        live_host = await connect(f'{WS}/ws/{live_pin}/HOST', subprotocols=['quizblast-host', token])
+        live_player = await connect(f'{WS}/ws/{live_pin}/Live')
+        sockets.extend([live_host, live_player])
+        assert (await asyncio.to_thread(post, f'/start-game/{live_pin}', None, token))['status'] == 'started'
+        await event_of(live_player, 'question')
+        assert (await asyncio.to_thread(post, f'/close-room/{live_pin}', None, token))['status'] == 'room_closed'
+        assert (await event_of(live_player, 'room_closed'))['type'] == 'room_closed'
+
+        added = await asyncio.to_thread(post, f"/quizzes/{quiz['id']}/questions",
+                                        {'question': 'Editable after closure?',
+                                         'options': ['A', 'B', 'C', 'D'],
+                                         'correct': 0, 'time': 15}, token)
+        assert added['status'] == 'question_added'
+        process.kill()
+        await asyncio.to_thread(process.wait, 5)
+        process = start_backend()
+        await ready(process)
+        for closed_pin in (pin, live_pin):
+            refused = await connect(f'{WS}/ws/{closed_pin}/HOST',
+                                    subprotocols=['quizblast-host', token])
+            sockets.append(refused)
+            assert (await event_of(refused, 'join_error'))['reason'] == 'room_closed'
     finally:
         for socket in sockets:
             try:

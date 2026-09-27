@@ -8,6 +8,7 @@ export function useGameSession({
   onGameOver,
   onCountdown,
   onHostUnauthorized,
+  onRoomClosed,
 } = {}) {
   const callbacksRef = useRef({
     onQuestion,
@@ -15,6 +16,7 @@ export function useGameSession({
     onGameOver,
     onCountdown,
     onHostUnauthorized,
+    onRoomClosed,
   });
 
   callbacksRef.current = {
@@ -23,6 +25,7 @@ export function useGameSession({
     onGameOver,
     onCountdown,
     onHostUnauthorized,
+    onRoomClosed,
   };
 
   const [roomPin, setRoomPin] = useState(
@@ -141,6 +144,8 @@ export function useGameSession({
         }
         if (data.reason === "host_unauthorized") {
           callbacksRef.current.onHostUnauthorized?.();
+        } else if (data.reason === "room_closed") {
+          callbacksRef.current.onRoomClosed?.();
         } else {
         alert(
           data.reason === "duplicate_name"
@@ -168,6 +173,12 @@ export function useGameSession({
 
       if (data.type === "player_session") {
         localStorage.setItem(`quizblast_player_${pin}_${who}`, data.token);
+      }
+
+      if (data.type === "room_closed") {
+        closeSession();
+        callbacksRef.current.onRoomClosed?.();
+        return;
       }
 
       if (data.type === "players") {

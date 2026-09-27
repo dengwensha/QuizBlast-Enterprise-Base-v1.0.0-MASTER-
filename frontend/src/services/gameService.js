@@ -41,3 +41,11 @@ export async function nextQuestionRequest(roomPin, token) {
 
   return response.json();
 }
+
+export async function closeRoomRequest(roomPin, token) {
+  const response = await fetch(`${API}/close-room/${roomPin}`, {
+    method: "POST",
+    headers: createAuthorizationHeaders(token),
+  });
+  return response.json();
+}
