@@ -23,6 +23,24 @@ Backend Swagger:
 http://localhost:8001/docs
 ```
 
+## Backend Deployment Limit
+
+Run exactly one backend process and one backend container. The current Compose
+configuration starts one Uvicorn process without `--workers`. Do not increase
+`--workers`, start backend replicas, or place multiple backend instances behind
+a load balancer with this implementation.
+
+Active room connections, game timers, and broadcasts are held in that process's
+memory. PostgreSQL persists room and player state for recovery after a restart;
+it does not synchronize live rooms across concurrent processes. Login and
+registration rate limits are also process-local. Redis is present in Compose
+but is not used to synchronize games or rate limits.
+
+Supporting multiple backend processes requires a separately reviewed design
+for shared game transitions, WebSocket delivery, timers, and rate limiting.
+Active and host-paused rooms remain available until the host explicitly closes
+them; only closed rooms are deleted after 15 days.
+
 ## Current Scope
 
 - Register / Login
