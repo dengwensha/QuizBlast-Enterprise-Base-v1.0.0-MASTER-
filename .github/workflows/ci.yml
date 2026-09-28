@@ -134,6 +134,24 @@ jobs:
           docker compose logs backend
           exit 1
 
+      - name: Verify same-origin API proxy
+        shell: bash
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error \
+              http://localhost:5173/api/ \
+              --output /tmp/quizblast-proxy-status.json &&
+              grep -q '"status":"running"' \
+                /tmp/quizblast-proxy-status.json; then
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          docker compose logs frontend backend
+          exit 1
+
       - name: Verify host player display game flow
         run: |
           docker compose exec -T backend \
