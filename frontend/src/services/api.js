@@ -1,8 +1,8 @@
-const HOST = window.location.hostname;
+const ORIGIN = window.location.origin;
 
-export const API = `http://${HOST}:8001`;
-export const WS = `ws://${HOST}:8001`;
-export const APP_URL = `http://${HOST}:5173`;
+export const API = `${ORIGIN}/api`;
+export const WS = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
+export const APP_URL = ORIGIN;
 
 export const authHeaders = (user) => ({
   Authorization: `Bearer ${user?.token}`,
