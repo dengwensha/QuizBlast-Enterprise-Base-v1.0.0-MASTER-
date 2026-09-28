@@ -21,7 +21,7 @@ export default function PlayerQuestionStage({ question, questionImage, timeLeft,
     <div className="qb-player-question__answers" aria-label="Cevap seçenekleri">
       {options.map((option, index) => <Button key={index} type="button" className={`qb-answer qb-answer--${index + 1}`} disabled={disabled} onClick={() => sendAnswer(index)} style={{ "--qb-answer-fallback": optionColors[index] }}>{option}</Button>)}
     </div>
-    {answered && !questionResult && <Alert variant="success" title="Cevabın alındı">Diğer oyuncular bekleniyor.</Alert>}
+    {answered && !questionResult && <Alert variant="success" title="✅ Cevabın alındı">Diğer oyuncular bekleniyor.</Alert>}
     {questionResult && <ResultReveal questionResult={questionResult} options={options} optionColors={optionColors} styles={styles} />}
     <LeaderboardBoard visibleLeaderboard={visibleLeaderboard} styles={styles} />
   </section>;
