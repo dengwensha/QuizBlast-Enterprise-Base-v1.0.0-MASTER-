@@ -1,0 +1,141 @@
+"""Persisted room and player state survives a new database session."""
+
+import unittest
+import uuid
+
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+
+from app.services.game_recovery import (
+    GamePlayer, GameRoom, RoomIdentity, ClosedRoomRetention, RecoveryBase,
+    CLOSED_ROOM_RETENTION_SECONDS, backfill_room_identities,
+    backfill_closed_room_retention, purge_expired_closed_rooms, new_player_token,
+    checkpoint_question, freeze_after_restart, pause_question, persist_game_state,
+    player_token_matches, resume_question, room_state, token_digest,
+)
+
+
+class GameRecoveryTests(unittest.TestCase):
+    def test_closed_room_retention_boundary_and_cascade(self):
+        engine = create_engine('sqlite://')
+        RecoveryBase.metadata.create_all(engine)
+        cutoff = CLOSED_ROOM_RETENTION_SECONDS
+        with Session(engine) as db:
+            for pin, phase, closed_at in (
+                ('100001', 'closed', 0.0),
+                ('100002', 'closed', 0.1),
+                ('100003', 'question', 0.0),
+            ):
+                db.add(GameRoom(
+                    pin=pin, quiz_id=7, host_email='host@example.com', phase=phase,
+                    identity=RoomIdentity(instance_id=uuid.uuid4().hex),
+                    retention=ClosedRoomRetention(closed_at=closed_at),
+                    players=[GamePlayer(name='Ada', token_hash='a' * 64, score=300)],
+                ))
+            db.commit()
+            self.assertEqual(purge_expired_closed_rooms(db, now=cutoff), 1)
+            db.commit()
+            self.assertIsNone(db.get(GameRoom, '100001'))
+            self.assertIsNone(db.get(RoomIdentity, '100001'))
+            self.assertIsNone(db.get(ClosedRoomRetention, '100001'))
+            self.assertIsNone(db.get(GamePlayer, ('100001', 'Ada')))
+            self.assertIsNotNone(db.get(GameRoom, '100002'))
+            self.assertIsNotNone(db.get(GameRoom, '100003'))
+
+    def test_legacy_closed_room_gets_full_retention_window(self):
+        engine = create_engine('sqlite://')
+        RecoveryBase.metadata.create_all(engine)
+        with Session(engine) as db:
+            db.add(GameRoom(pin='100004', quiz_id=7, host_email='host@example.com',
+                            phase='closed'))
+            db.commit()
+            backfill_closed_room_retention(db, now=500.0)
+            db.commit()
+            backfill_closed_room_retention(db, now=900.0)
+            self.assertEqual(db.get(ClosedRoomRetention, '100004').closed_at, 500.0)
+            self.assertEqual(purge_expired_closed_rooms(
+                db, now=500.0 + CLOSED_ROOM_RETENTION_SECONDS - 0.1), 0)
+
+    def test_legacy_room_identity_is_stable_and_new_room_gets_distinct_id(self):
+        engine = create_engine('sqlite://')
+        RecoveryBase.metadata.create_all(engine)
+        with Session(engine) as db:
+            db.add(GameRoom(pin='123456', quiz_id=7, host_email='host@example.com'))
+            db.commit()
+            backfill_room_identities(db)
+            original = db.get(RoomIdentity, '123456').instance_id
+            db.commit()
+            backfill_room_identities(db)
+            self.assertEqual(db.get(RoomIdentity, '123456').instance_id, original)
+            db.delete(db.get(GameRoom, '123456'))
+            db.commit()
+            replacement = RoomIdentity(instance_id=uuid.uuid4().hex)
+            db.add(GameRoom(pin='123456', quiz_id=8, host_email='host@example.com',
+                            identity=replacement))
+            db.commit()
+            self.assertNotEqual(db.get(RoomIdentity, '123456').instance_id, original)
+
+    def test_room_and_answer_ownership_survive_new_session(self):
+        engine = create_engine('sqlite://')
+        RecoveryBase.metadata.create_all(engine)
+        token, digest = new_player_token()
+        with Session(engine) as db:
+            room = GameRoom(pin='123456', quiz_id=7, host_email='host@example.com',
+                            phase='question', question_index=2, answer_stats=[1, 0, 0, 0],
+                            deadline_epoch=110.0)
+            room.players.append(GamePlayer(name='Ada', token_hash=digest, score=240,
+                                           answered_question_index=2))
+            db.add(room)
+            pause_question(room, now=105.0)
+            db.commit()
+        with Session(engine) as db:
+            room = db.get(GameRoom, '123456')
+            self.assertEqual((room.phase, room.question_index, room.answer_stats),
+                             ('question', 2, [1, 0, 0, 0]))
+            self.assertEqual((room.remaining_seconds, room.deadline_epoch), (5.0, None))
+            player = db.scalar(select(GamePlayer).where(GamePlayer.room_pin == room.pin))
+            self.assertEqual((player.score, player.answered_question_index), (240, 2))
+            self.assertEqual(player.token_hash, token_digest(token))
+            self.assertNotEqual(player.token_hash, token)
+            self.assertTrue(player_token_matches(player, token))
+            self.assertFalse(player_token_matches(player, 'someone-else'))
+            resume_question(room, now=500.0)
+            self.assertEqual(room.deadline_epoch, 505.0)
+
+    def test_result_phase_does_not_restart_question(self):
+        room = GameRoom(pin='654321', quiz_id=3, host_email='host@example.com',
+                        phase='result', question_index=0)
+        pause_question(room, now=100.0)
+        resume_question(room, now=200.0)
+        self.assertIsNone(room.deadline_epoch)
+
+    def test_restart_uses_last_clock_checkpoint_not_downtime(self):
+        room = GameRoom(pin='654321', quiz_id=3, host_email='host@example.com',
+                        phase='question', remaining_seconds=10.0,
+                        deadline_epoch=110.0)
+        checkpoint_question(room, now=103.0)
+        freeze_after_restart(room)
+        self.assertEqual(room.remaining_seconds, 7.0)
+        self.assertIsNone(room.deadline_epoch)
+        resume_question(room, now=1000.0)
+        self.assertEqual(room.deadline_epoch, 1007.0)
+
+    def test_transition_restores_score_and_answer_in_new_session(self):
+        engine = create_engine('sqlite://')
+        RecoveryBase.metadata.create_all(engine)
+        with Session(engine) as db:
+            db.add(GameRoom(pin='100100', quiz_id=7, host_email='h@example.com',
+                            players=[GamePlayer(name='Ada', token_hash='a' * 64)]))
+            db.commit()
+            persist_game_state(db, '100100', phase='result', index=1,
+                               scores={'Ada': 260}, answered={'Ada'}, stats=[1, 0, 0, 0])
+        with Session(engine) as db:
+            snapshot = room_state(db.get(GameRoom, '100100'))
+            self.assertEqual(snapshot['scores'], {'Ada': 260})
+            self.assertEqual(snapshot['answered'], {'Ada'})
+            self.assertEqual(snapshot['phase'], 'result')
+            self.assertEqual(snapshot['stats'], [1, 0, 0, 0])
+
+
+if __name__ == '__main__':
+    unittest.main()

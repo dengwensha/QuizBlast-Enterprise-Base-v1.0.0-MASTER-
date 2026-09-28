@@ -1,0 +1,263 @@
+"""Real HTTP/WebSocket restart test, run inside the backend container."""
+
+import asyncio
+import json
+import secrets
+import signal
+import subprocess
+import sys
+import uuid
+import time
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+from websockets.asyncio.client import connect
+
+import app.main as main_app
+
+
+BASE = 'http://127.0.0.1:8002'
+WS = 'ws://127.0.0.1:8002'
+
+
+def post(path, data=None, token=None):
+    request = Request(BASE + path, data=json.dumps(data or {}).encode(), method='POST',
+                      headers={'Content-Type': 'application/json',
+                               **({'Authorization': f'Bearer {token}'} if token else {})})
+    with urlopen(request, timeout=5) as response:
+        return json.load(response)
+
+
+def post_error(path, token):
+    try:
+        post(path, None, token)
+    except HTTPError as error:
+        return error.code, json.load(error)
+    raise AssertionError(f'{path} unexpectedly succeeded')
+
+
+def host_rooms(token=None):
+    request = Request(BASE + '/host/rooms', headers=(
+        {'Authorization': f'Bearer {token}'} if token else {}))
+    with urlopen(request, timeout=5) as response:
+        return json.load(response)
+
+
+def start_backend():
+    process = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app',
+                                '--host', '127.0.0.1', '--port', '8002'],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    return process
+
+
+async def ready(process):
+    for _ in range(60):
+        if process.poll() is not None:
+            raise AssertionError('backend_exited_before_ready: ' +
+                                 process.stderr.read().decode()[-1200:])
+        try:
+            with await asyncio.to_thread(urlopen, BASE + '/', timeout=1):
+                return
+        except (URLError, OSError):
+            await asyncio.sleep(0.1)
+    raise AssertionError('backend_not_ready')
+
+
+async def event_of(socket, kind):
+    for _ in range(15):
+        event = json.loads(await asyncio.wait_for(socket.recv(), timeout=20))
+        if event.get('type') == kind:
+            return event
+    raise AssertionError(f'{kind}_not_received')
+
+
+async def run():
+    process = start_backend()
+    sockets = []
+    try:
+        await ready(process)
+        email = f'restart-{uuid.uuid4().hex}@example.com'
+        await asyncio.to_thread(post, '/auth/register',
+                                {'email': email, 'password': 'integration-password'})
+        login = await asyncio.to_thread(post, '/auth/login',
+                                        {'email': email, 'password': 'integration-password'})
+        token = login['access_token']
+        quiz = await asyncio.to_thread(post, '/quizzes', {'title': 'Restart'}, token)
+        await asyncio.to_thread(post, f"/quizzes/{quiz['id']}/questions",
+                                {'question': 'Continue?', 'options': ['Yes', 'No', 'A', 'B'],
+                                 'correct': 0, 'time': 12}, token)
+        room = await asyncio.to_thread(post, f"/create-room/{quiz['id']}", None, token)
+        pin = room['room_pin']
+        with urlopen(BASE + f'/room-instance/{pin}') as response:
+            instance = json.load(response)['instance_id']
+        assert {'pin': pin, 'instance_id': instance, 'quiz_id': quiz['id'],
+                'phase': 'lobby'} in await asyncio.to_thread(host_rooms, token)
+        try:
+            await asyncio.to_thread(host_rooms)
+            raise AssertionError('unauthenticated room listing succeeded')
+        except HTTPError as error:
+            assert error.code == 401
+        host = await connect(f'{WS}/ws/{pin}/HOST?instance={instance}', subprotocols=['quizblast-host', token])
+        ada = await connect(f'{WS}/ws/{pin}/Ada?instance={instance}')
+        bora_token = secrets.token_hex(32)
+        bora = await connect(f'{WS}/ws/{pin}/Bora?instance={instance}',
+                             subprotocols=['quizblast-player', bora_token])
+        assert bora.subprotocol == 'quizblast-player'
+        sockets.extend([host, ada, bora])
+        ada_token = (await event_of(ada, 'player_session'))['token']
+        await asyncio.to_thread(post, f'/start-game/{pin}', None, token)
+        for socket in sockets:
+            await event_of(socket, 'question')
+        await ada.send(json.dumps({'type': 'answer', 'answer': 0}))
+        board = await event_of(ada, 'leaderboard')
+        score = dict(board['scores'])['Ada']
+        assert score > 0
+
+        await host.close()
+        paused = await event_of(ada, 'game_paused')
+        assert 7 < paused['remaining'] <= 12
+        await asyncio.sleep(1)
+        host = await connect(f'{WS}/ws/{pin}/HOST?instance={instance}',
+                             subprotocols=['quizblast-host', token])
+        sockets.append(host)
+        resumed = await event_of(ada, 'question')
+        assert abs(resumed['time'] - paused['remaining']) < 1
+
+        process.kill()
+        await asyncio.to_thread(process.wait, 5)
+        process = start_backend()
+        await ready(process)
+        unauthorized = await connect(f'{WS}/ws/{pin}/Ada?instance={instance}')
+        sockets.append(unauthorized)
+        denied = await event_of(unauthorized, 'join_error')
+        assert denied['reason'] == 'player_unauthorized'
+        ada2 = await connect(f'{WS}/ws/{pin}/Ada?instance={instance}',
+                             subprotocols=['quizblast-player', ada_token])
+        bora2 = await connect(f'{WS}/ws/{pin}/Bora?instance={instance}',
+                              subprotocols=['quizblast-player', bora_token])
+        assert ada2.subprotocol == bora2.subprotocol == 'quizblast-player'
+        sockets.extend([ada2, bora2])
+        for socket, answered in [(ada2, True), (bora2, False)]:
+            state = await event_of(socket, 'question')
+            assert 7 < state['time'] <= 12 and state['paused'] is True
+            assert state['answered'] is answered
+            board = await event_of(socket, 'leaderboard')
+            assert dict(board['scores'])['Ada'] == score
+        await asyncio.sleep(2)
+        own_rooms = await asyncio.to_thread(host_rooms, token)
+        assert any(room['pin'] == pin and room['instance_id'] == instance
+                   and room['phase'] == 'question' for room in own_rooms)
+        host2 = await connect(f'{WS}/ws/{pin}/HOST?instance={instance}',
+                              subprotocols=['quizblast-host', token])
+        sockets.append(host2)
+        for socket in (ada2, bora2, host2):
+            state = await event_of(socket, 'question')
+            assert 7 < state['time'] <= 12 and state['paused'] is False, state
+        await bora2.send(json.dumps({'type': 'answer', 'answer': 0}))
+        for socket in (ada2, bora2, host2):
+            result = await event_of(socket, 'question_result')
+            assert result['stats'] == [2, 0, 0, 0], result
+
+        process.kill()
+        await asyncio.to_thread(process.wait, 5)
+        process = start_backend()
+        await ready(process)
+        host3 = await connect(f'{WS}/ws/{pin}/HOST?instance={instance}',
+                              subprotocols=['quizblast-host', token])
+        ada3 = await connect(f'{WS}/ws/{pin}/Ada?instance={instance}',
+                             subprotocols=['quizblast-player', ada_token])
+        sockets.extend([host3, ada3])
+        for socket in (host3, ada3):
+            restored = await event_of(socket, 'question_result')
+            assert restored['stats'] == [2, 0, 0, 0]
+        finish = await asyncio.to_thread(post, f'/next-question/{pin}', None, token)
+        assert finish['status'] == 'game_over'
+
+        denied_status, denied = await asyncio.to_thread(post_error, f'/close-room/{pin}', 'invalid-token')
+        assert denied_status == 401 and denied['detail'] == 'invalid_authentication_credentials'
+        other_email = f'other-host-{uuid.uuid4().hex}@example.com'
+        await asyncio.to_thread(post, '/auth/register',
+                                {'email': other_email, 'password': 'integration-password'})
+        other_login = await asyncio.to_thread(post, '/auth/login',
+                                              {'email': other_email, 'password': 'integration-password'})
+        assert all(room['pin'] != pin for room in
+                   await asyncio.to_thread(host_rooms, other_login['access_token']))
+        denied_status, denied = await asyncio.to_thread(post_error, f'/close-room/{pin}', other_login['access_token'])
+        assert denied_status == 403 and denied['detail'] == 'host_forbidden'
+        closed = await asyncio.to_thread(post, f'/close-room/{pin}', None, token)
+        assert closed['status'] == 'room_closed'
+        assert all(room['pin'] != pin for room in await asyncio.to_thread(host_rooms, token))
+        for socket in (host3, ada3):
+            assert (await event_of(socket, 'room_closed'))['type'] == 'room_closed'
+        rejected = await connect(f'{WS}/ws/{pin}/HOST', subprotocols=['quizblast-host', token])
+        sockets.append(rejected)
+        assert (await event_of(rejected, 'join_error'))['reason'] == 'room_closed'
+        rejected_status, rejected_body = await asyncio.to_thread(post_error, f'/start-game/{pin}', token)
+        assert rejected_status == 404 and rejected_body['detail'] == 'room_not_found'
+
+        live_room = await asyncio.to_thread(post, f"/create-room/{quiz['id']}", None, token)
+        live_pin = live_room['room_pin']
+        with urlopen(BASE + f'/room-instance/{live_pin}') as response:
+            live_instance = json.load(response)['instance_id']
+        live_host = await connect(f'{WS}/ws/{live_pin}/HOST?instance={live_instance}', subprotocols=['quizblast-host', token])
+        live_player = await connect(f'{WS}/ws/{live_pin}/Live?instance={live_instance}')
+        sockets.extend([live_host, live_player])
+        assert (await asyncio.to_thread(post, f'/start-game/{live_pin}', None, token))['status'] == 'started'
+        await event_of(live_player, 'question')
+        assert (await asyncio.to_thread(post, f'/close-room/{live_pin}', None, token))['status'] == 'room_closed'
+        assert (await event_of(live_player, 'room_closed'))['type'] == 'room_closed'
+
+        added = await asyncio.to_thread(post, f"/quizzes/{quiz['id']}/questions",
+                                        {'question': 'Editable after closure?',
+                                         'options': ['A', 'B', 'C', 'D'],
+                                         'correct': 0, 'time': 15}, token)
+        assert added['status'] == 'question_added'
+        process.kill()
+        await asyncio.to_thread(process.wait, 5)
+        replacement_id = uuid.uuid4().hex
+        with main_app.db_session() as db:
+            old_room = db.get(main_app.GameRoom, pin)
+            assert old_room.retention is not None
+            old_room.retention.closed_at = time.time() - 16 * 24 * 60 * 60
+            assert db.get(main_app.GameRoom, live_pin).retention is not None
+            db.commit()
+            assert main_app.purge_expired_closed_rooms(db) == 1
+            db.commit()
+            assert db.get(main_app.GameRoom, pin) is None
+            assert db.get(main_app.RoomIdentity, pin) is None
+            assert db.get(main_app.GamePlayer, (pin, 'Ada')) is None
+            assert db.get(main_app.GameRoom, live_pin) is not None
+            db.add(main_app.GameRoom(
+                pin=pin, quiz_id=quiz['id'], host_email=email,
+                phase='lobby', answer_stats=[0, 0, 0, 0],
+                identity=main_app.RoomIdentity(instance_id=replacement_id),
+            ))
+            db.commit()
+        process = start_backend()
+        await ready(process)
+        refused = await connect(f'{WS}/ws/{pin}/HOST?instance={instance}',
+                                subprotocols=['quizblast-host', token])
+        sockets.append(refused)
+        assert (await event_of(refused, 'join_error'))['reason'] == 'room_instance_mismatch'
+        replacement = await connect(f'{WS}/ws/{pin}/HOST?instance={replacement_id}',
+                                    subprotocols=['quizblast-host', token])
+        sockets.append(replacement)
+        assert (await event_of(replacement, 'players'))['players'] == ['HOST']
+        refused = await connect(f'{WS}/ws/{live_pin}/HOST',
+                                subprotocols=['quizblast-host', token])
+        sockets.append(refused)
+        assert (await event_of(refused, 'join_error'))['reason'] == 'room_closed'
+    finally:
+        for socket in sockets:
+            try:
+                await socket.close()
+            except Exception:
+                pass
+        if process.poll() is None:
+            process.send_signal(signal.SIGTERM)
+            await asyncio.to_thread(process.wait, 5)
+
+
+if __name__ == '__main__':
+    asyncio.run(run())
+    print('Restarted game preserved identity, score, answers and paused time.')

@@ -1,0 +1,69 @@
+import { API, authHeaders, jsonAuthHeaders } from "./api";
+
+async function readQuestionMutation(response) {
+  const data = await response.json();
+  return data.detail ? { ...data, error: data.detail } : data;
+}
+
+export async function fetchQuizzes(user) {
+  const r = await fetch(`${API}/quizzes`, {
+    headers: authHeaders(user),
+  });
+
+  const d = await r.json();
+  return Array.isArray(d) ? d : [];
+}
+
+export async function fetchQuizQuestions(user, quizId) {
+  if (!quizId) return [];
+
+  const r = await fetch(`${API}/quizzes/${quizId}/questions`, {
+    headers: authHeaders(user),
+  });
+
+  const d = await r.json();
+  return Array.isArray(d) ? d : [];
+}
+
+export async function createQuizRequest(user, title) {
+  const r = await fetch(`${API}/quizzes`, {
+    method: "POST",
+    headers: jsonAuthHeaders(user),
+    body: JSON.stringify({ title }),
+  });
+
+  return await r.json();
+}
+
+export async function deleteQuizRequest(user, quizId) {
+  const response = await fetch(`${API}/quizzes/${quizId}`, {
+    method: "DELETE",
+    headers: authHeaders(user),
+  });
+  return response.json();
+}
+export async function addQuestionRequest(user, quizId, payload) {
+  const r = await fetch(`${API}/quizzes/${quizId}/questions`, {
+    method: "POST",
+    headers: jsonAuthHeaders(user),
+    body: JSON.stringify(payload),
+  });
+
+  return readQuestionMutation(r);
+}
+export async function deleteQuestionRequest(user, questionId) {
+  const response = await fetch(`${API}/questions/${questionId}`, {
+    method: "DELETE",
+    headers: authHeaders(user),
+  });
+  return readQuestionMutation(response);
+}
+export async function updateQuestionRequest(user, questionId, payload) {
+  const r = await fetch(`${API}/questions/${questionId}`, {
+    method: "PUT",
+    headers: jsonAuthHeaders(user),
+    body: JSON.stringify(payload),
+  });
+
+  return readQuestionMutation(r);
+}

@@ -1,0 +1,20 @@
+:root {
+  --qb-primary: #2F80ED;
+  --qb-primary-hover: #1C6DD0;
+
+  --qb-bg: #F6FAFF;
+
+  --qb-card: #FFFFFF;
+
+  --qb-border: #DCE9F8;
+
+  --qb-success: #22C55E;
+
+  --qb-warning: #F59E0B;
+
+  --qb-error: #EF4444;
+
+  --qb-text: #1F2937;
+
+  --qb-text-light: #64748B;
+}
