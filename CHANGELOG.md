@@ -1,8 +1,8 @@
 # CHANGELOG
 
-## Unreleased — feature/QB-233-T001-ui-foundation
+## Unreleased — integrated into main
 
-These changes are on the development branch and have not been released on `main`.
+The work is merged into `main` but has not been deployed or assigned a new MASTER version. See `docs/RELEASE_READINESS.md` for activation gates.
 
 ### Frontend and deployment
 - Extracted game, admin, quiz, auth, and import components, hooks, and request services from the original App implementation.
@@ -21,6 +21,7 @@ These changes are on the development branch and have not been released on `main`
 
 ### Current limits
 - Live rooms and authentication rate limits require a single backend process; Redis does not synchronize them. See the deployment limit in README.md.
+- Frontend API and WebSocket traffic now uses the page origin through nginx; real TLS/WSS still requires a deployment smoke test.
 - No JWT revocation or refresh flow and no database migration framework are in place.
 - AI question generation is template based; browser alert, confirm, and prompt dialogs remain in parts of the interface.
 

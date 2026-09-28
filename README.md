@@ -77,6 +77,9 @@ QuizName | Category | Language | Audience | Question | Image | OptionA | OptionB
 - Each task produces release notes and test results.
 - Gate Review and Design Freeze are required before a new MASTER.
 
-## Next Planned Sprint
+## Release Preparation
 
-Sprint 2.3.3 — Enterprise UX.
+The code is integrated into `main` but no production deployment has been made.
+See [Release Readiness](docs/RELEASE_READINESS.md) for deployment prerequisites,
+physical device tests, activation and rollback gates. The sample Compose file
+is configured for local development and CI, not a public deployment.
