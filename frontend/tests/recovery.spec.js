@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
 const frontendUrl = "http://localhost:5173";
-const apiUrl = "http://localhost:8001";
+const apiUrl = `${frontendUrl}/api`;
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 
 async function post(request, path, data, token) {
@@ -58,10 +58,12 @@ test("host recovers an open room after browser storage is lost", async ({ browse
 test("host, player and display recover after backend and browser restart", async ({ browser, request }) => {
   test.setTimeout(150_000);
   const traffic = [];
+  const socketOrigins = new Set();
   const watch = (page, role) => {
     page.on("pageerror", (error) => traffic.push(`${role} error ${error.message}`));
     page.on("websocket", (socket) => {
       traffic.push(`${role} websocket opened`);
+      socketOrigins.add(`${role}:${new URL(socket.url()).origin}`);
       socket.on("close", () => traffic.push(`${role} websocket closed`));
       socket.on("framereceived", ({ payload }) => {
         try {
@@ -130,6 +132,11 @@ test("host, player and display recover after backend and browser restart", async
         throw new Error(`${role} did not show the question; screen: ${await page.locator("body").innerText()}`, { cause: error });
       }
     }
+    expect([...socketOrigins]).toEqual(expect.arrayContaining([
+      "host:ws://localhost:5173",
+      "player:ws://localhost:5173",
+      "display:ws://localhost:5173",
+    ]));
     await player.getByRole("button", { name: "Yes" }).click();
     await expect(player.getByText("✅ Cevabın alındı")).toBeVisible();
     await expect(display.getByText("#1 Ada")).toBeVisible();
