@@ -1,7 +1,7 @@
 import React from "react";
 
 import { Alert, Button, Card } from "../ui";
-import ResultReveal from "./ResultReveal";
+import PlayerResultReveal from "./PlayerResultReveal";
 import LeaderboardBoard from "./LeaderboardBoard";
 import "./player-question-stage.css";
 
@@ -22,7 +22,7 @@ export default function PlayerQuestionStage({ question, questionImage, timeLeft,
       {options.map((option, index) => <Button key={index} type="button" className={`qb-answer qb-answer--${index + 1}`} disabled={disabled} onClick={() => sendAnswer(index)} style={{ "--qb-answer-fallback": optionColors[index] }}>{option}</Button>)}
     </div>
     {answered && !questionResult && <Alert variant="success" role="note" title="✅ Cevabın alındı">Diğer oyuncular bekleniyor.</Alert>}
-    {questionResult && <ResultReveal questionResult={questionResult} options={options} optionColors={optionColors} styles={styles} />}
+    {questionResult && <PlayerResultReveal questionResult={questionResult} options={options} optionColors={optionColors} />}
     <LeaderboardBoard visibleLeaderboard={visibleLeaderboard} styles={styles} />
   </section>;
 }
