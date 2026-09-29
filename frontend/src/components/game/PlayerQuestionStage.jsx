@@ -2,7 +2,7 @@ import React from "react";
 
 import { Alert, Button, Card } from "../ui";
 import PlayerResultReveal from "./PlayerResultReveal";
-import LeaderboardBoard from "./LeaderboardBoard";
+import PlayerLeaderboard from "./PlayerLeaderboard";
 import "./player-question-stage.css";
 
 export default function PlayerQuestionStage({ question, questionImage, timeLeft, answerCount, totalPlayers, options, sendAnswer, answered, paused, questionResult, optionColors, visibleLeaderboard, currentQuestionIndex, totalQuestions, styles }) {
@@ -23,6 +23,6 @@ export default function PlayerQuestionStage({ question, questionImage, timeLeft,
     </div>
     {answered && !questionResult && <Alert variant="success" role="note" title="✅ Cevabın alındı">Diğer oyuncular bekleniyor.</Alert>}
     {questionResult && <PlayerResultReveal questionResult={questionResult} options={options} optionColors={optionColors} />}
-    <LeaderboardBoard visibleLeaderboard={visibleLeaderboard} styles={styles} />
+    <PlayerLeaderboard visibleLeaderboard={visibleLeaderboard} />
   </section>;
 }
