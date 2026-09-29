@@ -10,7 +10,7 @@ export default function PlayerQuestionStage({ question, questionImage, timeLeft,
   const progress = Math.max(0, Math.min(100, (timeLeft / 15) * 100));
 
   return <section className="qb-player-question" aria-label="Quiz question">
-    {paused && <Alert variant="warning">Host bekleniyor; oyun duraklatıldı.</Alert>}
+    {paused && <div role="status" className="qb-player-question__pause-status">Host bekleniyor; oyun duraklatıldı.</div>}
     <Card className="qb-player-question__card">
       <div className="qb-player-question__meta"><span>{totalQuestions ? `Soru ${currentQuestionIndex + 1} / ${totalQuestions}` : "Soru"}</span><span>Cevaplayan: {answerCount} / {totalPlayers}</span></div>
       <h1 className="qb-player-question__title">{question}</h1>
