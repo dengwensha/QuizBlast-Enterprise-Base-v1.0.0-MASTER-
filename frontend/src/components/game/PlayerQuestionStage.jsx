@@ -10,7 +10,7 @@ export default function PlayerQuestionStage({ question, questionImage, timeLeft,
   const progress = Math.max(0, Math.min(100, (timeLeft / 15) * 100));
 
   return <section className="qb-player-question" aria-label="Quiz question">
-    {paused && <Alert variant="warning" title="Oyun duraklatıldı">Host bekleniyor.</Alert>}
+    {paused && <Alert variant="warning">Host bekleniyor; oyun duraklatıldı.</Alert>}
     <Card className="qb-player-question__card">
       <div className="qb-player-question__meta"><span>{totalQuestions ? `Soru ${currentQuestionIndex + 1} / ${totalQuestions}` : "Soru"}</span><span>Cevaplayan: {answerCount} / {totalPlayers}</span></div>
       <h1 className="qb-player-question__title">{question}</h1>
@@ -21,7 +21,7 @@ export default function PlayerQuestionStage({ question, questionImage, timeLeft,
     <div className="qb-player-question__answers" aria-label="Cevap seçenekleri">
       {options.map((option, index) => <Button key={index} type="button" className={`qb-answer qb-answer--${index + 1}`} disabled={disabled} onClick={() => sendAnswer(index)} style={{ "--qb-answer-fallback": optionColors[index] }}>{option}</Button>)}
     </div>
-    {answered && !questionResult && <Alert variant="success" title="✅ Cevabın alındı">Diğer oyuncular bekleniyor.</Alert>}
+    {answered && !questionResult && <Alert variant="success" role="note" title="✅ Cevabın alındı">Diğer oyuncular bekleniyor.</Alert>}
     {questionResult && <ResultReveal questionResult={questionResult} options={options} optionColors={optionColors} styles={styles} />}
     <LeaderboardBoard visibleLeaderboard={visibleLeaderboard} styles={styles} />
   </section>;
