@@ -57,3 +57,20 @@ export async function closeRoomRequest(roomPin, token) {
   });
   return response.json();
 }
+
+
+export async function pauseGameRequest(roomPin, token) {
+  const response = await fetch(`${API}/pause-game/${roomPin}`, {
+    method: "POST",
+    headers: createAuthorizationHeaders(token),
+  });
+  return response.json();
+}
+
+export async function resumeGameRequest(roomPin, token) {
+  const response = await fetch(`${API}/resume-game/${roomPin}`, {
+    method: "POST",
+    headers: createAuthorizationHeaders(token),
+  });
+  return response.json();
+}

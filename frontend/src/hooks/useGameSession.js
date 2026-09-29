@@ -43,6 +43,16 @@ export function useGameSession({
   const [players, setPlayers] = useState([]);
   const [question, setQuestion] = useState(null);
   const [questionImage, setQuestionImage] = useState("");
+
+  const normalizeQuestionImage = (value) => {
+    if (typeof value !== "string") return "";
+    const candidate = value.trim();
+    if (!candidate) return "";
+    if (/^https?:\/\//i.test(candidate) || /^data:image\//i.test(candidate) || /^blob:/i.test(candidate) || candidate.startsWith("/")) {
+      return candidate;
+    }
+    return "";
+  };
   const [options, setOptions] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -230,7 +240,7 @@ export function useGameSession({
 
         setQuestionResult(null);
         setQuestion(data.question);
-        setQuestionImage(data.image_url || "");
+        setQuestionImage(normalizeQuestionImage(data.image_url));
         setOptions(data.options);
         setCurrentQuestionIndex(data.index || 0);
         setTotalQuestions(data.question_count || 0);

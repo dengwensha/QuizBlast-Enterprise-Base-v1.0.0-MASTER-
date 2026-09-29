@@ -20,6 +20,8 @@ import {
   createRoomRequest,
   startGameRequest,
   nextQuestionRequest,
+  pauseGameRequest,
+  resumeGameRequest,
   closeRoomRequest,
   listHostRoomsRequest,
 } from "./services/gameService";
@@ -209,6 +211,14 @@ export default function App() {
     alert(result.error);
   }
 };
+  const pauseGame = async () => {
+    const result = await pauseGameRequest(roomPin, user.token);
+    if (result.error || result.detail) alert(result.detail || result.error);
+  };
+  const resumeGame = async () => {
+    const result = await resumeGameRequest(roomPin, user.token);
+    if (result.error || result.detail) alert(result.detail || result.error);
+  };
   const closeRoom = async () => {
     if (!confirm('Oda kapatılsın mı? Oyuncular ayrılacak ve bu PIN ile yeniden oynanamayacak.')) return;
     const result = await closeRoomRequest(roomPin, user.token);
@@ -244,9 +254,21 @@ return (
         </div>
       )}
 
-      {mode === "host" && (
+      {mode === "host" && !question && !gameOver && (
         <button onClick={startGame} style={styles.hostButton}>
           ▶ Oyunu Başlat
+        </button>
+      )}
+
+      {mode === "host" && question && !questionResult && !paused && (
+        <button onClick={pauseGame} style={styles.hostButton}>
+          ⏸ Oyunu Duraklat
+        </button>
+      )}
+
+      {mode === "host" && question && !questionResult && paused && (
+        <button onClick={resumeGame} style={styles.hostButton}>
+          ▶ Devam Et
         </button>
       )}
 

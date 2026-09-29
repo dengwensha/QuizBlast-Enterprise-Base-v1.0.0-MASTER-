@@ -528,6 +528,60 @@ async def start_game(
     return {'status': 'started'}
 
 
+
+@app.post('/pause-game/{room_pin}')
+async def pause_game(
+    room_pin: str,
+    authorization: str | None = Header(default=None),
+):
+    email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
+    require_room_host(room_pin, email, rooms, room_host_map)
+    if game_phase.get(room_pin) != 'question' or question_deadline.get(room_pin) is None:
+        raise HTTPException(status_code=409, detail='game_not_running')
+
+    with db_session() as db:
+        record = db.get(GameRoom, room_pin)
+        pause_question(record)
+        remaining_seconds[room_pin] = record.remaining_seconds
+        question_deadline[room_pin] = None
+        db.commit()
+    question_start_time[room_pin] = None
+    await safe_broadcast_json(room_pin, {
+        'type': 'game_paused',
+        'remaining': remaining_seconds[room_pin],
+    })
+    return {'status': 'paused', 'remaining': remaining_seconds[room_pin]}
+
+
+@app.post('/resume-game/{room_pin}')
+async def resume_game(
+    room_pin: str,
+    authorization: str | None = Header(default=None),
+):
+    email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
+    require_room_host(room_pin, email, rooms, room_host_map)
+    if game_phase.get(room_pin) != 'question' or question_deadline.get(room_pin) is not None:
+        raise HTTPException(status_code=409, detail='game_not_paused')
+    if remaining_seconds.get(room_pin) is None:
+        raise HTTPException(status_code=409, detail='game_not_paused')
+
+    with db_session() as db:
+        record = db.get(GameRoom, room_pin)
+        resume_question(record)
+        remaining_seconds[room_pin] = record.remaining_seconds
+        question_deadline[room_pin] = record.deadline_epoch
+        db.commit()
+    questions = get_room_questions(room_pin)
+    q = questions[current_question_index[room_pin]]
+    question_start_time[room_pin] = time.time() - (
+        int(q['time'] or 15) - remaining_seconds[room_pin]
+    )
+    for participant in tuple(rooms.get(room_pin, [])):
+        await send_current_state(participant['socket'], room_pin, participant['name'])
+    return {'status': 'resumed'}
+
+
+
 @app.post('/next-question/{room_pin}')
 async def next_question(
     room_pin: str,
