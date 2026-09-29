@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { API, WS } from "../services/api";
+import { normalizeQuestionImage } from "../utils/questionImage";
 
 export function useGameSession({
   onQuestion,
@@ -44,15 +45,6 @@ export function useGameSession({
   const [question, setQuestion] = useState(null);
   const [questionImage, setQuestionImage] = useState("");
 
-  const normalizeQuestionImage = (value) => {
-    if (typeof value !== "string") return "";
-    const candidate = value.trim();
-    if (!candidate) return "";
-    if (/^https?:\/\//i.test(candidate) || /^data:image\//i.test(candidate) || /^blob:/i.test(candidate) || candidate.startsWith("/")) {
-      return candidate;
-    }
-    return "";
-  };
   const [options, setOptions] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
