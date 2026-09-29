@@ -8,6 +8,7 @@ import DisplayConnect from "./components/game/DisplayConnect";
 import JoinScreen from "./components/game/JoinScreen";
 import HostSetup from "./components/game/HostSetup";
 import QuestionGame from "./components/game/QuestionGame";
+import PlayerLobbyStage from "./components/game/PlayerLobbyStage";
 
 import { APP_URL } from "./services/api";
 
@@ -267,7 +268,11 @@ return (
     </div>
 
     <div style={styles.container}>
-      {!question && !gameOver && (
+      {!question && !gameOver && mode === "player" && (
+        <PlayerLobbyStage roomPin={roomPin} playerName={playerName} players={visiblePlayers} />
+      )}
+
+      {!question && !gameOver && mode !== "player" && (
         <div style={styles.waiting}>
           <h1>Oyuncular Bekleniyor...</h1>
           {visiblePlayers.map((p, i) => (
