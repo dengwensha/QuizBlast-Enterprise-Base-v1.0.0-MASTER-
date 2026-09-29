@@ -4,6 +4,7 @@ import confetti from "canvas-confetti";
 
 import AdminView from "./components/admin/AdminView.jsx";
 import GameOver from "./components/game/GameOver";
+import PlayerGameOver from "./components/game/PlayerGameOver";
 import DisplayConnect from "./components/game/DisplayConnect";
 import JoinScreen from "./components/game/JoinScreen";
 import HostSetup from "./components/game/HostSetup";
@@ -283,7 +284,15 @@ return (
         </div>
       )}
 
-      {gameOver && (
+      {gameOver && mode === "player" && (
+        <PlayerGameOver
+          podium={podium}
+          visibleLeaderboard={visibleLeaderboard}
+          finalLimit={finalLimit}
+        />
+      )}
+
+      {gameOver && mode !== "player" && (
         <GameOver
           podium={podium}
           visibleLeaderboard={visibleLeaderboard}
