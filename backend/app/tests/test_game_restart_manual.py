@@ -91,7 +91,7 @@ async def run():
         with urlopen(BASE + f'/room-instance/{pin}') as response:
             instance = json.load(response)['instance_id']
         assert {'pin': pin, 'instance_id': instance, 'quiz_id': quiz['id'],
-                'phase': 'lobby'} in await asyncio.to_thread(host_rooms, token)
+                'phase': 'lobby', 'status': 'lobby'} in await asyncio.to_thread(host_rooms, token)
         try:
             await asyncio.to_thread(host_rooms)
             raise AssertionError('unauthenticated room listing succeeded')
