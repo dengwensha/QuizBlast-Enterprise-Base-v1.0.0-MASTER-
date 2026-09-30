@@ -30,6 +30,18 @@ def post(path, payload=None, token=None):
         return error.code, json.load(error)
 
 
+def get(path, token=None):
+    headers = {}
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    request = Request(BASE_URL + path, headers=headers, method='GET')
+    try:
+        with urlopen(request, timeout=5) as response:
+            return response.status, json.load(response)
+    except HTTPError as error:
+        return error.code, json.load(error)
+
+
 async def receive_until(socket, event_type):
     observed = []
     while True:
@@ -183,6 +195,28 @@ async def run_game_flow():
 
             status, started = await asyncio.to_thread(post, f'/start-game/{pin}', None, token)
             assert status == 200 and started['status'] == 'started'
+            for socket in (host, ada, bora):
+                await receive_until(socket, 'question')
+
+            status, ended = await asyncio.to_thread(post, f'/end-game/{pin}', None, token)
+            assert status == 200 and ended['status'] == 'completed'
+            for socket in (host, ada, bora):
+                await receive_until(socket, 'game_over')
+
+            status, rooms = await asyncio.to_thread(get, '/host/rooms', token)
+            assert status == 200
+            assert any(
+                room['pin'] == pin
+                and room['phase'] == 'completed'
+                and room['status'] == 'completed'
+                for room in rooms
+            )
+
+            status, rejected = await asyncio.to_thread(post, f'/end-game/{pin}', None, token)
+            assert status == 409 and rejected['detail'] == 'game_not_running'
+
+            status, restarted = await asyncio.to_thread(post, f'/start-game/{pin}', None, token)
+            assert status == 200 and restarted['status'] == 'started'
             for socket in (host, ada, bora):
                 await receive_until(socket, 'question')
 
