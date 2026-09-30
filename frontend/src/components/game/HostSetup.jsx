@@ -2,6 +2,14 @@ import React from "react";
 
 import QuestionList from "../question/QuestionList";
 
+const roomStatusLabel = {
+  lobby: "Bekliyor",
+  question: "Aktif",
+  result: "Aktif",
+  paused: "Duraklatıldı",
+  completed: "Tamamlandı",
+};
+
 export default function HostSetup({
   setMode,
   selectedQuizId,
@@ -34,7 +42,7 @@ export default function HostSetup({
         {hostRooms.length > 0 && <div style={styles.card}>
           <h2>Açık odalarım</h2>
           {hostRooms.map(room => <div key={room.instance_id}>
-            <span>PIN: {room.pin} · Quiz #{room.quiz_id} · {room.phase}</span>{' '}
+            <span>PIN: {room.pin} · Quiz #{room.quiz_id} · {roomStatusLabel[room.status || room.phase] || room.status || room.phase}</span>{' '}
             <button type="button" onClick={() => returnToRoom(room)} style={styles.purpleButton}>
               Odaya Dön
             </button>

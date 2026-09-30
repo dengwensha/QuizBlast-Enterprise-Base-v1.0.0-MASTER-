@@ -276,7 +276,10 @@ def list_host_rooms(authorization: str | None = Header(default=None)):
             GameRoom.host_email == email, GameRoom.phase != 'closed'
         ).order_by(GameRoom.pin).all()
         return [{'pin': room.pin, 'instance_id': room.identity.instance_id,
-                 'quiz_id': room.quiz_id, 'phase': room.phase} for room in records]
+                 'quiz_id': room.quiz_id, 'phase': room.phase,
+                 'status': ('paused' if room.phase == 'question' and room.deadline_epoch is None
+                            and room.remaining_seconds is not None else room.phase)}
+                for room in records]
 
 @app.get('/')
 def root(): return {'status':'running'}
@@ -580,6 +583,33 @@ async def resume_game(
         await send_current_state(participant['socket'], room_pin, participant['name'])
     return {'status': 'resumed'}
 
+
+
+@app.post('/end-game/{room_pin}')
+async def end_game(
+    room_pin: str,
+    authorization: str | None = Header(default=None),
+):
+    email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
+    require_room_host(room_pin, email, rooms, room_host_map)
+    if game_phase.get(room_pin) not in {'question', 'result'}:
+        raise HTTPException(status_code=409, detail='game_not_running')
+
+    game_phase[room_pin] = 'completed'
+    waiting_next_question[room_pin] = False
+    question_start_time[room_pin] = None
+    remaining_seconds[room_pin] = None
+    question_deadline[room_pin] = None
+    task = game_tasks.pop(room_pin, None)
+    if task and not task.done():
+        task.cancel()
+    save_game(room_pin)
+    await safe_broadcast_json(room_pin, {
+        'type': 'leaderboard',
+        'scores': sorted(scores[room_pin].items(), key=lambda x: x[1], reverse=True),
+    })
+    await safe_broadcast_json(room_pin, {'type': 'game_over'})
+    return {'status': 'completed'}
 
 
 @app.post('/next-question/{room_pin}')

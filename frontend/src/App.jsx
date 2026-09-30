@@ -22,6 +22,7 @@ import {
   nextQuestionRequest,
   pauseGameRequest,
   resumeGameRequest,
+  endGameRequest,
   closeRoomRequest,
   listHostRoomsRequest,
 } from "./services/gameService";
@@ -219,6 +220,11 @@ export default function App() {
     const result = await resumeGameRequest(roomPin, user.token);
     if (result.error || result.detail) alert(result.detail || result.error);
   };
+  const endGame = async () => {
+    if (!confirm('Oyun sonlandırılsın mı? Mevcut skorlar final sonuç olarak korunacak.')) return;
+    const result = await endGameRequest(roomPin, user.token);
+    if (result.error || result.detail) alert(result.detail || result.error);
+  };
   const closeRoom = async () => {
     if (!confirm('Oda kapatılsın mı? Oyuncular ayrılacak ve bu PIN ile yeniden oynanamayacak.')) return;
     const result = await closeRoomRequest(roomPin, user.token);
@@ -269,6 +275,12 @@ return (
       {mode === "host" && question && !questionResult && paused && (
         <button onClick={resumeGame} style={styles.hostButton}>
           ▶ Devam Et
+        </button>
+      )}
+
+      {mode === "host" && joined && !gameOver && (question || questionResult) && (
+        <button onClick={endGame} style={{...styles.hostButton, background:'#b3261e', color:'white'}}>
+          🏁 Oyunu Sonlandır
         </button>
       )}
 

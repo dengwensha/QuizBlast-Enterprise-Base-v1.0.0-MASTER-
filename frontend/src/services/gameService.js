@@ -74,3 +74,11 @@ export async function resumeGameRequest(roomPin, token) {
   });
   return response.json();
 }
+
+export async function endGameRequest(roomPin, token) {
+  const response = await fetch(`${API}/end-game/${roomPin}`, {
+    method: "POST",
+    headers: createAuthorizationHeaders(token),
+  });
+  return response.json();
+}
