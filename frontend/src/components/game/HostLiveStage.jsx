@@ -36,7 +36,7 @@ export default function HostLiveStage({
           data-testid="game-timer"
           style={{
             ...styles.liveTimer,
-            background: timeLeft <= 5 ? "#e21b3c" : "#46178f",
+            background: timeLeft <= 5 ? "var(--qb-danger)" : "var(--qb-primary-600)",
             animation:
               timeLeft <= 5 ? "timerUrgent 0.8s infinite" : undefined,
           }}
@@ -65,7 +65,7 @@ export default function HostLiveStage({
               key={i}
               style={{
                 ...styles.liveOptionCard,
-                background: optionColors[i] || "#46178f",
+                background: optionColors[i] || "var(--qb-primary-600)",
                 animationDelay: `${i * 0.35}s`,
               }}
             >

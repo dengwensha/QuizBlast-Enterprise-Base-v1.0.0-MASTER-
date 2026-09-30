@@ -140,7 +140,7 @@ export default function App() {
     loadSelectedQuestions
   });
   const [finalLimit,setFinalLimit]=useState(3);
-  const optionColors=['#e21b3c','#1368ce','#d89e00','#26890c'];
+  const optionColors=['var(--qb-answer-a)','var(--qb-answer-b)','var(--qb-answer-c)','var(--qb-answer-d)'];
   const visiblePlayers=players.filter(p=>p!=='HOST'&&p!=='DISPLAY'); const visibleLeaderboard=leaderboard.filter(p=>p[0]!=='HOST'&&p[0]!=='DISPLAY'); const podium=useMemo(()=>visibleLeaderboard.slice(0,3),[visibleLeaderboard]);
   const logout=()=>{closeSession(); clearAuth(); setMode(null); clearQuizState();};
   const leaveGame=()=>{closeSession(); setMode(null);};
@@ -236,8 +236,8 @@ export default function App() {
     }
   };
 
-  if(!user) return <div style={styles.splash}><div style={styles.joinCard}><h1>QuizBlast 🚀</h1><h2>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</h2><input placeholder="E-posta" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={styles.input}/><input placeholder="Şifre" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={styles.input}/><button onClick={authMode==='login'?login:register} style={styles.joinButton}>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</button><button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} style={{...styles.joinButton,marginTop:10,background:'#333'}}>{authMode==='login'?'Hesap oluştur':'Giriş ekranına dön'}</button></div></div>;
-  if(!mode) return <div style={styles.splash}><div style={styles.center}><h1 style={styles.logo}>QuizBlast 🚀</h1><p style={styles.subtitle}>Multiplayer Quiz Platform</p><p>{user.email}</p><button onClick={()=>{setMode('host');loadQuizzes();}} style={styles.mainButton}>🎤 Host Game</button><button onClick={()=>setMode('player')} style={styles.mainButton}>🎮 Join Game</button><button onClick={()=>setMode('display')} style={styles.mainButton}>📺 Display Screen</button><button onClick={()=>{setMode('admin');loadQuizzes();}} style={styles.mainButton}>🧠 Admin Panel</button><button onClick={logout} style={{...styles.mainButton,background:'#e21b3c',color:'white'}}>Çıkış Yap</button></div></div>;
+  if(!user) return <div style={styles.splash}><div style={styles.joinCard}><h1>QuizBlast 🚀</h1><h2>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</h2><input placeholder="E-posta" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={styles.input}/><input placeholder="Şifre" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={styles.input}/><button onClick={authMode==='login'?login:register} style={styles.joinButton}>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</button><button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} style={{...styles.joinButton,marginTop:10,background:'var(--qb-navy-900)'}}>{authMode==='login'?'Hesap oluştur':'Giriş ekranına dön'}</button></div></div>;
+  if(!mode) return <div style={styles.splash}><div style={styles.center}><h1 style={styles.logo}>QuizBlast 🚀</h1><p style={styles.subtitle}>Multiplayer Quiz Platform</p><p>{user.email}</p><button onClick={()=>{setMode('host');loadQuizzes();}} style={styles.mainButton}>🎤 Host Game</button><button onClick={()=>setMode('player')} style={styles.mainButton}>🎮 Join Game</button><button onClick={()=>setMode('display')} style={styles.mainButton}>📺 Display Screen</button><button onClick={()=>{setMode('admin');loadQuizzes();}} style={styles.mainButton}>🧠 Admin Panel</button><button onClick={logout} style={{...styles.mainButton,background:'var(--qb-danger)',color:'white'}}>Çıkış Yap</button></div></div>;
   if(mode==='admin') return <AdminView styles={styles} admin={admin} {...{quizzes,selectedQuizId,setSelectedQuizId,selectedQuestions,importExcel,commitImport,importPreview,importing,importSummary,setMode}} />;
   if(reconnecting) return <div style={styles.splash}><div style={styles.center}><h2>Odaya yeniden bağlanılıyor...</h2><button onClick={leaveGame} style={styles.mainButton}>Oyundan Çık</button></div></div>;
   if(mode==='host'&&!joined) return <HostSetup {...{quizzes,selectedQuizId,setSelectedQuizId,loadSelectedQuestions,finalLimit,setFinalLimit,createRoom,selectedQuestions,setMode,styles,hostRooms,hostRoomsError,returnToRoom}} />;
@@ -279,13 +279,13 @@ return (
       )}
 
       {mode === "host" && joined && !gameOver && (question || questionResult) && (
-        <button onClick={endGame} style={{...styles.hostButton, background:'#b3261e', color:'white'}}>
+        <button onClick={endGame} style={{...styles.hostButton, background:'var(--qb-danger)', color:'white'}}>
           🏁 Oyunu Sonlandır
         </button>
       )}
 
       {mode === "host" && joined && (
-        <button onClick={closeRoom} style={{...styles.hostButton, background:'#e21b3c', color:'white'}}>
+        <button onClick={closeRoom} style={{...styles.hostButton, background:'var(--qb-danger)', color:'white'}}>
           Odayı Kapat
         </button>
       )}
@@ -294,7 +294,7 @@ return (
         onClick={leaveGame}
         style={{
           ...styles.hostButton,
-          background: "#e21b3c",
+          background: "var(--qb-danger)",
           color: "white",
         }}
       >
@@ -363,7 +363,7 @@ return (
 }
 
 
-const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#46178f,#6c2bd9)',display:'flex',justifyContent:'center',alignItems:'center',color:'white',fontFamily:'Arial',padding:16},center:{textAlign:'center'},logo:{fontSize:isMobile?42:64,marginBottom:10},subtitle:{fontSize:isMobile?18:22,marginBottom:30},mainButton:{display:'block',width:isMobile?'100%':320,padding:18,margin:'15px auto',fontSize:isMobile?18:22,borderRadius:18,border:'none',cursor:'pointer',fontWeight:'bold'},app:{minHeight:'100vh',background:'#f2f2f2',fontFamily:'Arial'},topbar:{background:'#46178f',color:'white',padding:16,textAlign:'center',display:'flex',flexWrap:'wrap',justifyContent:'center',alignItems:'center',gap:12},container:{maxWidth:1200,margin:'0 auto',padding:isMobile?12:20},card:{background:'white',color:'black',padding:isMobile?16:25,borderRadius:18,marginBottom:20,boxShadow:'0 4px 12px rgba(0,0,0,0.12)'},input:{width:'100%',padding:14,marginBottom:12,fontSize:17,boxSizing:'border-box'},purpleButton:{padding:14,background:'#46178f',color:'white',border:'none',borderRadius:12,fontSize:18,cursor:'pointer'},deleteButton:{padding:'8px 12px',background:'#e21b3c',color:'white',border:'none',borderRadius:8,cursor:'pointer'},questionDetailCard:{display:'flex',flexDirection:isMobile?'column':'row',justifyContent:'space-between',alignItems:'flex-start',padding:16,borderBottom:'1px solid #ddd',gap:20},joinCard:{background:'white',color:'black',padding:isMobile?24:40,borderRadius:20,width:isMobile?'100%':350,textAlign:'center'},joinButton:{width:'100%',padding:15,background:'#46178f',color:'white',border:'none',fontSize:18,borderRadius:10},hostButton:{padding:'12px 24px',border:'none',borderRadius:12,background:'white',color:'#46178f',fontWeight:'bold',cursor:'pointer'},qrBox:{background:'white',padding:14,borderRadius:16,margin:10},waiting:{textAlign:'center',marginTop:isMobile?40:80},player:{fontSize:isMobile?22:28,margin:10},questionCard:{background:'white',borderRadius:20,padding:isMobile?18:30,textAlign:'center',marginBottom:20,boxShadow:'0 4px 12px rgba(0,0,0,0.15)'},questionImage:{maxWidth:'100%',maxHeight:isMobile?220:360,objectFit:'contain',borderRadius:18,margin:'20px auto',display:'block',boxShadow:'0 4px 14px rgba(0,0,0,0.18)'},previewImage:{maxWidth:260,maxHeight:160,objectFit:'contain',borderRadius:12,margin:'10px 0',display:'block',border:'1px solid #ddd'},timerCircle:{width:isMobile?90:120,height:isMobile?90:120,borderRadius:'50%',background:'#46178f',color:'white',fontSize:isMobile?36:48,display:'flex',justifyContent:'center',alignItems:'center',margin:'20px auto'},progressOuter:{height:20,background:'#ddd',borderRadius:20,overflow:'hidden'},progressInner:{height:'100%',background:'#46178f',transition:'1s linear'},answers:{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16},answerButton:{color:'white',border:'none',padding:isMobile?24:40,fontSize:isMobile?20:28,borderRadius:20,minHeight:isMobile?110:180,cursor:'pointer',fontWeight:'bold'},answered:{marginTop:20,textAlign:'center',fontSize:24,color:'green',fontWeight:'bold'},board:{background:'white',borderRadius:20,padding:20,marginTop:30},boardRow:{display:'flex',justifyContent:'space-between',padding:10,fontSize:isMobile?18:22,borderBottom:'1px solid #ddd'},gameOver:{textAlign:'center',marginTop:60},gameOverTitle:{fontSize:isMobile?42:64,color:'#46178f'},podium:{display:'flex',flexDirection:isMobile?'column':'row',justifyContent:'center',alignItems:'center',gap:20,marginTop:40},podiumItem:{width:isMobile?'100%':220,borderRadius:20,color:'black',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',fontWeight:'bold',boxShadow:'0 4px 12px rgba(0,0,0,0.2)'},finalBoard:{background:'white',borderRadius:20,padding:20,marginTop:40},finalRow:{display:'flex',justifyContent:'space-between',padding:15,fontSize:isMobile?18:24,borderBottom:'1px solid #ddd'},
+const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,var(--qb-primary-700),var(--qb-primary-500))',display:'flex',justifyContent:'center',alignItems:'center',color:'white',fontFamily:'inherit',padding:16},center:{textAlign:'center'},logo:{fontSize:isMobile?42:64,marginBottom:10},subtitle:{fontSize:isMobile?18:22,marginBottom:30},mainButton:{display:'block',width:isMobile?'100%':320,padding:18,margin:'15px auto',fontSize:isMobile?18:22,borderRadius:18,border:'none',cursor:'pointer',fontWeight:'bold'},app:{minHeight:'100vh',background:'var(--qb-background)',fontFamily:'inherit'},topbar:{background:'var(--qb-primary-600)',color:'white',padding:16,textAlign:'center',display:'flex',flexWrap:'wrap',justifyContent:'center',alignItems:'center',gap:12},container:{maxWidth:1200,margin:'0 auto',padding:isMobile?12:20},card:{background:'var(--qb-surface)',color:'var(--qb-text-primary)',padding:isMobile?16:25,borderRadius:18,marginBottom:20,boxShadow:'var(--qb-shadow-2)'},input:{width:'100%',padding:14,marginBottom:12,fontSize:17,boxSizing:'border-box'},purpleButton:{padding:14,background:'var(--qb-primary-600)',color:'white',border:'none',borderRadius:12,fontSize:18,cursor:'pointer'},deleteButton:{padding:'8px 12px',background:'var(--qb-danger)',color:'white',border:'none',borderRadius:8,cursor:'pointer'},questionDetailCard:{display:'flex',flexDirection:isMobile?'column':'row',justifyContent:'space-between',alignItems:'flex-start',padding:16,borderBottom:'1px solid var(--qb-border)',gap:20},joinCard:{background:'var(--qb-surface)',color:'var(--qb-text-primary)',padding:isMobile?24:40,borderRadius:20,width:isMobile?'100%':350,textAlign:'center'},joinButton:{width:'100%',padding:15,background:'var(--qb-primary-600)',color:'white',border:'none',fontSize:18,borderRadius:10},hostButton:{padding:'12px 24px',border:'none',borderRadius:12,background:'var(--qb-surface)',color:'var(--qb-primary-700)',fontWeight:'bold',cursor:'pointer'},qrBox:{background:'var(--qb-surface)',padding:14,borderRadius:16,margin:10},waiting:{textAlign:'center',marginTop:isMobile?40:80},player:{fontSize:isMobile?22:28,margin:10},questionCard:{background:'var(--qb-surface)',borderRadius:20,padding:isMobile?18:30,textAlign:'center',marginBottom:20,boxShadow:'0 4px 12px rgba(0,0,0,0.15)'},questionImage:{maxWidth:'100%',maxHeight:isMobile?220:360,objectFit:'contain',borderRadius:18,margin:'20px auto',display:'block',boxShadow:'0 4px 14px rgba(0,0,0,0.18)'},previewImage:{maxWidth:260,maxHeight:160,objectFit:'contain',borderRadius:12,margin:'10px 0',display:'block',border:'1px solid var(--qb-border)'},timerCircle:{width:isMobile?90:120,height:isMobile?90:120,borderRadius:'50%',background:'var(--qb-primary-600)',color:'white',fontSize:isMobile?36:48,display:'flex',justifyContent:'center',alignItems:'center',margin:'20px auto'},progressOuter:{height:20,background:'var(--qb-border)',borderRadius:20,overflow:'hidden'},progressInner:{height:'100%',background:'var(--qb-primary-600)',transition:'1s linear'},answers:{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16},answerButton:{color:'white',border:'none',padding:isMobile?24:40,fontSize:isMobile?20:28,borderRadius:20,minHeight:isMobile?110:180,cursor:'pointer',fontWeight:'bold'},answered:{marginTop:20,textAlign:'center',fontSize:24,color:'var(--qb-success)',fontWeight:'bold'},board:{background:'var(--qb-surface)',borderRadius:20,padding:20,marginTop:30},boardRow:{display:'flex',justifyContent:'space-between',padding:10,fontSize:isMobile?18:22,borderBottom:'1px solid var(--qb-border)'},gameOver:{textAlign:'center',marginTop:60},gameOverTitle:{fontSize:isMobile?42:64,color:'var(--qb-primary-700)'},podium:{display:'flex',flexDirection:isMobile?'column':'row',justifyContent:'center',alignItems:'center',gap:20,marginTop:40},podiumItem:{width:isMobile?'100%':220,borderRadius:20,color:'var(--qb-text-primary)',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',fontWeight:'bold',boxShadow:'0 4px 12px rgba(0,0,0,0.2)'},finalBoard:{background:'var(--qb-surface)',borderRadius:20,padding:20,marginTop:40},finalRow:{display:'flex',justifyContent:'space-between',padding:15,fontSize:isMobile?18:24,borderBottom:'1px solid var(--qb-border)'},
   liveStage: {
     width: "100%",
     maxWidth: 1600,
@@ -385,7 +385,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
     fontSize: isMobile ? 38 : 72,
     fontWeight: "900",
     lineHeight: 1.18,
-    color: "#111",
+    color: "var(--qb-text-primary)",
     marginBottom: 20
   },
 
@@ -403,7 +403,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
     width: isMobile ? 110 : 150,
     height: isMobile ? 110 : 150,
     borderRadius: "50%",
-    background: "#46178f",
+    background: "var(--qb-primary-600)",
     color: "white",
     fontSize: isMobile ? 46 : 70,
     display: "flex",
@@ -416,7 +416,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
 
   liveProgressOuter: {
     height: 24,
-    background: "#ddd",
+    background: "var(--qb-border)",
     borderRadius: 24,
     overflow: "hidden",
     marginTop: 12
@@ -424,7 +424,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
 
   liveProgressInner: {
     height: "100%",
-    background: "#46178f",
+    background: "var(--qb-primary-600)",
     transition: "1s linear"
   },
 
@@ -486,7 +486,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
 
   liveResultTitle: {
     fontSize: isMobile ? 30 : 46,
-    color: "#46178f",
+    color: "var(--qb-primary-700)",
     textAlign: "center"
   },
 
@@ -530,7 +530,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
   resultBarOuter: {
     width: "100%",
     height: 36,
-    background: "#eee",
+    background: "var(--qb-surface-subtle)",
     borderRadius: 18,
     overflow: "hidden"
   },
@@ -559,7 +559,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
     justifyContent: "space-between",
     padding: isMobile ? 12 : 16,
     fontSize: isMobile ? 20 : 28,
-    borderBottom: "1px solid #ddd",
+    borderBottom: "1px solid var(--qb-border)",
     fontWeight: "800"
   },
 
