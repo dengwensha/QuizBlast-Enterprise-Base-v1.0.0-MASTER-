@@ -41,9 +41,9 @@ export default function HostSetup({
       <div style={styles.container}>
         {hostRooms.length > 0 && <div style={styles.card}>
           <h2>Açık odalarım</h2>
-          {hostRooms.map(room => <div key={room.instance_id}>
-            <span>PIN: {room.pin} · Quiz #{room.quiz_id} · {roomStatusLabel[room.status || room.phase] || room.status || room.phase}</span>{' '}
-            <button type="button" onClick={() => returnToRoom(room)} style={styles.purpleButton}>
+          {hostRooms.map(room => <div key={room.instance_id} style={roomRowStyle}>
+            <span style={roomMetaStyle}>PIN: {room.pin} · Quiz #{room.quiz_id} · {roomStatusLabel[room.status || room.phase] || room.status || room.phase}</span>
+            <button type="button" onClick={() => returnToRoom(room)} style={{...styles.purpleButton, ...roomActionStyle}}>
               Odaya Dön
             </button>
           </div>)}
@@ -106,3 +106,24 @@ export default function HostSetup({
     </div>
   );
 }
+
+
+const roomRowStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "var(--qb-space-4)",
+  padding: "var(--qb-space-3) 0",
+  borderBottom: "1px solid var(--qb-border)",
+  flexWrap: "wrap",
+};
+
+const roomMetaStyle = {
+  flex: "1 1 260px",
+  lineHeight: 1.5,
+};
+
+const roomActionStyle = {
+  flex: "0 0 auto",
+  margin: 0,
+};
