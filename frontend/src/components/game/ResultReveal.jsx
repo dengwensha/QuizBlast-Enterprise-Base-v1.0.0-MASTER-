@@ -16,7 +16,7 @@ export default function ResultReveal({
       <div
         style={{
           ...(live ? styles.liveCorrectAnswer : styles.correctAnswer),
-          background: optionColors[correctIndex] || "#46178f",
+          background: optionColors[correctIndex] || "var(--qb-primary-600)",
         }}
       >
         {correctText}
@@ -39,7 +39,7 @@ export default function ResultReveal({
                 style={{
                   ...styles.resultBarInner,
                   width,
-                  background: optionColors[i] || "#46178f",
+                  background: optionColors[i] || "var(--qb-primary-600)",
                 }}
               >
                 {count}

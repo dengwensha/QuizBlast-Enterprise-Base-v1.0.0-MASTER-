@@ -22,7 +22,7 @@ export default function DisplayConnect({ roomPin, setRoomPin, connectDisplay, se
           style={{
             ...styles.joinButton,
             marginTop: 10,
-            background: "#333",
+            background: "var(--qb-navy-900)",
           }}
         >
           Ana Menü
