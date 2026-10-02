@@ -58,6 +58,10 @@ export default function App() {
     } catch { return null; }
   });
   const [hostRooms, setHostRooms] = useState([]);
+  const navigateMode = (nextMode) => {
+    window.history.pushState({ quizblastMode: nextMode }, '', window.location.href);
+    setMode(nextMode);
+  };
   const [hostRoomsError, setHostRoomsError] = useState(false);
   const {
     roomPin,
@@ -143,7 +147,21 @@ export default function App() {
   const optionColors=['var(--qb-answer-a)','var(--qb-answer-b)','var(--qb-answer-c)','var(--qb-answer-d)'];
   const visiblePlayers=players.filter(p=>p!=='HOST'&&p!=='DISPLAY'); const visibleLeaderboard=leaderboard.filter(p=>p[0]!=='HOST'&&p[0]!=='DISPLAY'); const podium=useMemo(()=>visibleLeaderboard.slice(0,3),[visibleLeaderboard]);
   const logout=()=>{closeSession(); clearAuth(); setMode(null); clearQuizState();};
-  const leaveGame=()=>{closeSession(); setMode(null);};
+  const leaveGame=()=>{closeSession(); navigateMode(null);};
+  useEffect(() => {
+    window.history.replaceState({ ...(window.history.state || {}), quizblastMode: mode }, '', window.location.href);
+    const handlePopState = (event) => {
+      const nextMode = event.state?.quizblastMode ?? null;
+      if (joined) {
+        window.history.pushState({ quizblastMode: mode }, '', window.location.href);
+        return;
+      }
+      setMode(nextMode);
+      if (nextMode === 'host' || nextMode === 'admin') loadQuizzes();
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [joined, mode]);
   useEffect(() => {
     let saved;
     try { saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session')); }
@@ -237,12 +255,12 @@ export default function App() {
   };
 
   if(!user) return <div style={styles.splash}><div style={styles.joinCard}><h1>QuizBlast 🚀</h1><h2>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</h2><input placeholder="E-posta" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={styles.input}/><input placeholder="Şifre" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={styles.input}/><button onClick={authMode==='login'?login:register} style={styles.joinButton}>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</button><button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} style={{...styles.joinButton,marginTop:10,background:'var(--qb-navy-900)'}}>{authMode==='login'?'Hesap oluştur':'Giriş ekranına dön'}</button></div></div>;
-  if(!mode) return <div style={styles.splash}><div style={styles.center}><h1 style={styles.logo}>QuizBlast 🚀</h1><p style={styles.subtitle}>Multiplayer Quiz Platform</p><p>{user.email}</p><button onClick={()=>{setMode('host');loadQuizzes();}} style={styles.mainButton}>🎤 Host Game</button><button onClick={()=>setMode('player')} style={styles.mainButton}>🎮 Join Game</button><button onClick={()=>setMode('display')} style={styles.mainButton}>📺 Display Screen</button><button onClick={()=>{setMode('admin');loadQuizzes();}} style={styles.mainButton}>🧠 Admin Panel</button><button onClick={logout} style={{...styles.mainButton,background:'var(--qb-danger)',color:'white'}}>Çıkış Yap</button></div></div>;
-  if(mode==='admin') return <AdminView styles={styles} admin={admin} {...{quizzes,selectedQuizId,setSelectedQuizId,selectedQuestions,importExcel,commitImport,importPreview,importing,importSummary,setMode}} />;
+  if(!mode) return <div style={styles.splash}><div style={styles.center}><h1 style={styles.logo}>QuizBlast 🚀</h1><p style={styles.subtitle}>Multiplayer Quiz Platform</p><p>{user.email}</p><button onClick={()=>{navigateMode('host');loadQuizzes();}} style={styles.mainButton}>🎤 Host Game</button><button onClick={()=>navigateMode('player')} style={styles.mainButton}>🎮 Join Game</button><button onClick={()=>navigateMode('display')} style={styles.mainButton}>📺 Display Screen</button><button onClick={()=>{navigateMode('admin');loadQuizzes();}} style={styles.mainButton}>🧠 Admin Panel</button><button onClick={logout} style={{...styles.mainButton,background:'var(--qb-danger)',color:'white'}}>Çıkış Yap</button></div></div>;
+  if(mode==='admin') return <AdminView styles={styles} admin={admin} {...{quizzes,selectedQuizId,setSelectedQuizId,selectedQuestions,importExcel,commitImport,importPreview,importing,importSummary,setMode:navigateMode}} />;
   if(reconnecting) return <div style={styles.splash}><div style={styles.center}><h2>Odaya yeniden bağlanılıyor...</h2><button onClick={leaveGame} style={styles.mainButton}>Oyundan Çık</button></div></div>;
-  if(mode==='host'&&!joined) return <HostSetup {...{quizzes,selectedQuizId,setSelectedQuizId,loadSelectedQuestions,finalLimit,setFinalLimit,createRoom,selectedQuestions,setMode,styles,hostRooms,hostRoomsError,returnToRoom}} />;
-  if(mode==='player'&&!joined) return <JoinScreen {...{roomPin,setRoomPin,name,setName,joinRoom,setMode}}styles={styles} />;
-  if(mode==='display'&&!joined) return <DisplayConnect {...{roomPin,setRoomPin,connectDisplay,setMode}} styles={styles}/>;
+  if(mode==='host'&&!joined) return <HostSetup {...{quizzes,selectedQuizId,setSelectedQuizId,loadSelectedQuestions,finalLimit,setFinalLimit,createRoom,selectedQuestions,setMode:navigateMode,styles,hostRooms,hostRoomsError,returnToRoom}} />;
+  if(mode==='player'&&!joined) return <JoinScreen {...{roomPin,setRoomPin,name,setName,joinRoom,setMode:navigateMode}}styles={styles} />;
+  if(mode==='display'&&!joined) return <DisplayConnect {...{roomPin,setRoomPin,connectDisplay,setMode:navigateMode}} styles={styles}/>;
 
 return (
   <div style={styles.app}>
