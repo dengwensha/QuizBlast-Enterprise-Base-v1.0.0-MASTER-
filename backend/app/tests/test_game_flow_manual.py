@@ -69,7 +69,7 @@ async def run_game_flow():
     status, added = await asyncio.to_thread(
         post,
         f'/quizzes/{quiz_id}/questions',
-        {'question': 'Two plus two?', 'options': ['4', '3', '2', '1'], 'correct': 0, 'time': 1},
+        {'question': 'Two plus two?', 'options': ['4', '3', '2', '1'], 'correct': 0, 'time': 1, 'explanation': 'Two pairs make four.'},
         token,
     )
     assert status == 200 and added['status'] == 'question_added'
@@ -106,6 +106,7 @@ async def run_game_flow():
                 for socket in (host, player, display):
                     question, events = await receive_until(socket, 'question')
                     assert question['question'] == 'Two plus two?'
+                    assert 'explanation' not in question
                     assert any(
                         event.get('type') == 'players'
                         and set(event['players']) == {'HOST', 'Ada', 'DISPLAY'}
@@ -126,6 +127,7 @@ async def run_game_flow():
                 for socket in (host, player, display):
                     result, events = await receive_until(socket, 'question_result')
                     assert result['correct'] == 0 and result['stats'] == [1, 0, 0, 0]
+                    assert result['explanation'] == 'Two pairs make four.'
                     assert any(
                         event.get('type') == 'answer_count' and event['count'] == 1
                         for event in events
@@ -161,11 +163,13 @@ async def run_game_flow():
                 for socket in (host, player, display):
                     question, _ = await receive_until(socket, 'question')
                     assert question['index'] == 0
+                    assert 'explanation' not in question
 
                 await player.send(json.dumps({'type': 'answer', 'answer': 1}))
                 for socket in (host, player, display):
                     result, events = await receive_until(socket, 'question_result')
                     assert result['stats'] == [0, 1, 0, 0]
+                    assert result['explanation'] == 'Two pairs make four.'
                     assert any(
                         event.get('type') == 'leaderboard'
                         and event['scores'] == [['Ada', 0]]

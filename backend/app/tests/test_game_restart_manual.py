@@ -85,7 +85,8 @@ async def run():
         quiz = await asyncio.to_thread(post, '/quizzes', {'title': 'Restart'}, token)
         await asyncio.to_thread(post, f"/quizzes/{quiz['id']}/questions",
                                 {'question': 'Continue?', 'options': ['Yes', 'No', 'A', 'B'],
-                                 'correct': 0, 'time': 12}, token)
+                                 'correct': 0, 'time': 12,
+                                 'explanation': 'This survives restart.'}, token)
         room = await asyncio.to_thread(post, f"/create-room/{quiz['id']}", None, token)
         pin = room['room_pin']
         with urlopen(BASE + f'/room-instance/{pin}') as response:
@@ -107,7 +108,8 @@ async def run():
         ada_token = (await event_of(ada, 'player_session'))['token']
         await asyncio.to_thread(post, f'/start-game/{pin}', None, token)
         for socket in sockets:
-            await event_of(socket, 'question')
+            question = await event_of(socket, 'question')
+            assert 'explanation' not in question
         await ada.send(json.dumps({'type': 'answer', 'answer': 0}))
         board = await event_of(ada, 'leaderboard')
         score = dict(board['scores'])['Ada']
@@ -140,6 +142,7 @@ async def run():
         for socket, answered in [(ada2, True), (bora2, False)]:
             state = await event_of(socket, 'question')
             assert 7 < state['time'] <= 12 and state['paused'] is True
+            assert 'explanation' not in state
             assert state['answered'] is answered
             board = await event_of(socket, 'leaderboard')
             assert dict(board['scores'])['Ada'] == score
@@ -153,10 +156,12 @@ async def run():
         for socket in (ada2, bora2, host2):
             state = await event_of(socket, 'question')
             assert 7 < state['time'] <= 12 and state['paused'] is False, state
+            assert 'explanation' not in state
         await bora2.send(json.dumps({'type': 'answer', 'answer': 0}))
         for socket in (ada2, bora2, host2):
             result = await event_of(socket, 'question_result')
             assert result['stats'] == [2, 0, 0, 0], result
+            assert result['explanation'] == 'This survives restart.'
 
         process.kill()
         await asyncio.to_thread(process.wait, 5)
@@ -170,6 +175,7 @@ async def run():
         for socket in (host3, ada3):
             restored = await event_of(socket, 'question_result')
             assert restored['stats'] == [2, 0, 0, 0]
+            assert restored['explanation'] == 'This survives restart.'
         finish = await asyncio.to_thread(post, f'/next-question/{pin}', None, token)
         assert finish['status'] == 'game_over'
 
