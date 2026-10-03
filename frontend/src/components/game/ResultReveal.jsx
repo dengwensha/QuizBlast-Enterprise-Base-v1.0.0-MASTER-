@@ -24,6 +24,7 @@ export default function ResultReveal({
 
       <h3>Cevap Dağılımı</h3>
 
+      {questionResult.explanation && <p style={{marginTop:16,lineHeight:1.6}}><b>Açıklama:</b> {questionResult.explanation}</p>}
       {questionResult.stats?.map((count, i) => {
         const maxCount = Math.max(...questionResult.stats, 1);
         const width = `${(count / maxCount) * 100}%`;

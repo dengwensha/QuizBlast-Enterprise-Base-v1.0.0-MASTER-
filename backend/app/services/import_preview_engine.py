@@ -12,6 +12,7 @@ class PreviewRow:
     status: str
     can_import: bool
     question: str
+    explanation: str | None
     options: list[str]
     correct: str
     time: int
@@ -45,6 +46,7 @@ def build_preview_rows(rows: list[tuple[int, QBDSQuestionDTO]], grouped_issues: 
                 status=status,
                 can_import=not has_error,
                 question=dto.question,
+                explanation=dto.explanation,
                 options=[
                     dto.option_a,
                     dto.option_b,
@@ -72,6 +74,7 @@ def preview_row_to_dict(row: PreviewRow) -> dict[str, Any]:
         "status": row.status,
         "can_import": row.can_import,
         "question": row.question,
+        "explanation": row.explanation or "",
         "options": row.options,
         "correct": row.correct,
         "time": row.time,

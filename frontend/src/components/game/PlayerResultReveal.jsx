@@ -16,6 +16,7 @@ export default function PlayerResultReveal({ questionResult, options = [], optio
       <div className="qb-player-result__correct" style={{ "--qb-result-color": optionColors[correctIndex] || "var(--qb-primary-600)" }}>
         {correctText}
       </div>
+      {questionResult?.explanation && <p><strong>Açıklama:</strong> {questionResult.explanation}</p>}
       <h3 className="qb-player-result__distribution-title">Cevap Dağılımı</h3>
       <div className="qb-player-result__distribution">
         {stats.map((count, index) => {

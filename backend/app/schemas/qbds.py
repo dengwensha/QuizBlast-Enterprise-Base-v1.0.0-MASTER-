@@ -17,6 +17,7 @@ class QBDSQuestionDTO(BaseModel):
 
     question: str
     image: Optional[str] = None
+    explanation: Optional[str] = None
 
     option_a: str
     option_b: str
@@ -42,6 +43,7 @@ class QBDSQuestionDTO(BaseModel):
         return {
             "question": self.question,
             "image_url": self.image or "",
+            "explanation": self.explanation or "",
             "options": [
                 self.option_a,
                 self.option_b,

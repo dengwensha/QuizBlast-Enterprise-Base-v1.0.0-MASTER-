@@ -65,7 +65,7 @@ def map_excel_row_to_qbds(row: dict, row_no: int | None = None) -> QBDSQuestionD
     Maps both QBDS v1 and legacy Excel rows into QBDSQuestionDTO.
 
     Supported new QBDS columns:
-    QuizName, Category, Language, Audience, Question, Image,
+    QuizName, Category, Language, Audience, Question, Image, Explanation,
     OptionA, OptionB, OptionC, OptionD, Correct, Time,
     Difficulty, QuestionType, Tags, Notes
 
@@ -99,6 +99,7 @@ def map_excel_row_to_qbds(row: dict, row_no: int | None = None) -> QBDSQuestionD
 
         question=_get(row, "Question", "question", "Soru"),
         image=_get(row, "Image", "image_url", "Görsel", "Gorsel", default=""),
+        explanation=_get(row, "Explanation", "Açıklama", "Aciklama", default=""),
 
         option_a=_get(row, "OptionA", "A", "a", "Seçenek A", "Secenek A"),
         option_b=_get(row, "OptionB", "B", "b", "Seçenek B", "Secenek B"),
@@ -138,6 +139,7 @@ def map_ai_output_to_qbds(data: dict) -> QBDSQuestionDTO:
         audience=data.get("audience", "Serbest"),
         question=data.get("question", ""),
         image=data.get("image") or data.get("image_url") or "",
+        explanation=data.get("explanation") or "",
         option_a=options[0],
         option_b=options[1],
         option_c=options[2],

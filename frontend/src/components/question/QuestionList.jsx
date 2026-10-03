@@ -52,6 +52,7 @@ export default function QuestionList({
               <p>
                 <b>Süre:</b> {q.time} saniye
               </p>
+              {q.explanation && <p><b>Açıklama:</b> {q.explanation}</p>}
             </div>
 
             {showDelete && (
