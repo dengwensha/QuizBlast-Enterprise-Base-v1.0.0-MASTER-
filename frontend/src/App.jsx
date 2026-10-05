@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import confetti from "canvas-confetti";
 
@@ -58,6 +58,8 @@ export default function App() {
     } catch { return null; }
   });
   const [hostRooms, setHostRooms] = useState([]);
+  const joinedRef = useRef(false);
+  const modeRef = useRef(mode);
   const navigateMode = (nextMode) => {
     window.history.pushState({ quizblastMode: nextMode }, '', window.location.href);
     setMode(nextMode);
@@ -150,18 +152,29 @@ export default function App() {
   const [finalLimit,setFinalLimit]=useState(3);
   const optionColors=['var(--qb-answer-a)','var(--qb-answer-b)','var(--qb-answer-c)','var(--qb-answer-d)'];
   const visiblePlayers=players.filter(p=>p!=='HOST'&&p!=='DISPLAY'); const visibleLeaderboard=leaderboard.filter(p=>p[0]!=='HOST'&&p[0]!=='DISPLAY'); const podium=useMemo(()=>visibleLeaderboard.slice(0,3),[visibleLeaderboard]);
+  joinedRef.current = joined;
+  modeRef.current = mode;
   const logout=()=>{closeSession(); clearAuth(); replaceMode(null); clearQuizState();};
   const leaveGame=()=>{closeSession(); replaceMode(null);};
   useEffect(() => {
-    window.history.replaceState({ ...(window.history.state || {}), quizblastMode: mode }, '', window.location.href);
+    window.history.replaceState({ ...(window.history.state || {}), quizblastMode: modeRef.current }, '', window.location.href);
     const handlePopState = (event) => {
+      if (joinedRef.current) {
+        window.history.pushState({ quizblastMode: modeRef.current }, '', window.location.href);
+        return;
+      }
       const nextMode = event.state?.quizblastMode ?? null;
       setMode(nextMode);
       if (nextMode === 'host' || nextMode === 'admin') loadQuizzes();
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [mode]);
+  }, []);
+
+  useEffect(() => {
+    if (!joined) return;
+    window.history.pushState({ quizblastMode: mode, quizblastActiveSession: true }, '', window.location.href);
+  }, [joined]);
   useEffect(() => {
     let saved;
     try { saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session')); }
