@@ -152,6 +152,10 @@ export default function App() {
   const optionColors=['var(--qb-answer-a)','var(--qb-answer-b)','var(--qb-answer-c)','var(--qb-answer-d)'];
   const visiblePlayers=players.filter(p=>p!=='HOST'&&p!=='DISPLAY'); const visibleLeaderboard=leaderboard.filter(p=>p[0]!=='HOST'&&p[0]!=='DISPLAY'); const podium=useMemo(()=>visibleLeaderboard.slice(0,3),[visibleLeaderboard]);
   activeSessionRef.current = joined;
+  useEffect(() => {
+    if (!joined) return;
+    window.history.pushState({ quizblastMode: mode, quizblastSessionGuard: true }, '', window.location.href);
+  }, [joined]);
   const logout=()=>{closeSession(); clearAuth(); replaceMode(null); clearQuizState();};
   const leaveGame=()=>{closeSession(); replaceMode(null);};
   useEffect(() => {
