@@ -58,7 +58,6 @@ export default function App() {
     } catch { return null; }
   });
   const [hostRooms, setHostRooms] = useState([]);
-  const activeSessionRef = React.useRef(false);
   const navigateMode = (nextMode) => {
     window.history.pushState({ quizblastMode: nextMode }, '', window.location.href);
     setMode(nextMode);
@@ -151,21 +150,12 @@ export default function App() {
   const [finalLimit,setFinalLimit]=useState(3);
   const optionColors=['var(--qb-answer-a)','var(--qb-answer-b)','var(--qb-answer-c)','var(--qb-answer-d)'];
   const visiblePlayers=players.filter(p=>p!=='HOST'&&p!=='DISPLAY'); const visibleLeaderboard=leaderboard.filter(p=>p[0]!=='HOST'&&p[0]!=='DISPLAY'); const podium=useMemo(()=>visibleLeaderboard.slice(0,3),[visibleLeaderboard]);
-  activeSessionRef.current = joined;
-  useEffect(() => {
-    if (!joined) return;
-    window.history.pushState({ quizblastMode: mode, quizblastSessionGuard: true }, '', window.location.href);
-  }, [joined]);
   const logout=()=>{closeSession(); clearAuth(); replaceMode(null); clearQuizState();};
   const leaveGame=()=>{closeSession(); replaceMode(null);};
   useEffect(() => {
     window.history.replaceState({ ...(window.history.state || {}), quizblastMode: mode }, '', window.location.href);
     const handlePopState = (event) => {
       const nextMode = event.state?.quizblastMode ?? null;
-      if (activeSessionRef.current) {
-        window.history.pushState({ quizblastMode: mode }, '', window.location.href);
-        return;
-      }
       setMode(nextMode);
       if (nextMode === 'host' || nextMode === 'admin') loadQuizzes();
     };
