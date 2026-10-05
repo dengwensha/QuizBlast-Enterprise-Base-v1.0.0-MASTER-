@@ -62,6 +62,10 @@ export default function App() {
     window.history.pushState({ quizblastMode: nextMode }, '', window.location.href);
     setMode(nextMode);
   };
+  const replaceMode = (nextMode) => {
+    window.history.replaceState({ ...(window.history.state || {}), quizblastMode: nextMode }, '', window.location.href);
+    setMode(nextMode);
+  };
   const [hostRoomsError, setHostRoomsError] = useState(false);
   const {
     roomPin,
@@ -102,7 +106,7 @@ export default function App() {
     },
     onCountdown: () => playTone(520,80,'square'),
     onHostUnauthorized: () => clearAuth(true),
-    onRoomClosed: () => { setMode(null); alert('Oda kapatıldı.'); },
+    onRoomClosed: () => { replaceMode(null); alert('Oda kapatıldı.'); },
   });
   const {
     quizzes,
@@ -146,14 +150,14 @@ export default function App() {
   const [finalLimit,setFinalLimit]=useState(3);
   const optionColors=['var(--qb-answer-a)','var(--qb-answer-b)','var(--qb-answer-c)','var(--qb-answer-d)'];
   const visiblePlayers=players.filter(p=>p!=='HOST'&&p!=='DISPLAY'); const visibleLeaderboard=leaderboard.filter(p=>p[0]!=='HOST'&&p[0]!=='DISPLAY'); const podium=useMemo(()=>visibleLeaderboard.slice(0,3),[visibleLeaderboard]);
-  const logout=()=>{closeSession(); clearAuth(); setMode(null); clearQuizState();};
-  const leaveGame=()=>{closeSession(); navigateMode(null);};
+  const logout=()=>{closeSession(); clearAuth(); replaceMode(null); clearQuizState();};
+  const leaveGame=()=>{closeSession(); replaceMode(null);};
   useEffect(() => {
     window.history.replaceState({ ...(window.history.state || {}), quizblastMode: mode }, '', window.location.href);
     const handlePopState = (event) => {
       const nextMode = event.state?.quizblastMode ?? null;
       if (joined) {
-        window.history.pushState({ quizblastMode: mode }, '', window.location.href);
+        window.history.forward();
         return;
       }
       setMode(nextMode);
@@ -248,7 +252,7 @@ export default function App() {
     const result = await closeRoomRequest(roomPin, user.token);
     if (result.status === 'room_closed') {
       closeSession();
-      setMode(null);
+      replaceMode(null);
     } else {
       alert(result.detail || result.error || 'Oda kapatılamadı.');
     }
