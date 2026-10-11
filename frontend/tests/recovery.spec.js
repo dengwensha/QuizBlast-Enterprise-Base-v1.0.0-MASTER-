@@ -204,3 +204,82 @@ test("host, player and display recover after backend and browser restart", async
     await displayContext.close();
   }
 });
+
+
+for (const role of ["HOST", "PLAYER"]) {
+  test(`active ${role.toLowerCase()} session remains on game screen after browser Back`, async ({ browser, request }) => {
+    test.setTimeout(90_000);
+    const email = `history-${role.toLowerCase()}-${Date.now()}@example.com`;
+    await post(request, "/auth/register", { email, password: "integration-password" });
+    const login = await post(request, "/auth/login", { email, password: "integration-password" });
+    const user = { email, token: login.access_token };
+    const quiz = await post(request, "/quizzes", { title: "Browser Back regression" }, user.token);
+    await post(request, `/quizzes/${quiz.id}/questions`, {
+      question: "Back navigation must preserve this question",
+      options: ["A", "B", "C", "D"], correct: 0, time: 60,
+    }, user.token);
+    const { room_pin: pin } = await post(request, `/create-room/${quiz.id}`, {}, user.token);
+    const { instance_id: instanceId } = await (await request.get(`${apiUrl}/room-instance/${pin}`)).json();
+    const context = await authenticatedContext(browser, user);
+    const page = await context.newPage();
+    const events = [];
+    page.on("framenavigated", (frame) => {
+      if (frame === page.mainFrame()) events.push(`navigation:${frame.url()}`);
+    });
+    page.on("websocket", (socket) => {
+      events.push(`websocket-open:${socket.url()}`);
+      socket.on("close", () => events.push("websocket-close"));
+      socket.on("socketerror", (error) => events.push(`websocket-error:${error}`));
+    });
+    try {
+      await page.goto("/");
+      await page.evaluate(() => {
+        window.__historyEvents = [];
+        for (const type of ["popstate", "pagehide", "pageshow"]) {
+          window.addEventListener(type, (event) => {
+            window.__historyEvents.push({
+              type, url: location.href, persisted: event.persisted ?? null,
+              state: history.state,
+            });
+          });
+        }
+      });
+      if (role === "HOST") {
+        await page.getByRole("button", { name: "🎤 Host Game" }).click();
+        await page.getByRole("button", { name: "Odaya Dön" }).click();
+      } else {
+        await page.getByRole("button", { name: "🎮 Join Game" }).click();
+        await page.getByPlaceholder("Room PIN").fill(pin);
+        await page.getByPlaceholder("Name").fill("HistoryPlayer");
+        await page.getByRole("button", { name: "Join", exact: true }).click();
+      }
+      await expect(page.getByRole("button", { name: "Oyundan Çık" })).toBeVisible();
+      const sessionBefore = await page.evaluate(() => JSON.parse(localStorage.getItem("quizblast_active_session")));
+      expect(sessionBefore).toMatchObject({ pin, who: role === "HOST" ? "HOST" : "HistoryPlayer", instanceId });
+      const urlBefore = page.url();
+      const historyLengthBefore = await page.evaluate(() => history.length);
+      let backError = null;
+      try {
+        await page.goBack({ waitUntil: "domcontentloaded", timeout: 10_000 });
+      } catch (error) {
+        backError = error.message;
+      }
+      const diagnostics = {
+        role, urlBefore, urlAfter: page.url(), historyLengthBefore, backError, events,
+      };
+      if (page.url().startsWith(frontendUrl)) {
+        diagnostics.browserEvents = await page.evaluate(() => window.__historyEvents || []);
+        diagnostics.sessionAfter = await page.evaluate(() => {
+          try { return JSON.parse(localStorage.getItem("quizblast_active_session")); }
+          catch { return null; }
+        });
+      }
+      console.log("UI-06A BACK DIAGNOSTICS", JSON.stringify(diagnostics));
+      expect(page.url(), JSON.stringify(diagnostics)).toBe(urlBefore);
+      await expect(page.getByRole("button", { name: "Oyundan Çık" }), JSON.stringify(diagnostics)).toBeVisible();
+      expect(diagnostics.sessionAfter).toMatchObject({ pin, instanceId });
+    } finally {
+      await context.close();
+    }
+  });
+}
