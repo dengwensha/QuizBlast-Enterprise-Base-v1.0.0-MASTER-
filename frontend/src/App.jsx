@@ -61,6 +61,12 @@ export default function App() {
   const joinedRef = useRef(false);
   const modeRef = useRef(mode);
   const activeHistoryRef = useRef(false);
+  const hasActiveSession = () => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
+      return Boolean(saved?.pin && saved?.who && saved?.instanceId);
+    } catch { return false; }
+  };
   const navigateMode = (nextMode) => {
     window.history.pushState({ quizblastMode: nextMode }, '', window.location.href);
     setMode(nextMode);
@@ -160,8 +166,14 @@ export default function App() {
   const leaveGame=()=>{closeSession(); replaceMode(null);};
   useEffect(() => {
     window.history.replaceState({ ...(window.history.state || {}), quizblastMode: modeRef.current }, '', window.location.href);
+    // A restored session is active even before its asynchronous socket reconnect completes.
+    // Arm the guard before the first popstate; otherwise Back can leave the document.
+    if (hasActiveSession() && !window.history.state?.quizblastActiveSession) {
+      window.history.pushState({ quizblastMode: modeRef.current, quizblastActiveSession: true }, '', window.location.href);
+      activeHistoryRef.current = true;
+    }
     const handlePopState = (event) => {
-      if (joinedRef.current) {
+      if (joinedRef.current || hasActiveSession()) {
         window.history.pushState({ quizblastMode: modeRef.current, quizblastActiveSession: true }, '', window.location.href);
         activeHistoryRef.current = true;
         return;
