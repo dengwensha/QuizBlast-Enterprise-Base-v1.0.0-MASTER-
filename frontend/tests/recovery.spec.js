@@ -254,6 +254,12 @@ for (const role of ["HOST", "PLAYER"]) {
         await page.getByRole("button", { name: "Join", exact: true }).click();
       }
       await expect(page.getByRole("button", { name: "Oyundan Çık" })).toBeVisible();
+      const startResponse = await request.post(`${apiUrl}/start-game/${pin}`, {
+        data: {},
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      expect(startResponse.ok(), await startResponse.text()).toBeTruthy();
+      await expect(page.getByText("Back navigation must preserve this question")).toBeVisible();
       const sessionBefore = await page.evaluate(() => JSON.parse(localStorage.getItem("quizblast_active_session")));
       expect(sessionBefore).toMatchObject({ pin, who: role === "HOST" ? "HOST" : "HistoryPlayer", instanceId });
       const urlBefore = page.url();
@@ -277,6 +283,7 @@ for (const role of ["HOST", "PLAYER"]) {
       console.log("UI-06A BACK DIAGNOSTICS", JSON.stringify(diagnostics));
       expect(page.url(), JSON.stringify(diagnostics)).toBe(urlBefore);
       await expect(page.getByRole("button", { name: "Oyundan Çık" }), JSON.stringify(diagnostics)).toBeVisible();
+      await expect(page.getByText("Back navigation must preserve this question"), JSON.stringify(diagnostics)).toBeVisible();
       expect(diagnostics.sessionAfter).toMatchObject({ pin, instanceId });
     } finally {
       await context.close();
