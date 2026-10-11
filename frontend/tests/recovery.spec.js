@@ -222,6 +222,10 @@ for (const role of ["HOST", "PLAYER"]) {
     const { instance_id: instanceId } = await (await request.get(`${apiUrl}/room-instance/${pin}`)).json();
     const context = await authenticatedContext(browser, user);
     const page = await context.newPage();
+    const peerContext = role === "HOST"
+      ? await authenticatedContext(browser, user)
+      : await authenticatedContext(browser, user, { pin, who: "HOST", instanceId });
+    const peer = await peerContext.newPage();
     const events = [];
     page.on("framenavigated", (frame) => {
       if (frame === page.mainFrame()) events.push(`navigation:${frame.url()}`);
@@ -254,11 +258,21 @@ for (const role of ["HOST", "PLAYER"]) {
         await page.getByRole("button", { name: "Join", exact: true }).click();
       }
       await expect(page.getByRole("button", { name: "Oyundan Çık" })).toBeVisible();
+      await peer.goto("/");
+      if (role === "HOST") {
+        await peer.getByRole("button", { name: "🎮 Join Game" }).click();
+        await peer.getByPlaceholder("Room PIN").fill(pin);
+        await peer.getByPlaceholder("Name").fill("PeerPlayer");
+        await peer.getByRole("button", { name: "Join", exact: true }).click();
+      }
+      await expect(peer.getByRole("button", { name: "Oyundan Çık" })).toBeVisible();
+      if (role === "HOST") await expect(page.getByText("👤 PeerPlayer", { exact: true })).toBeVisible();
       const startResponse = await request.post(`${apiUrl}/start-game/${pin}`, {
         data: {},
         headers: { Authorization: `Bearer ${user.token}` },
       });
       expect(startResponse.ok(), await startResponse.text()).toBeTruthy();
+      expect(await startResponse.json()).toEqual({ status: "started" });
       await expect(page.getByText("Back navigation must preserve this question")).toBeVisible();
       const sessionBefore = await page.evaluate(() => JSON.parse(localStorage.getItem("quizblast_active_session")));
       expect(sessionBefore).toMatchObject({ pin, who: role === "HOST" ? "HOST" : "HistoryPlayer", instanceId });
@@ -287,6 +301,7 @@ for (const role of ["HOST", "PLAYER"]) {
       expect(diagnostics.sessionAfter).toMatchObject({ pin, instanceId });
     } finally {
       await context.close();
+      await peerContext.close();
     }
   });
 }
