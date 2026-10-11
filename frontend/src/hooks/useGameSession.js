@@ -39,6 +39,8 @@ export function useGameSession({
   const socketRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const connectionRef = useRef(null);
+  const resumeConnectionRef = useRef(null);
+  const pageSuspendedRef = useRef(false);
   const [reconnecting, setReconnecting] = useState(false);
 
   const [players, setPlayers] = useState([]);
@@ -80,6 +82,7 @@ export function useGameSession({
 
   const closeSocket = () => {
     connectionRef.current = null;
+    resumeConnectionRef.current = null;
     clearTimeout(reconnectTimerRef.current);
     setReconnecting(false);
     const activeSocket = socketRef.current;
@@ -111,6 +114,7 @@ export function useGameSession({
     setPlayerName(who);
 
     const open = async () => {
+    if (pageSuspendedRef.current || connectionRef.current !== connection) return;
     if (!connection.instanceId) {
       try {
         const response = await fetch(`${API}/room-instance/${pin}`);
@@ -142,7 +146,7 @@ export function useGameSession({
         return;
       }
     }
-    if (connectionRef.current !== connection) return;
+    if (pageSuspendedRef.current || connectionRef.current !== connection) return;
     const playerKey = `quizblast_player_${connection.instanceId}_${who}`;
     let playerToken = localStorage.getItem(playerKey);
 
@@ -277,7 +281,7 @@ export function useGameSession({
         setSocket(null);
         setJoined(false);
         setTimeLeft(0);
-        if (connectionRef.current === connection) {
+        if (connectionRef.current === connection && !pageSuspendedRef.current) {
           setReconnecting(true);
           const delay = Math.min(1000 * 2 ** connection.attempt, 5000);
           connection.attempt += 1;
@@ -293,6 +297,7 @@ export function useGameSession({
     socketRef.current = ws;
     setSocket(ws);
     };
+    resumeConnectionRef.current = open;
     open();
   };
 
@@ -342,7 +347,26 @@ export function useGameSession({
   }, [joined, paused, timeLeft]);
 
   useEffect(() => {
+    const onPageHide = () => {
+      pageSuspendedRef.current = true;
+      clearTimeout(reconnectTimerRef.current);
+      const ws = socketRef.current;
+      socketRef.current = null;
+      if (ws) ws.close();
+    };
+    const onPageShow = (event) => {
+      if (!pageSuspendedRef.current) return;
+      pageSuspendedRef.current = false;
+      if (connectionRef.current && resumeConnectionRef.current) {
+        setReconnecting(true);
+        resumeConnectionRef.current();
+      }
+    };
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('pageshow', onPageShow);
     return () => {
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('pageshow', onPageShow);
       connectionRef.current = null;
       clearTimeout(reconnectTimerRef.current);
       const activeSocket = socketRef.current;

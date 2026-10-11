@@ -60,12 +60,14 @@ export default function App() {
   const [hostRooms, setHostRooms] = useState([]);
   const joinedRef = useRef(false);
   const modeRef = useRef(mode);
+  const activeHistoryRef = useRef(false);
   const navigateMode = (nextMode) => {
     window.history.pushState({ quizblastMode: nextMode }, '', window.location.href);
     setMode(nextMode);
   };
   const replaceMode = (nextMode) => {
-    window.history.replaceState({ ...(window.history.state || {}), quizblastMode: nextMode }, '', window.location.href);
+    window.history.replaceState({ ...(window.history.state || {}), quizblastMode: nextMode, quizblastActiveSession: false }, '', window.location.href);
+    activeHistoryRef.current = false;
     setMode(nextMode);
   };
   const [hostRoomsError, setHostRoomsError] = useState(false);
@@ -160,9 +162,11 @@ export default function App() {
     window.history.replaceState({ ...(window.history.state || {}), quizblastMode: modeRef.current }, '', window.location.href);
     const handlePopState = (event) => {
       if (joinedRef.current) {
-        window.history.pushState({ quizblastMode: modeRef.current }, '', window.location.href);
+        window.history.pushState({ quizblastMode: modeRef.current, quizblastActiveSession: true }, '', window.location.href);
+        activeHistoryRef.current = true;
         return;
       }
+      activeHistoryRef.current = false;
       const nextMode = event.state?.quizblastMode ?? null;
       setMode(nextMode);
       if (nextMode === 'host' || nextMode === 'admin') loadQuizzes();
@@ -172,8 +176,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!joined) return;
-    window.history.pushState({ quizblastMode: mode, quizblastActiveSession: true }, '', window.location.href);
+    if (!joined || activeHistoryRef.current) return;
+    // Reconnection must not add another browser history entry.
+    if (window.history.state?.quizblastActiveSession) {
+      activeHistoryRef.current = true;
+      return;
+    }
+    window.history.pushState({ quizblastMode: modeRef.current, quizblastActiveSession: true }, '', window.location.href);
+    activeHistoryRef.current = true;
   }, [joined]);
   useEffect(() => {
     let saved;
