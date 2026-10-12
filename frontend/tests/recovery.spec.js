@@ -100,6 +100,9 @@ test("host, player and display recover after backend and browser restart", async
     playerContext = await authenticatedContext(browser, user);
     const player = await playerContext.newPage();
     watch(player, "player");
+    // Model a real browser tab with a previous document, not just SPA history.
+    // This catches Back escaping QuizBlast into the browser's prior page.
+    await player.goto("about:blank");
     await player.goto("/");
     await player.getByRole("button", { name: "🎮 Join Game" }).click();
     await player.getByPlaceholder("Room PIN").fill(pin);
@@ -383,7 +386,9 @@ test("UI-06A player Join Game survives repeated Back and can still submit an ans
       window.__qbHistoryObserver = observer;
     });
     for (let attempt = 1; attempt <= 2; attempt += 1) {
-      await player.evaluate(() => history.back());
+      // Browser-level Back can cross document boundaries; history.back()
+      // evaluated inside the app is not an equivalent acceptance check.
+      await player.goBack({ waitUntil: "domcontentloaded" });
       await player.waitForTimeout(350);
       const diagnostic = JSON.stringify({ attempt, url: player.url(), events });
       expect(player.url(), diagnostic).toBe(originalUrl);
