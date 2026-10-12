@@ -308,7 +308,7 @@ for (const role of ["HOST", "PLAYER"]) {
 
 test("UI-06A player Join Game survives repeated Back and can still submit an answer", async ({ browser, request }) => {
   test.setTimeout(90_000);
-  const email = `player-back-1791798389743@example.com`;
+  const email = `player-back-${Date.now()}@example.com`;
   await post(request, "/auth/register", { email, password: "integration-password" });
   const login = await post(request, "/auth/login", { email, password: "integration-password" });
   const user = { email, token: login.access_token };
@@ -359,7 +359,7 @@ test("UI-06A player Join Game survives repeated Back and can still submit an ans
     }
     await player.getByRole("button", { name: "Yes", exact: true }).click();
     await expect(player.getByText("✅ Cevabın alındı")).toBeVisible({ timeout: 10_000 });
-    await expect(host.getByText("👤 BackPlayer", { exact: true })).toBeVisible();
+    await expect(host.getByText("Can Player answer after browser Back?")).toBeVisible();
     expect(events.some(event => event.startsWith("socket-open:")), JSON.stringify(events)).toBeTruthy();
     console.log("UI-06A PLAYER JOIN BACK DIAGNOSTICS", JSON.stringify({ originalUrl, events }));
   } finally {

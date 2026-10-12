@@ -206,7 +206,7 @@ export default function App() {
       localStorage.removeItem('quizblast_active_session');
       return;
     }
-    if (saved?.pin && saved?.who && saved?.instanceId && user?.token && (saved.who !== 'HOST' || !tokenExpired(user.token))) {
+    if (saved?.pin && saved?.who && saved?.instanceId && (saved.who !== 'HOST' || (user?.token && !tokenExpired(user.token)))) {
       setRoomPin(saved.pin);
       connectWebsocket(saved.pin,saved.who,saved.who==='HOST'?user.token:undefined,saved.instanceId);
     }
