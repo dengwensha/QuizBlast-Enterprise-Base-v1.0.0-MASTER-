@@ -100,9 +100,6 @@ test("host, player and display recover after backend and browser restart", async
     playerContext = await authenticatedContext(browser, user);
     const player = await playerContext.newPage();
     watch(player, "player");
-    // Model a real browser tab with a previous document, not just SPA history.
-    // This catches Back escaping QuizBlast into the browser's prior page.
-    await player.goto("about:blank");
     await player.goto("/");
     await player.getByRole("button", { name: "🎮 Join Game" }).click();
     await player.getByPlaceholder("Room PIN").fill(pin);
@@ -352,6 +349,14 @@ test("UI-06A player Join Game survives repeated Back and can still submit an ans
       socket.on("close", () => events.push("socket-close"));
       socket.on("socketerror", error => events.push(`socket-error:${error}`));
     });
+    // A real previous document must exist in this same tab; a fresh tab's
+    // initial about:blank is not a reliable cross-document Back destination.
+    await player.route("**/prior-browser-page", route => route.fulfill({
+      status: 200, contentType: "text/html",
+      body: "<!doctype html><title>Previous page</title><h1>Previous page</h1>",
+    }));
+    await player.goto("/prior-browser-page");
+    await expect(player.getByText("Previous page", { exact: true })).toBeVisible();
     await player.goto("/");
     await player.getByRole("button", { name: "🎮 Join Game" }).click();
     await player.getByPlaceholder("Room PIN").fill(pin);
