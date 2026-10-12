@@ -176,6 +176,10 @@ jobs:
         working-directory: frontend
         run: npx playwright install msedge
 
+      - name: Reset CI-only auth rate-limit state before Edge regression
+        # Browser suites share a single CI backend/IP. Keep production limits unchanged.
+        run: docker compose exec -T redis redis-cli FLUSHDB
+
       - name: Verify repeated Back in Microsoft Edge
         working-directory: frontend
         run: npx playwright test tests/recovery.spec.js --config=playwright.edge.config.js --grep "UI-06A player Join Game" --reporter=line
