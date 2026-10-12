@@ -176,9 +176,20 @@ jobs:
         working-directory: frontend
         run: npx playwright install msedge
 
-      - name: Reset CI-only auth rate-limit state before Edge regression
-        # Browser suites share a single CI backend/IP. Keep production limits unchanged.
-        run: docker compose exec -T redis redis-cli FLUSHDB
+      - name: Reset process-local CI auth limiter before Edge regression
+        # Limiter lives in backend process memory, not Redis. CI only.
+        run: |
+          docker compose restart backend
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://localhost:8001/ \
+              --output /tmp/quizblast-edge-ready.json && \
+              grep -q '"status":"running"' /tmp/quizblast-edge-ready.json; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs backend
+          exit 1
 
       - name: Verify repeated Back in Microsoft Edge
         working-directory: frontend
