@@ -61,6 +61,7 @@ export default function App() {
   const joinedRef = useRef(false);
   const modeRef = useRef(mode);
   const activeHistoryRef = useRef(false);
+  const pendingPlayerJoinRef = useRef(false);
   const hasActiveSession = () => {
     try {
       const saved = JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
@@ -72,6 +73,7 @@ export default function App() {
     setMode(nextMode);
   };
   const replaceMode = (nextMode) => {
+    pendingPlayerJoinRef.current = false;
     window.history.replaceState({ ...(window.history.state || {}), quizblastMode: nextMode, quizblastActiveSession: false }, '', window.location.href);
     activeHistoryRef.current = false;
     setMode(nextMode);
@@ -174,11 +176,19 @@ export default function App() {
     }
     const handlePopState = (event) => {
       if (joinedRef.current || hasActiveSession()) {
+        pendingPlayerJoinRef.current = false;
         window.history.pushState({ quizblastMode: modeRef.current, quizblastActiveSession: true }, '', window.location.href);
         activeHistoryRef.current = true;
         return;
       }
       activeHistoryRef.current = false;
+      // A Back press during the initial Player handshake stays inside QuizBlast.
+      // The pending guard is consumed, so a failed join cannot trap navigation.
+      if (pendingPlayerJoinRef.current) {
+        pendingPlayerJoinRef.current = false;
+        setMode('player');
+        return;
+      }
       const nextMode = event.state?.quizblastMode ?? null;
       setMode(nextMode);
       if (nextMode === 'host' || nextMode === 'admin') loadQuizzes();
@@ -242,7 +252,15 @@ export default function App() {
     setRoomPin(room.pin);
     connectWebsocket(room.pin, 'HOST', user.token, room.instance_id);
   };
-  const joinRoom=()=>{if(!roomPin.trim())return alert('PIN gir'); if(!name.trim())return alert('İsim gir'); connectWebsocket(roomPin,name);}; const connectDisplay=()=>{if(!roomPin.trim())return alert('PIN gir'); connectWebsocket(roomPin,'DISPLAY');};
+  const joinRoom=()=>{if(!roomPin.trim())return alert('PIN gir'); if(!name.trim())return alert('İsim gir');
+    // Guard the asynchronous handshake before the server sends its first players event.
+    pendingPlayerJoinRef.current = true;
+    if (!window.history.state?.quizblastActiveSession) {
+      window.history.pushState({ quizblastMode: 'player', quizblastActiveSession: true }, '', window.location.href);
+      activeHistoryRef.current = true;
+    }
+    connectWebsocket(roomPin,name);
+  }; const connectDisplay=()=>{if(!roomPin.trim())return alert('PIN gir'); connectWebsocket(roomPin,'DISPLAY');};
   const startGame = async () => {
     playTone(700, 100, 'triangle');
 

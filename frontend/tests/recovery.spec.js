@@ -306,6 +306,33 @@ for (const role of ["HOST", "PLAYER"]) {
   });
 }
 
+test("UI-06A Player Back during join handshake remains in QuizBlast", async ({ browser, request }) => {
+  const email = `join-pending-${Date.now()}@example.com`;
+  await post(request, "/auth/register", { email, password: "integration-password" });
+  const login = await post(request, "/auth/login", { email, password: "integration-password" });
+  const user = { email, token: login.access_token };
+  const context = await authenticatedContext(browser, user);
+  try {
+    const page = await context.newPage();
+    await page.goto("/");
+    await page.getByRole("button", { name: "🎮 Join Game" }).click();
+    await page.getByPlaceholder("Room PIN").fill("999999");
+    await page.getByPlaceholder("Name").fill("PendingPlayer");
+    // Keep room lookup pending to exercise the gap before WebSocket join completes.
+    await page.route("**/api/room-instance/999999", async route => {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
+    });
+    await page.getByRole("button", { name: "Join", exact: true }).click();
+    await page.evaluate(() => history.back());
+    await expect(page.getByPlaceholder("Room PIN")).toBeVisible();
+    expect(page.url()).toBe(`${frontendUrl}/`);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+  } finally {
+    await context.close();
+  }
+});
+
 test("UI-06A player Join Game survives repeated Back and can still submit an answer", async ({ browser, request }) => {
   test.setTimeout(90_000);
   const email = `player-back-${Date.now()}@example.com`;
