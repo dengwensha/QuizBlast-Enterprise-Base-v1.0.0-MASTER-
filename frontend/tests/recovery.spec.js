@@ -390,12 +390,18 @@ test("UI-06A player Join Game survives repeated Back and can still submit an ans
       observer.observe(document.body, { childList: true, subtree: true, characterData: true });
       window.__qbHistoryObserver = observer;
     });
+    const historySnapshots = [];
     for (let attempt = 1; attempt <= 2; attempt += 1) {
-      // Browser-level Back can cross document boundaries; history.back()
-      // evaluated inside the app is not an equivalent acceptance check.
+      // Run consecutive browser-level Back actions without an artificial delay.
+      // A physical Edge user can click Back twice before the guard settles.
+      historySnapshots.push(await player.evaluate(() => ({
+        attempt: "before", length: history.length, state: history.state, url: location.href,
+      })));
       await player.goBack({ waitUntil: "domcontentloaded" });
-      await player.waitForTimeout(350);
-      const diagnostic = JSON.stringify({ attempt, url: player.url(), events });
+      historySnapshots.push(await player.evaluate(() => ({
+        attempt: "after", length: history.length, state: history.state, url: location.href,
+      })));
+      const diagnostic = JSON.stringify({ attempt, url: player.url(), events, historySnapshots });
       expect(player.url(), diagnostic).toBe(originalUrl);
       await expect(player.getByText("Can Player answer after browser Back?"), diagnostic).toBeVisible();
       await expect(player.getByRole("button", { name: "Oyundan Çık" }), diagnostic).toBeVisible();
