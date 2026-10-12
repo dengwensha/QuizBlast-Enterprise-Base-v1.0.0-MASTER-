@@ -35,3 +35,12 @@
 @media (prefers-reduced-motion: reduce) {
   .qb-card--interactive { transition: none; }
 }
+
+/* UI-05: shared interactive feedback without changing game behavior. */
+.qb-button:not(:disabled){transition:background-color 120ms ease,border-color 120ms ease,box-shadow 120ms ease}
+.qb-button--primary:not(:disabled):hover{background:var(--qb-primary-600)}
+.qb-button--secondary:not(:disabled):hover{background:var(--qb-primary-50);border-color:var(--qb-primary-200)}
+.qb-button--ghost:not(:disabled):hover{background:var(--qb-primary-50)}
+.qb-button--danger:not(:disabled):hover{filter:brightness(.92)}
+.qb-button:disabled{box-shadow:none}
+@media(prefers-reduced-motion:reduce){.qb-button:not(:disabled){transition:none}}
