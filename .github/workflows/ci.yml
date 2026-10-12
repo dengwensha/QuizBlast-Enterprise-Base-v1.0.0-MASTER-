@@ -172,6 +172,14 @@ jobs:
         working-directory: frontend
         run: npx playwright test tests/recovery.spec.js --reporter=line
 
+      - name: Install Microsoft Edge for browser regression
+        working-directory: frontend
+        run: npx playwright install msedge
+
+      - name: Verify repeated Back in Microsoft Edge
+        working-directory: frontend
+        run: npx playwright test tests/recovery.spec.js --config=playwright.edge.config.js --grep "UI-06A player Join Game" --reporter=line
+
       - name: Show backend logs on browser test failure
         if: failure()
         run: docker compose logs --tail=200 backend
