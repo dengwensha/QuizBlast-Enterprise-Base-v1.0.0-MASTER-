@@ -306,36 +306,6 @@ for (const role of ["HOST", "PLAYER"]) {
   });
 }
 
-test("UI-06A Player Back during join handshake remains in QuizBlast", async ({ browser, request }) => {
-  // Reuse a browser-authenticated session from the existing test setup instead of
-  // registering another account and hitting the production auth rate limit.
-  const context = await browser.newContext({ baseURL: frontendUrl });
-  await context.addInitScript(() => {
-    localStorage.setItem("quizblast_user", JSON.stringify({
-      email: "pending-history@example.com", token: "pending-history-ui-only",
-    }));
-  });
-  try {
-    const page = await context.newPage();
-    await page.goto("/");
-    await page.getByRole("button", { name: "🎮 Join Game" }).click();
-    await page.getByPlaceholder("Room PIN").fill("999999");
-    await page.getByPlaceholder("Name").fill("PendingPlayer");
-    // Keep room lookup pending to exercise the gap before WebSocket join completes.
-    await page.route("**/api/room-instance/999999", async route => {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
-    });
-    await page.getByRole("button", { name: "Join", exact: true }).click();
-    await page.evaluate(() => history.back());
-    await expect(page.getByPlaceholder("Room PIN")).toBeVisible();
-    expect(page.url()).toBe(`${frontendUrl}/`);
-    await page.unrouteAll({ behavior: "ignoreErrors" });
-  } finally {
-    await context.close();
-  }
-});
-
 test("UI-06A player Join Game survives repeated Back and can still submit an answer", async ({ browser, request }) => {
   test.setTimeout(90_000);
   const email = `player-back-${Date.now()}@example.com`;
@@ -351,6 +321,23 @@ test("UI-06A player Join Game survives repeated Back and can still submit an ans
   const context = await authenticatedContext(browser, user);
   const hostContext = await authenticatedContext(browser, user);
   try {
+    // Exercise Back during a pending join with the same legitimately authenticated
+    // account. No extra registration (the backend deliberately rate-limits those).
+    const pending = await context.newPage();
+    await pending.goto("/");
+    await pending.getByRole("button", { name: "🎮 Join Game" }).click();
+    await pending.getByPlaceholder("Room PIN").fill("999999");
+    await pending.getByPlaceholder("Name").fill("PendingPlayer");
+    await pending.route("**/api/room-instance/999999", async route => {
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
+    });
+    await pending.getByRole("button", { name: "Join", exact: true }).click();
+    await pending.evaluate(() => history.back());
+    await expect(pending.getByPlaceholder("Room PIN")).toBeVisible();
+    expect(pending.url()).toBe(`${frontendUrl}/`);
+    await pending.close();
+
     const player = await context.newPage();
     const host = await hostContext.newPage();
     const events = [];
