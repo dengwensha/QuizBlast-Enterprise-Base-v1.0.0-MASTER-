@@ -366,6 +366,22 @@ test("UI-06A player Join Game survives repeated Back and can still submit an ans
     expect(started.ok(), await started.text()).toBeTruthy();
     await expect(player.getByText("Can Player answer after browser Back?")).toBeVisible();
     const originalUrl = player.url();
+    // Catch transient home/login screens that a post-navigation assertion misses.
+    // Observe the real DOM throughout both Back transitions, not only 350 ms later.
+    await player.evaluate(() => {
+      const question = "Can Player answer after browser Back?";
+      window.__qbHistoryVisualTransitions = [];
+      let lastVisible = document.body.innerText.includes(question);
+      const observer = new MutationObserver(() => {
+        const visible = document.body.innerText.includes(question);
+        if (visible !== lastVisible) {
+          window.__qbHistoryVisualTransitions.push({ visible, at: performance.now() });
+          lastVisible = visible;
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+      window.__qbHistoryObserver = observer;
+    });
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       await player.evaluate(() => history.back());
       await player.waitForTimeout(350);
@@ -374,6 +390,11 @@ test("UI-06A player Join Game survives repeated Back and can still submit an ans
       await expect(player.getByText("Can Player answer after browser Back?"), diagnostic).toBeVisible();
       await expect(player.getByRole("button", { name: "Oyundan Çık" }), diagnostic).toBeVisible();
     }
+    const visualTransitions = await player.evaluate(() => {
+      window.__qbHistoryObserver.disconnect();
+      return window.__qbHistoryVisualTransitions;
+    });
+    expect(visualTransitions, "Player question must never disappear during browser Back").toEqual([]);
     await player.getByRole("button", { name: "Yes", exact: true }).click();
     await expect(player.getByText("✅ Cevabın alındı")).toBeVisible({ timeout: 10_000 });
     await expect(host.getByText("Can Player answer after browser Back?")).toBeVisible();
