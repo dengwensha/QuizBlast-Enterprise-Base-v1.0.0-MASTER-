@@ -1,0 +1,8 @@
+@import "../../styles/tokens.css";
+
+/* UI-05: consistent feedback for the Host Live next-question action. */
+.qb-host-live__next-action{cursor:pointer;transition:filter 120ms ease,box-shadow 120ms ease}
+.qb-host-live__next-action:not(:disabled):hover{filter:brightness(.94)}
+.qb-host-live__next-action:focus-visible{outline:3px solid var(--qb-primary-600);outline-offset:3px;box-shadow:var(--qb-focus-ring)}
+.qb-host-live__next-action:disabled{opacity:.55;cursor:not-allowed}
+@media(prefers-reduced-motion:reduce){.qb-host-live__next-action{transition:none}}

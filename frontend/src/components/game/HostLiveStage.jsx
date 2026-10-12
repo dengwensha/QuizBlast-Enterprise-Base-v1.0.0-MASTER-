@@ -3,6 +3,7 @@ import React from "react";
 import ResultReveal from "./ResultReveal";
 
 import LeaderboardBoard from "./LeaderboardBoard";
+import "./host-live-stage.css";
 
 export default function HostLiveStage({
   question,
@@ -92,6 +93,7 @@ export default function HostLiveStage({
           <div style={{ textAlign: "center", marginTop: 20 }}>
             <button
               onClick={nextQuestion}
+              className="qb-host-live__next-action"
               style={styles.nextQuestionButton}
             >
               {currentQuestionIndex + 1 >= totalQuestions
