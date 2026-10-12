@@ -1,0 +1,8 @@
+@import "../../styles/tokens.css";
+
+/* UI-05: keyboard and pointer feedback for legacy Host Setup actions. */
+.qb-host-setup__action{cursor:pointer;transition:filter 120ms ease,box-shadow 120ms ease}
+.qb-host-setup__action:not(:disabled):hover{filter:brightness(.94)}
+.qb-host-setup__action:focus-visible{outline:3px solid var(--qb-primary-600);outline-offset:3px;box-shadow:var(--qb-focus-ring)}
+.qb-host-setup__action:disabled{opacity:.55;cursor:not-allowed}
+@media(prefers-reduced-motion:reduce){.qb-host-setup__action{transition:none}}

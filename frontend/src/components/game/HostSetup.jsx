@@ -1,6 +1,7 @@
 import React from "react";
 
 import QuestionList from "../question/QuestionList";
+import "./host-setup.css";
 
 const roomStatusLabel = {
   lobby: "Bekliyor",
@@ -32,6 +33,7 @@ export default function HostSetup({
 
         <button
           onClick={() => setMode(null)}
+          className="qb-host-setup__action"
           style={styles.hostButton}
         >
           Ana Menü
@@ -43,7 +45,7 @@ export default function HostSetup({
           <h2>Açık odalarım</h2>
           {hostRooms.map(room => <div key={room.instance_id} style={roomRowStyle}>
             <span style={roomMetaStyle}>PIN: {room.pin} · Quiz #{room.quiz_id} · {roomStatusLabel[room.status || room.phase] || room.status || room.phase}</span>
-            <button type="button" onClick={() => returnToRoom(room)} style={{...styles.purpleButton, ...roomActionStyle}}>
+            <button type="button" onClick={() => returnToRoom(room)} className="qb-host-setup__action" style={{...styles.purpleButton, ...roomActionStyle}}>
               Odaya Dön
             </button>
           </div>)}
@@ -91,6 +93,7 @@ export default function HostSetup({
 
           <button
             onClick={createRoom}
+            className="qb-host-setup__action"
             style={styles.purpleButton}
           >
             Create Room
