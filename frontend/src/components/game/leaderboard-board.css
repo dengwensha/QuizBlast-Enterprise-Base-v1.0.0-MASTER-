@@ -1,0 +1,6 @@
+@import "../../styles/tokens.css";
+
+/* UI-05: resilient ranking rows on Host and Display screens. */
+.qb-leaderboard-board__row{gap:var(--qb-space-3);min-width:0}
+.qb-leaderboard-board__row>span:first-child{min-width:0;overflow-wrap:anywhere}
+.qb-leaderboard-board__row>span:last-child{flex-shrink:0;font-variant-numeric:tabular-nums}

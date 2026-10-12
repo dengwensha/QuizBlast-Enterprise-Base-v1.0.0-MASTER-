@@ -1,4 +1,5 @@
 import React from "react";
+import "./leaderboard-board.css";
 
 export default function LeaderboardBoard({ visibleLeaderboard, live = false, styles }) {
   return (
@@ -8,6 +9,7 @@ export default function LeaderboardBoard({ visibleLeaderboard, live = false, sty
       {visibleLeaderboard.map((p, i) => (
         <div
           key={i}
+          className="qb-leaderboard-board__row"
           style={live ? styles.liveBoardRow : styles.boardRow}
         >
           <span>
