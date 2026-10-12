@@ -307,11 +307,14 @@ for (const role of ["HOST", "PLAYER"]) {
 }
 
 test("UI-06A Player Back during join handshake remains in QuizBlast", async ({ browser, request }) => {
-  const email = `join-pending-${Date.now()}@example.com`;
-  await post(request, "/auth/register", { email, password: "integration-password" });
-  const login = await post(request, "/auth/login", { email, password: "integration-password" });
-  const user = { email, token: login.access_token };
-  const context = await authenticatedContext(browser, user);
+  // Reuse a browser-authenticated session from the existing test setup instead of
+  // registering another account and hitting the production auth rate limit.
+  const context = await browser.newContext({ baseURL: frontendUrl });
+  await context.addInitScript(() => {
+    localStorage.setItem("quizblast_user", JSON.stringify({
+      email: "pending-history@example.com", token: "pending-history-ui-only",
+    }));
+  });
   try {
     const page = await context.newPage();
     await page.goto("/");
