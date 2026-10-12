@@ -305,3 +305,65 @@ for (const role of ["HOST", "PLAYER"]) {
     }
   });
 }
+
+test("UI-06A player Join Game survives repeated Back and can still submit an answer", async ({ browser, request }) => {
+  test.setTimeout(90_000);
+  const email = `player-back-1791798389743@example.com`;
+  await post(request, "/auth/register", { email, password: "integration-password" });
+  const login = await post(request, "/auth/login", { email, password: "integration-password" });
+  const user = { email, token: login.access_token };
+  const quiz = await post(request, "/quizzes", { title: "Player Back continuity" }, user.token);
+  await post(request, `/quizzes/${quiz.id}/questions`, {
+    question: "Can Player answer after browser Back?",
+    options: ["Yes", "No", "Maybe", "Later"], correct: 0, time: 90,
+  }, user.token);
+  const { room_pin: pin } = await post(request, `/create-room/${quiz.id}`, {}, user.token);
+  const context = await authenticatedContext(browser, user);
+  const hostContext = await authenticatedContext(browser, user);
+  try {
+    const player = await context.newPage();
+    const host = await hostContext.newPage();
+    const events = [];
+    player.on("framenavigated", frame => {
+      if (frame === player.mainFrame()) events.push(`navigation:${frame.url()}`);
+    });
+    player.on("websocket", socket => {
+      events.push(`socket-open:${socket.url()}`);
+      socket.on("close", () => events.push("socket-close"));
+      socket.on("socketerror", error => events.push(`socket-error:${error}`));
+    });
+    await player.goto("/");
+    await player.getByRole("button", { name: "🎮 Join Game" }).click();
+    await player.getByPlaceholder("Room PIN").fill(pin);
+    await player.getByPlaceholder("Name").fill("BackPlayer");
+    await player.getByRole("button", { name: "Join", exact: true }).click();
+    await expect(player.getByRole("button", { name: "Oyundan Çık" })).toBeVisible();
+    await host.goto("/");
+    await host.getByRole("button", { name: "🎤 Host Game" }).click();
+    await host.getByRole("button", { name: "Odaya Dön" }).click();
+    await expect(host.getByText("👤 BackPlayer", { exact: true })).toBeVisible();
+
+    const started = await request.post(`${apiUrl}/start-game/${pin}`, {
+      data: {}, headers: { Authorization: `Bearer ${user.token}` },
+    });
+    expect(started.ok(), await started.text()).toBeTruthy();
+    await expect(player.getByText("Can Player answer after browser Back?")).toBeVisible();
+    const originalUrl = player.url();
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      await player.evaluate(() => history.back());
+      await player.waitForTimeout(350);
+      const diagnostic = JSON.stringify({ attempt, url: player.url(), events });
+      expect(player.url(), diagnostic).toBe(originalUrl);
+      await expect(player.getByText("Can Player answer after browser Back?"), diagnostic).toBeVisible();
+      await expect(player.getByRole("button", { name: "Oyundan Çık" }), diagnostic).toBeVisible();
+    }
+    await player.getByRole("button", { name: "Yes", exact: true }).click();
+    await expect(player.getByText("✅ Cevabın alındı")).toBeVisible({ timeout: 10_000 });
+    await expect(host.getByText("👤 BackPlayer", { exact: true })).toBeVisible();
+    expect(events.some(event => event.startsWith("socket-open:")), JSON.stringify(events)).toBeTruthy();
+    console.log("UI-06A PLAYER JOIN BACK DIAGNOSTICS", JSON.stringify({ originalUrl, events }));
+  } finally {
+    await context.close();
+    await hostContext.close();
+  }
+});
