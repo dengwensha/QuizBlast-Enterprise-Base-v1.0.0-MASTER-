@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 import { Button, Card, Input } from "../ui";
 import "./join-screen.css";
@@ -11,6 +11,13 @@ export default function JoinScreen({
   joinRoom,
   setMode,
 }) {
+  const [submitting, setSubmitting] = useState(false);
+  const handleJoin = async (event) => {
+    event.preventDefault();
+    if (submitting || !roomPin.trim() || !name.trim()) return;
+    setSubmitting(true);
+    try { await joinRoom(); } finally { setSubmitting(false); }
+  };
   return (
     <main className="qb-player-join">
       <Card className="qb-player-join__card">
@@ -20,12 +27,14 @@ export default function JoinScreen({
           Enter the game PIN and the name you want other players to see.
         </p>
 
-        <div className="qb-player-join__form">
+        <form className="qb-player-join__form" onSubmit={handleJoin}>
           <Input
             id="game-pin"
             label="Game PIN"
             placeholder="Room PIN"
             inputMode="numeric"
+            enterKeyHint="next"
+            required
             autoComplete="off"
             value={roomPin}
             onChange={(event) => setRoomPin(event.target.value)}
@@ -42,11 +51,13 @@ export default function JoinScreen({
             label="Nickname"
             placeholder="Name"
             autoComplete="nickname"
+            enterKeyHint="go"
+            required
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
 
-          <Button type="button" size="lg" fullWidth onClick={joinRoom}>
+          <Button type="submit" size="lg" fullWidth disabled={submitting || !roomPin.trim() || !name.trim()}>
             Join
           </Button>
 
@@ -58,7 +69,7 @@ export default function JoinScreen({
           >
             Ana Menü
           </Button>
-        </div>
+        </form>
       </Card>
     </main>
   );
