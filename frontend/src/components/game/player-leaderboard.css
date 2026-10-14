@@ -16,3 +16,7 @@
 .qb-player-leaderboard__player{font-size:14px}
 .qb-player-leaderboard__score{font-size:14px;text-align:right}
 }
+
+/* UI-08E leaderboard surface */
+.qb-player-leaderboard{border:1px solid var(--qb-primary-200);border-radius:var(--qb-radius-xl)}
+.qb-player-leaderboard__row{border-radius:var(--qb-radius-lg)}
