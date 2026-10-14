@@ -6,3 +6,22 @@
 .qb-host-setup__action:focus-visible{outline:3px solid var(--qb-primary-600);outline-offset:3px;box-shadow:var(--qb-focus-ring)}
 .qb-host-setup__action:disabled{opacity:.55;cursor:not-allowed}
 @media(prefers-reduced-motion:reduce){.qb-host-setup__action{transition:none}}
+
+/* UI-08C: host setup visual layer, scoped to the dashboard only. */
+.qb-host-setup{min-height:100dvh;background:radial-gradient(circle at 90% 0,var(--qb-primary-100),transparent 38%),var(--qb-background);color:var(--qb-text-primary)}
+.qb-host-setup__header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;padding:24px clamp(16px,4vw,40px);background:rgba(255,255,255,.88);border-bottom:1px solid var(--qb-border)}
+.qb-host-setup__title{margin:0;color:var(--qb-navy-900);font-size:clamp(25px,3vw,36px);letter-spacing:-.025em}
+.qb-host-setup__content{width:min(100%,1100px);margin:0 auto;padding:clamp(20px,4vw,40px) 16px;box-sizing:border-box;display:grid;gap:24px}
+.qb-host-setup__panel{padding:clamp(20px,3vw,32px);border:1px solid var(--qb-border);border-radius:var(--qb-radius-xl);background:var(--qb-surface);box-shadow:var(--qb-shadow-1);min-width:0}
+.qb-host-setup__panel h2{margin:0 0 20px;color:var(--qb-navy-900);font-size:clamp(20px,2.5vw,26px)}
+.qb-host-setup__field{display:grid;gap:8px;margin-bottom:18px;font-weight:650;color:var(--qb-text-secondary)}
+.qb-host-setup__field select,.qb-host-setup__field input{width:100%;min-height:48px;box-sizing:border-box;padding:10px 14px;border:1px solid var(--qb-border);border-radius:var(--qb-radius-md);background:var(--qb-surface);color:var(--qb-text-primary);font:inherit}
+.qb-host-setup__field select:focus-visible,.qb-host-setup__field input:focus-visible{outline:3px solid var(--qb-primary-200);outline-offset:2px}
+.qb-host-setup__primary{min-height:48px;padding:12px 24px;border:0;border-radius:var(--qb-radius-md);background:var(--qb-primary-600);color:#fff;font:inherit;font-weight:750}
+.qb-host-setup__primary:hover{background:var(--qb-primary-700)}
+.qb-host-setup__room{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:16px 0;border-bottom:1px solid var(--qb-border)}
+.qb-host-setup__room:last-child{border-bottom:0}
+.qb-host-setup__room-meta{flex:1 1 260px;min-width:0;overflow-wrap:anywhere;line-height:1.5}
+.qb-host-setup__return{min-height:44px;padding:10px 18px;border:1px solid var(--qb-primary-200);border-radius:var(--qb-radius-md);background:var(--qb-primary-50);color:var(--qb-primary-700);font:inherit;font-weight:700}
+.qb-host-setup__back{min-height:44px;padding:10px 18px;border:1px solid var(--qb-border);border-radius:var(--qb-radius-md);background:var(--qb-surface);color:var(--qb-primary-700);font:inherit;font-weight:700}
+@media(max-width:560px){.qb-host-setup__header{padding:18px 16px}.qb-host-setup__content{gap:16px}.qb-host-setup__room{align-items:stretch}.qb-host-setup__return,.qb-host-setup__primary{width:100%}}
