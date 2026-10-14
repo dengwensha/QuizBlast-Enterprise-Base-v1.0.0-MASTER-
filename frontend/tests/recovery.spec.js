@@ -410,6 +410,11 @@ test("UI-06A player Join Game survives repeated Back and can still submit an ans
       window.__qbHistoryObserver.disconnect();
       return window.__qbHistoryVisualTransitions;
     });
+    // Successful tests must publish the snapshots too: otherwise CI hides the
+    // history-state evidence needed to compare automated and physical Edge.
+    console.log("UI-06A HISTORY SNAPSHOTS", JSON.stringify({
+      browser: test.info().project.name, historySnapshots, visualTransitions,
+    }));
     expect(visualTransitions, "Player question must never disappear during browser Back").toEqual([]);
     await player.getByRole("button", { name: "Yes", exact: true }).click();
     await expect(player.getByText("✅ Cevabın alındı")).toBeVisible({ timeout: 10_000 });
