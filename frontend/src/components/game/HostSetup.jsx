@@ -27,31 +27,30 @@ export default function HostSetup({
   returnToRoom,
 }) {
   return (
-    <div className="qb-host-setup" style={styles.app}>
-      <div className="qb-host-setup__header" style={styles.topbar}>
+    <div className="qb-host-setup">
+      <div className="qb-host-setup__header">
         <h1>Host Dashboard 🚀</h1>
 
         <button
           onClick={() => setMode(null)}
-          className="qb-host-setup__action"
-          style={styles.hostButton}
+          className="qb-host-setup__action qb-host-setup__back"
         >
           Ana Menü
         </button>
       </div>
 
-      <div className="qb-host-setup__content" style={styles.container}>
-        {hostRooms.length > 0 && <div className="qb-host-setup__panel" style={styles.card}>
+      <div className="qb-host-setup__content">
+        {hostRooms.length > 0 && <div className="qb-host-setup__panel">
           <h2>Açık odalarım</h2>
-          {hostRooms.map(room => <div key={room.instance_id} style={roomRowStyle}>
-            <span style={roomMetaStyle}>PIN: {room.pin} · Quiz #{room.quiz_id} · {roomStatusLabel[room.status || room.phase] || room.status || room.phase}</span>
-            <button type="button" onClick={() => returnToRoom(room)} className="qb-host-setup__action" style={{...styles.purpleButton, ...roomActionStyle}}>
+          {hostRooms.map(room => <div key={room.instance_id} className="qb-host-setup__room">
+            <span className="qb-host-setup__room-meta">PIN: {room.pin} · Quiz #{room.quiz_id} · {roomStatusLabel[room.status || room.phase] || room.status || room.phase}</span>
+            <button type="button" onClick={() => returnToRoom(room)} className="qb-host-setup__action qb-host-setup__return">
               Odaya Dön
             </button>
           </div>)}
         </div>}
         {hostRoomsError && <p role="alert">Açık odalar yüklenemedi. Sayfayı yenileyip tekrar deneyin.</p>}
-        <div className="qb-host-setup__panel" style={styles.card}>
+        <div className="qb-host-setup__panel">
           <h2>Quiz Seç</h2>
 
           <select
@@ -60,7 +59,7 @@ export default function HostSetup({
               setSelectedQuizId(e.target.value);
               loadSelectedQuestions(e.target.value);
             }}
-            style={styles.input}
+            className="qb-host-setup__input"
           >
             <option value="">Quiz seç</option>
 
@@ -93,8 +92,7 @@ export default function HostSetup({
 
           <button
             onClick={createRoom}
-            className="qb-host-setup__action"
-            style={styles.purpleButton}
+            className="qb-host-setup__action qb-host-setup__primary"
           >
             Create Room
           </button>
@@ -110,23 +108,3 @@ export default function HostSetup({
   );
 }
 
-
-const roomRowStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "var(--qb-space-4)",
-  padding: "var(--qb-space-3) 0",
-  borderBottom: "1px solid var(--qb-border)",
-  flexWrap: "wrap",
-};
-
-const roomMetaStyle = {
-  flex: "1 1 260px",
-  lineHeight: 1.5,
-};
-
-const roomActionStyle = {
-  flex: "0 0 auto",
-  margin: 0,
-};
