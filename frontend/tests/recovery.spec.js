@@ -429,3 +429,36 @@ test("UI-06A player Join Game survives repeated Back and can still submit an ans
     await hostContext.close();
   }
 });
+
+test("UI-07B QR link opens Player join after login", async ({ browser, request }) => {
+  const email = `qr-player-${Date.now()}@example.com`;
+  await post(request, "/auth/register", { email, password: "integration-password" });
+  const context = await browser.newContext({ baseURL: frontendUrl });
+  try {
+    const page = await context.newPage();
+    await page.goto("/?pin=123456");
+    await expect(page.getByPlaceholder("E-posta")).toBeVisible();
+    await page.getByPlaceholder("E-posta").fill(email);
+    await page.getByPlaceholder("Şifre").fill("integration-password");
+    await page.getByRole("button", { name: "Giriş Yap" }).click();
+    await expect(page.getByRole("heading", { name: "Join Game" })).toBeVisible();
+    await expect(page.getByPlaceholder("Room PIN")).toHaveValue("123456");
+  } finally {
+    await context.close();
+  }
+});
+
+test("UI-07B QR link opens Player join for authenticated user", async ({ browser, request }) => {
+  const email = `qr-return-${Date.now()}@example.com`;
+  await post(request, "/auth/register", { email, password: "integration-password" });
+  const login = await post(request, "/auth/login", { email, password: "integration-password" });
+  const context = await authenticatedContext(browser, { email, token: login.access_token });
+  try {
+    const page = await context.newPage();
+    await page.goto("/?pin=654321");
+    await expect(page.getByRole("heading", { name: "Join Game" })).toBeVisible();
+    await expect(page.getByPlaceholder("Room PIN")).toHaveValue("654321");
+  } finally {
+    await context.close();
+  }
+});
