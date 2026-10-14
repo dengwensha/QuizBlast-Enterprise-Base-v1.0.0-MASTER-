@@ -397,7 +397,10 @@ test("UI-06A player Join Game survives repeated Back and can still submit an ans
       historySnapshots.push(await player.evaluate(() => ({
         attempt: "before", length: history.length, state: history.state, url: location.href,
       })));
-      await player.goBack({ waitUntil: "domcontentloaded" });
+      // Dispatch Back from inside the active Edge document, as a user action
+      // would, rather than awaiting Playwright's navigation API. This probes
+      // the popstate re-arm race while preserving the existing assertions.
+      await player.evaluate(() => window.history.back());
       historySnapshots.push(await player.evaluate(() => ({
         attempt: "after", length: history.length, state: history.state, url: location.href,
       })));
