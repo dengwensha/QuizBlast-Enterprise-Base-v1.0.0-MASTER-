@@ -469,3 +469,22 @@ test("UI-07B QR link opens Player join for authenticated user", async ({ browser
     await context.close();
   }
 });
+
+test("UI-07D mobile QR join navigation", async ({ browser }) => {
+  const context = await authenticatedContext(browser, {
+    email: "qr-mobile-fixture@example.com", token: qrFixtureToken,
+  });
+  try {
+    const page = await context.newPage();
+    await page.setViewportSize({ width: 360, height: 740 });
+    await page.goto("/?pin=654321");
+    await expect(page.getByRole("heading", { name: "Join Game" })).toBeVisible();
+    await expect(page.getByPlaceholder("Room PIN")).toHaveValue("654321");
+    await expect(page.getByRole("button", { name: "Join", exact: true })).toBeDisabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await page.getByRole("button", { name: "Ana Menü" }).click();
+    await expect(page.getByRole("heading", { name: "Join Game" })).not.toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
