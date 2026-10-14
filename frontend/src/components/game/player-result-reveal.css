@@ -12,3 +12,6 @@
 .qb-player-result__distribution{gap:var(--qb-space-2)}
 .qb-player-result__label{font-size:14px}
 }
+
+/* UI-08E result surface */
+.qb-player-result{border:1px solid var(--qb-primary-200);border-radius:var(--qb-radius-xl)}
