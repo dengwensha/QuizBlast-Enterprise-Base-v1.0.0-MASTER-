@@ -4,3 +4,16 @@
 /* UI-05: consistent lobby identity and player roster surfaces. */
 .qb-player-lobby__identity span{border:1px solid var(--qb-primary-200);font-variant-numeric:tabular-nums}
 .qb-player-lobby__player{border:1px solid var(--qb-border);line-height:1.5;overflow-wrap:anywhere}
+
+/* UI-07C: mobile lobby readability and safe-area spacing. */
+.qb-player-lobby{box-sizing:border-box;min-width:0}
+.qb-player-lobby__card,.qb-player-lobby__players-heading{min-width:0}
+.qb-player-lobby__title,.qb-player-lobby__message{overflow-wrap:anywhere}
+@media(max-width:640px){
+.qb-player-lobby{gap:var(--qb-space-3);padding-top:var(--qb-space-3);padding-bottom:max(var(--qb-space-4),env(safe-area-inset-bottom))}
+.qb-player-lobby__title{font-size:clamp(26px,7vw,36px)}
+.qb-player-lobby__message{font-size:15px}
+.qb-player-lobby__identity{margin-top:var(--qb-space-3);gap:var(--qb-space-2)}
+.qb-player-lobby__players-heading h2{font-size:18px}
+.qb-player-lobby__player{padding:var(--qb-space-2) var(--qb-space-3)}
+}
