@@ -27,8 +27,8 @@ export default function HostSetup({
   returnToRoom,
 }) {
   return (
-    <div style={styles.app}>
-      <div style={styles.topbar}>
+    <div className="qb-host-setup" style={styles.app}>
+      <div className="qb-host-setup__header" style={styles.topbar}>
         <h1>Host Dashboard 🚀</h1>
 
         <button
@@ -40,8 +40,8 @@ export default function HostSetup({
         </button>
       </div>
 
-      <div style={styles.container}>
-        {hostRooms.length > 0 && <div style={styles.card}>
+      <div className="qb-host-setup__content" style={styles.container}>
+        {hostRooms.length > 0 && <div className="qb-host-setup__panel" style={styles.card}>
           <h2>Açık odalarım</h2>
           {hostRooms.map(room => <div key={room.instance_id} style={roomRowStyle}>
             <span style={roomMetaStyle}>PIN: {room.pin} · Quiz #{room.quiz_id} · {roomStatusLabel[room.status || room.phase] || room.status || room.phase}</span>
@@ -51,7 +51,7 @@ export default function HostSetup({
           </div>)}
         </div>}
         {hostRoomsError && <p role="alert">Açık odalar yüklenemedi. Sayfayı yenileyip tekrar deneyin.</p>}
-        <div style={styles.card}>
+        <div className="qb-host-setup__panel" style={styles.card}>
           <h2>Quiz Seç</h2>
 
           <select
