@@ -177,7 +177,12 @@ export default function App() {
     const handlePopState = (event) => {
       if (joinedRef.current || hasActiveSession()) {
         pendingPlayerJoinRef.current = false;
-        window.history.pushState({ quizblastMode: modeRef.current, quizblastActiveSession: true }, '', window.location.href);
+        // Keep the existing active-session history entry instead of creating
+        // another synthetic entry on every Back. Repeated pushState entries
+        // can be skipped by browser history intervention on real toolbar Back.
+        if (!event.state?.quizblastActiveSession) {
+          window.history.forward();
+        }
         activeHistoryRef.current = true;
         return;
       }
