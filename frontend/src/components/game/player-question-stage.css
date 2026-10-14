@@ -31,3 +31,8 @@
 .qb-player-question__answers{grid-template-columns:repeat(2,minmax(0,1fr))}
 .qb-player-question .qb-answer{min-height:52px}
 }
+
+/* UI-08D question finish */
+.qb-player-question__card{border-color:var(--qb-primary-200);border-radius:var(--qb-radius-xl)}
+.qb-player-question__timer{font-variant-numeric:tabular-nums}
+.qb-player-question .qb-answer{border-radius:var(--qb-radius-lg);line-height:1.35}
