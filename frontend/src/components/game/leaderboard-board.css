@@ -4,3 +4,7 @@
 .qb-leaderboard-board__row{gap:var(--qb-space-3);min-width:0}
 .qb-leaderboard-board__row>span:first-child{min-width:0;overflow-wrap:anywhere}
 .qb-leaderboard-board__row>span:last-child{flex-shrink:0;font-variant-numeric:tabular-nums}
+
+/* UI-08E Host and Display ranking alignment */
+.qb-leaderboard-board__row{border-radius:var(--qb-radius-md)}
+.qb-leaderboard-board__row>span:last-child{font-weight:700}
