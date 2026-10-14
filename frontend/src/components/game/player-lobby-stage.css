@@ -17,3 +17,7 @@
 .qb-player-lobby__players-heading h2{font-size:18px}
 .qb-player-lobby__player{padding:var(--qb-space-2) var(--qb-space-3)}
 }
+
+/* UI-08D lobby finish */
+.qb-player-lobby__card,.qb-player-lobby__players{border-color:var(--qb-primary-200);border-radius:var(--qb-radius-xl)}
+.qb-player-lobby__player{background:var(--qb-surface);border-radius:var(--qb-radius-lg)}
