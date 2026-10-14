@@ -5,3 +5,14 @@
 .qb-player-leaderboard__row{border:1px solid var(--qb-border);line-height:1.5}
 .qb-player-leaderboard__player{min-width:0;overflow-wrap:anywhere}
 .qb-player-leaderboard__score{flex-shrink:0}
+
+/* UI-07C: mobile leaderboard layout for long nicknames and scores. */
+.qb-player-leaderboard{min-width:0}
+.qb-player-leaderboard__row{min-width:0}
+@media(max-width:640px){
+.qb-player-leaderboard{gap:var(--qb-space-3)}
+.qb-player-leaderboard__heading h2{font-size:19px}
+.qb-player-leaderboard__row{gap:var(--qb-space-2);padding:var(--qb-space-2) var(--qb-space-3)}
+.qb-player-leaderboard__player{font-size:14px}
+.qb-player-leaderboard__score{font-size:14px;text-align:right}
+}
