@@ -54,7 +54,9 @@ export default function App() {
   const [mode,setMode]=useState(() => {
     try {
       const saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
-      return !saved?.instanceId ? null : saved.who==='HOST'?'host':saved.who==='DISPLAY'?'display':saved.who?'player':null;
+      if (saved?.instanceId) return saved.who==='HOST'?'host':saved.who==='DISPLAY'?'display':saved.who?'player':null;
+      // QR room links open Player join directly; authentication remains required.
+      return new URLSearchParams(window.location.search).get('pin') ? 'player' : null;
     } catch { return null; }
   });
   const [hostRooms, setHostRooms] = useState([]);
