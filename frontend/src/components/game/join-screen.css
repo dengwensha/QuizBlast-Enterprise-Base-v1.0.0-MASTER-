@@ -68,3 +68,8 @@
     align-self: center;
   }
 }
+
+/* UI-08D: player join polish. */
+.qb-player-join{min-height:100dvh}
+.qb-player-join__card{width:min(100%,480px);border:1px solid var(--qb-primary-200);border-radius:var(--qb-radius-xl);box-shadow:var(--qb-shadow-2)}
+.qb-player-join__form .qb-button--primary{background:var(--qb-primary-600);font-weight:750}
