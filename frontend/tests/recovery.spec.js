@@ -430,15 +430,23 @@ test("UI-06A player Join Game survives repeated Back and can still submit an ans
   }
 });
 
-test("UI-07B QR link opens Player join after login", async ({ browser, request }) => {
-  const email = `qr-player-${Date.now()}@example.com`;
-  await post(request, "/auth/register", { email, password: "integration-password" });
+// QR routing is a frontend concern: use a valid-shaped fixture token rather
+// than consuming the backend's intentionally strict registration rate limit.
+const qrFixtureToken = `header.${Buffer.from(JSON.stringify({
+  exp: Math.floor(Date.now() / 1000) + 3600,
+})).toString("base64url")}.signature`;
+
+test("UI-07B QR link opens Player join after login", async ({ browser }) => {
   const context = await browser.newContext({ baseURL: frontendUrl });
   try {
     const page = await context.newPage();
+    await page.route("**/api/auth/login", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ email: "qr-fixture@example.com", access_token: qrFixtureToken }),
+    }));
     await page.goto("/?pin=123456");
     await expect(page.getByPlaceholder("E-posta")).toBeVisible();
-    await page.getByPlaceholder("E-posta").fill(email);
+    await page.getByPlaceholder("E-posta").fill("qr-fixture@example.com");
     await page.getByPlaceholder("Şifre").fill("integration-password");
     await page.getByRole("button", { name: "Giriş Yap" }).click();
     await expect(page.getByRole("heading", { name: "Join Game" })).toBeVisible();
@@ -448,11 +456,10 @@ test("UI-07B QR link opens Player join after login", async ({ browser, request }
   }
 });
 
-test("UI-07B QR link opens Player join for authenticated user", async ({ browser, request }) => {
-  const email = `qr-return-${Date.now()}@example.com`;
-  await post(request, "/auth/register", { email, password: "integration-password" });
-  const login = await post(request, "/auth/login", { email, password: "integration-password" });
-  const context = await authenticatedContext(browser, { email, token: login.access_token });
+test("UI-07B QR link opens Player join for authenticated user", async ({ browser }) => {
+  const context = await authenticatedContext(browser, {
+    email: "qr-fixture@example.com", token: qrFixtureToken,
+  });
   try {
     const page = await context.newPage();
     await page.goto("/?pin=654321");
