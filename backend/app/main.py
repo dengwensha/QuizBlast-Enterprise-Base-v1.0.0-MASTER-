@@ -16,7 +16,7 @@ from app.services.host_authorization import (
     require_room_host,
 )
 from app.services.answer_acceptance import valid_answer, answer_is_open
-from app.services.game_progression import next_question_index
+from app.services.game_progression import next_question_index, next_stage
 from app.services.room_connections import remove_connection, send_to_room
 from app.services.game_recovery import (
     GamePlayer, GameRoom, RoomIdentity, ClosedRoomRetention, RecoveryBase,
@@ -161,7 +161,7 @@ async def restore_active_rooms():
         game_phase[pin]=state['phase']
         remaining_seconds[pin]=state['remaining']
         question_deadline[pin]=None
-        waiting_next_question[pin]=state['phase']=='result'
+        waiting_next_question[pin]=state['phase'] in {'result', 'leaderboard'}
         question_start_time[pin]=None
         if state['phase'] in {'question','result'}:
             game_tasks[pin]=asyncio.create_task(game_loop(pin))
@@ -599,7 +599,7 @@ async def end_game(
 ):
     email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
     require_room_host(room_pin, email, rooms, room_host_map)
-    if game_phase.get(room_pin) not in {'question', 'result'}:
+    if game_phase.get(room_pin) not in {'question', 'result', 'leaderboard'}:
         raise HTTPException(status_code=409, detail='game_not_running')
 
     game_phase[room_pin] = 'completed'
@@ -617,6 +617,24 @@ async def end_game(
     })
     await safe_broadcast_json(room_pin, {'type': 'game_over'})
     return {'status': 'completed'}
+
+
+@app.post('/reveal-leaderboard/{room_pin}')
+async def reveal_leaderboard(
+    room_pin: str,
+    authorization: str | None = Header(default=None),
+):
+    email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
+    require_room_host(room_pin, email, rooms, room_host_map)
+    if next_stage(game_phase.get(room_pin), 'reveal_leaderboard') is None:
+        raise HTTPException(status_code=409, detail='question_result_not_ready')
+    game_phase[room_pin] = 'leaderboard'
+    save_game(room_pin)
+    await safe_broadcast_json(room_pin, {
+        'type': 'game_stage', 'phase': 'leaderboard',
+        'index': current_question_index[room_pin],
+    })
+    return {'status': 'leaderboard', 'question_index': current_question_index[room_pin]}
 
 
 @app.post('/next-question/{room_pin}')
@@ -1059,7 +1077,7 @@ async def send_current_state(websocket,room_pin,player_name):
     phase=game_phase.get(room_pin)
     idx=current_question_index[room_pin]
     questions=get_room_questions(room_pin)
-    if phase in {'question','result'} and idx<len(questions):
+    if phase in {'question','result','leaderboard'} and idx<len(questions):
         q=questions[idx]
         deadline=question_deadline.get(room_pin)
         time_left=max(0,deadline-time.time()) if deadline is not None else remaining_seconds.get(room_pin)
@@ -1072,19 +1090,20 @@ async def send_current_state(websocket,room_pin,player_name):
                 'answered':player_name in answered_players[room_pin]})
         await websocket.send_json({'type':'answer_count',
             'count':len(answered_players[room_pin]),'total':visible_player_count(room_pin)})
-        if phase=='result':
+        if phase in {'result', 'leaderboard'}:
             await websocket.send_json({'type':'question_result','correct':q['correct'],
                 'stats':answer_stats_map[room_pin],'explanation':q.get('explanation')})
         await websocket.send_json({'type':'leaderboard',
             'scores':sorted(scores[room_pin].items(),key=lambda x:x[1],reverse=True)})
+        await websocket.send_json({'type':'game_stage', 'phase': phase, 'index': idx})
     elif phase=='completed':
         await websocket.send_json({'type':'leaderboard',
             'scores':sorted(scores[room_pin].items(),key=lambda x:x[1],reverse=True)})
         await websocket.send_json({'type':'game_over'})
 
 async def game_loop(room_pin):
-    while game_phase.get(room_pin) in {'question','result'}:
-        if game_phase[room_pin]=='result':
+    while game_phase.get(room_pin) in {'question','result','leaderboard'}:
+        if game_phase[room_pin] in {'result','leaderboard'}:
             await asyncio.sleep(0.1)
             continue
         questions=get_room_questions(room_pin); idx=current_question_index[room_pin]
@@ -1116,6 +1135,7 @@ async def game_loop(room_pin):
         await safe_broadcast_json(room_pin, {'type':'question_result','correct':q['correct'],'stats':answer_stats_map[room_pin],'explanation':q.get('explanation')})
         leaderboard=sorted(scores[room_pin].items(), key=lambda x:x[1], reverse=True)
         await safe_broadcast_json(room_pin, {'type':'leaderboard','scores':leaderboard})
+        await safe_broadcast_json(room_pin, {'type':'game_stage', 'phase':'result', 'index':idx})
 
 async def send_question(room_pin):
     questions=get_room_questions(room_pin); idx=current_question_index.get(room_pin,0)
