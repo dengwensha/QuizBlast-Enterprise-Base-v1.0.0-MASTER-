@@ -436,21 +436,15 @@ const qrFixtureToken = `header.${Buffer.from(JSON.stringify({
   exp: Math.floor(Date.now() / 1000) + 3600,
 })).toString("base64url")}.signature`;
 
-test("UI-07B QR link opens Player join after login", async ({ browser }) => {
+test("UI-08F-B05 QR link opens Player join without login", async ({ browser }) => {
   const context = await browser.newContext({ baseURL: frontendUrl });
   try {
     const page = await context.newPage();
-    await page.route("**/api/auth/login", route => route.fulfill({
-      status: 200, contentType: "application/json",
-      body: JSON.stringify({ email: "qr-fixture@example.com", access_token: qrFixtureToken }),
-    }));
     await page.goto("/?pin=123456");
-    await expect(page.getByPlaceholder("E-posta")).toBeVisible();
-    await page.getByPlaceholder("E-posta").fill("qr-fixture@example.com");
-    await page.getByPlaceholder("Şifre").fill("integration-password");
-    await page.getByRole("button", { name: "Giriş Yap" }).click();
     await expect(page.getByRole("heading", { name: "Join Game" })).toBeVisible();
     await expect(page.getByPlaceholder("Room PIN")).toHaveValue("123456");
+    await expect(page.getByPlaceholder("E-posta")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Join", exact: true })).toBeDisabled();
   } finally {
     await context.close();
   }
