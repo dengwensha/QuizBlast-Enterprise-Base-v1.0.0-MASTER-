@@ -21,6 +21,7 @@ import {
   createRoomRequest,
   startGameRequest,
   nextQuestionRequest,
+  revealLeaderboardRequest,
   pauseGameRequest,
   resumeGameRequest,
   endGameRequest,
@@ -104,6 +105,7 @@ export default function App() {
     currentQuestionIndex,
     totalQuestions,
     questionResult,
+    gameStage,
     timeLeft,
     answered,
     gameOver,
@@ -290,6 +292,10 @@ export default function App() {
       alert(result.error);
     }
   };
+  const revealLeaderboard = async () => {
+    const result = await revealLeaderboardRequest(roomPin, user.token);
+    if (result.error || result.detail) alert(result.detail || result.error);
+  };
   const nextQuestion = async () => {
   const result = await nextQuestionRequest(
     roomPin,
@@ -439,9 +445,11 @@ return (
           answered={answered}
           paused={paused}
           questionResult={questionResult}
+          gameStage={gameStage}
           optionColors={optionColors}
           visibleLeaderboard={visibleLeaderboard}
           nextQuestion={nextQuestion}
+          revealLeaderboard={revealLeaderboard}
           currentQuestionIndex={currentQuestionIndex}
           totalQuestions={totalQuestions || selectedQuestions.length}
           styles={styles}
