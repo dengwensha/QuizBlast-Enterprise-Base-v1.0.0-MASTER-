@@ -26,6 +26,33 @@ async function authenticatedContext(browser, user, activeSession) {
   return context;
 }
 
+test("UI-08F-B06 saved player session shows reconnect state before recovery", async ({ browser }) => {
+  const context = await browser.newContext({ baseURL: frontendUrl });
+  await context.addInitScript(() => {
+    localStorage.setItem("quizblast_active_session", JSON.stringify({
+      pin: "987654", who: "ReturningPlayer", instanceId: "a".repeat(32),
+    }));
+  });
+  try {
+    const page = await context.newPage();
+    await page.route("**/api/room-instance/987654", async route => {
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ instance_id: "a".repeat(32) }),
+      });
+    });
+    await page.goto("/");
+    await expect(page.getByText("Odaya yeniden bağlanılıyor...")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Join Game" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Oyundan Çık" }).click();
+    await expect(page.getByText("Odaya yeniden bağlanılıyor...")).toHaveCount(0);
+    await expect(page.getByPlaceholder("E-posta")).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
+
 test("host recovers an open room after browser storage is lost", async ({ browser, request }) => {
   const email = `host-return-${Date.now()}@example.com`;
   await post(request, "/auth/register", { email, password: "integration-password" });
