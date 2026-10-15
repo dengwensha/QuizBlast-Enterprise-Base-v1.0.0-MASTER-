@@ -5,9 +5,11 @@ import PlayerResultReveal from "./PlayerResultReveal";
 import PlayerLeaderboard from "./PlayerLeaderboard";
 import "./player-question-stage.css";
 
-export default function PlayerQuestionStage({ question, questionImage, timeLeft, answerCount, totalPlayers, options, sendAnswer, answered, paused, questionResult, optionColors, visibleLeaderboard, currentQuestionIndex, totalQuestions, styles }) {
+export default function PlayerQuestionStage({ question, questionImage, timeLeft, answerCount, totalPlayers, options, sendAnswer, answered, paused, questionResult, gameStage, optionColors, visibleLeaderboard, currentQuestionIndex, totalQuestions, styles }) {
   const disabled = answered || paused || timeLeft <= 0;
   const progress = Math.max(0, Math.min(100, (timeLeft / 15) * 100));
+
+  if (gameStage === "leaderboard") return <PlayerLeaderboard visibleLeaderboard={visibleLeaderboard} />;
 
   return <section className="qb-player-question" aria-label="Quiz question">
     {paused && <div role="status" className="qb-player-question__pause-status">Host bekleniyor; oyun duraklatıldı.</div>}
@@ -23,6 +25,6 @@ export default function PlayerQuestionStage({ question, questionImage, timeLeft,
     </div>
     {answered && !questionResult && <Alert variant="success" role="note" title="✅ Cevabın alındı">Diğer oyuncular bekleniyor.</Alert>}
     {questionResult && <PlayerResultReveal questionResult={questionResult} options={options} optionColors={optionColors} />}
-    <PlayerLeaderboard visibleLeaderboard={visibleLeaderboard} />
+
   </section>;
 }
