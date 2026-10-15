@@ -14,12 +14,16 @@ export default function HostLiveStage({
   options,
   optionColors,
   questionResult,
+  gameStage,
   visibleLeaderboard,
   nextQuestion,
+  revealLeaderboard,
   currentQuestionIndex,
   totalQuestions,
   styles,
 }) {
+  if (gameStage === "leaderboard") return <div style={styles.liveStage}><LeaderboardBoard visibleLeaderboard={visibleLeaderboard} live styles={styles} /><div style={{ textAlign: "center", marginTop: 20 }}><button onClick={nextQuestion} className="qb-host-live__next-action" style={styles.nextQuestionButton}>{currentQuestionIndex + 1 >= totalQuestions ? "🏁 Sonuçları Göster" : "➜ Sonraki Soru"}</button></div></div>;
+
   return (
     <div style={styles.liveStage}>
       <div style={styles.liveQuestionCard}>
@@ -92,23 +96,17 @@ export default function HostLiveStage({
 
           <div style={{ textAlign: "center", marginTop: 20 }}>
             <button
-              onClick={nextQuestion}
+              onClick={revealLeaderboard}
               className="qb-host-live__next-action"
               style={styles.nextQuestionButton}
             >
-              {currentQuestionIndex + 1 >= totalQuestions
-                ? "🏁 Sonuçları Göster"
-                : "➜ Sonraki Soru"}
+              "🏆 Sıralamayı Göster"
             </button>
           </div>
         </>
       )}
 
-      <LeaderboardBoard
-        visibleLeaderboard={visibleLeaderboard}
-        live
-        styles={styles}
-      />
+
     </div>
   );
 }
