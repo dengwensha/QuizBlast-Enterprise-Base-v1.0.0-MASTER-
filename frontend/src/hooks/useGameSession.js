@@ -52,6 +52,7 @@ export function useGameSession({
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [questionResult, setQuestionResult] = useState(null);
+  const [gameStage, setGameStage] = useState("lobby");
   const [timeLeft, setTimeLeft] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [gameOver, setGameOver] = useState(false);
@@ -70,6 +71,7 @@ export function useGameSession({
     setOptions([]);
     setLeaderboard([]);
     setQuestionResult(null);
+    setGameStage("lobby");
     setTimeLeft(0);
     setAnswered(false);
     setGameOver(false);
@@ -235,6 +237,7 @@ export function useGameSession({
         callbacksRef.current.onQuestion?.();
 
         setQuestionResult(null);
+        setGameStage("question");
         setQuestion(data.question);
         setQuestionImage(normalizeQuestionImage(data.image_url));
         setOptions(data.options);
@@ -259,9 +262,13 @@ export function useGameSession({
       if (data.type === "question_result") {
         callbacksRef.current.onQuestionResult?.();
         setQuestionResult(data);
+        setGameStage("result");
       }
 
+      if (data.type === "game_stage") setGameStage(data.phase);
+
       if (data.type === "leaderboard") {
+        // Ranking updates do not change the current presentation stage.
         setLeaderboard(data.scores);
       }
 
@@ -272,6 +279,7 @@ export function useGameSession({
         setQuestionImage("");
         setOptions([]);
         setGameOver(true);
+        setGameStage("completed");
       }
     };
 
@@ -400,6 +408,7 @@ export function useGameSession({
     currentQuestionIndex,
     totalQuestions,
     questionResult,
+    gameStage,
     timeLeft,
     answered,
     gameOver,
