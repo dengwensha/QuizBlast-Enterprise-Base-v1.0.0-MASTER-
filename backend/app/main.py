@@ -655,6 +655,8 @@ async def next_question(
         room_host_map,
     )
 
+    if game_phase.get(room_pin) != 'leaderboard':
+        raise HTTPException(status_code=409, detail='leaderboard_not_revealed')
     questions = get_room_questions(room_pin)
     next_index = next_question_index(
         current_question_index.get(room_pin, 0),
