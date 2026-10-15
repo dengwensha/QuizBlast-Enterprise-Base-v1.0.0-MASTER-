@@ -38,6 +38,14 @@ export async function startGameRequest(roomPin, token) {
   return response.json();
 }
 
+export async function revealLeaderboardRequest(roomPin, token) {
+  const response = await fetch(`${API}/reveal-leaderboard/${roomPin}`, {
+    method: "POST",
+    headers: createAuthorizationHeaders(token),
+  });
+  return response.json();
+}
+
 export async function nextQuestionRequest(roomPin, token) {
   const response = await fetch(
     `${API}/next-question/${roomPin}`,
