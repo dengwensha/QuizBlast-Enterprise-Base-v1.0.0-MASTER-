@@ -60,6 +60,12 @@ export default function App() {
       return new URLSearchParams(window.location.search).get('pin') ? 'player' : null;
     } catch { return null; }
   });
+  const [restoringSession, setRestoringSession] = useState(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
+      return Boolean(saved?.pin && saved?.who && saved?.instanceId);
+    } catch { return false; }
+  });
   const [hostRooms, setHostRooms] = useState([]);
   const joinedRef = useRef(false);
   const modeRef = useRef(mode);
@@ -218,15 +224,18 @@ export default function App() {
   useEffect(() => {
     let saved;
     try { saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session')); }
-    catch { return; }
+    catch { setRestoringSession(false); return; }
     if (saved?.pin && saved?.who && !saved?.instanceId) {
       sessionStorage.removeItem('quizblast_active_session');
       localStorage.removeItem('quizblast_active_session');
+      setRestoringSession(false);
       return;
     }
     if (saved?.pin && saved?.who && saved?.instanceId && (saved.who !== 'HOST' || (user?.token && !tokenExpired(user.token)))) {
       setRoomPin(saved.pin);
       connectWebsocket(saved.pin,saved.who,saved.who==='HOST'?user.token:undefined,saved.instanceId);
+    } else {
+      setRestoringSession(false);
     }
   }, [user?.token]);
   useEffect(() => {
@@ -319,6 +328,7 @@ export default function App() {
   if(!user && mode !== 'player') return <div style={styles.splash}><div style={styles.joinCard}><h1>QuizBlast 🚀</h1><h2>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</h2><input placeholder="E-posta" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={styles.input}/><input placeholder="Şifre" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={styles.input}/><button onClick={authMode==='login'?login:register} style={styles.joinButton}>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</button><button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} style={{...styles.joinButton,marginTop:10,background:'var(--qb-navy-900)'}}>{authMode==='login'?'Hesap oluştur':'Giriş ekranına dön'}</button></div></div>;
   if(!mode) return <main className="qb-home"><div className="qb-home__shell"><header className="qb-home__header"><h1 className="qb-home__brand">QuizBlast 🚀</h1><p className="qb-home__subtitle">Multiplayer Quiz Platform</p><span className="qb-home__account">{user.email}</span></header><nav className="qb-home__grid" aria-label="QuizBlast ana menü"><button className="qb-home__action" onClick={()=>{navigateMode('host');loadQuizzes();}}>🎤 Host Game</button><button className="qb-home__action" onClick={()=>navigateMode('player')}>🎮 Join Game</button><button className="qb-home__action" onClick={()=>navigateMode('display')}>📺 Display Screen</button><button className="qb-home__action" onClick={()=>{navigateMode('admin');loadQuizzes();}}>🧠 Admin Panel</button></nav><button className="qb-home__logout" onClick={logout}>Çıkış Yap</button></div></main>;
   if(mode==='admin') return <AdminView styles={styles} admin={admin} {...{quizzes,selectedQuizId,setSelectedQuizId,selectedQuestions,importExcel,commitImport,importPreview,importing,importSummary,setMode:navigateMode}} />;
+  if(restoringSession && !joined && hasActiveSession()) return <div style={styles.splash}><div style={styles.center}><h2>Odaya yeniden bağlanılıyor...</h2><button onClick={leaveGame} style={styles.mainButton}>Oyundan Çık</button></div></div>;
   if(reconnecting) return <div style={styles.splash}><div style={styles.center}><h2>Odaya yeniden bağlanılıyor...</h2><button onClick={leaveGame} style={styles.mainButton}>Oyundan Çık</button></div></div>;
   if(mode==='host'&&!joined) return <HostSetup {...{quizzes,selectedQuizId,setSelectedQuizId,loadSelectedQuestions,finalLimit,setFinalLimit,createRoom,selectedQuestions,setMode:navigateMode,styles,hostRooms,hostRoomsError,returnToRoom}} />;
   if(mode==='player'&&!joined) return <JoinScreen {...{roomPin,setRoomPin,name,setName,joinRoom,setMode:navigateMode}}styles={styles} />;
