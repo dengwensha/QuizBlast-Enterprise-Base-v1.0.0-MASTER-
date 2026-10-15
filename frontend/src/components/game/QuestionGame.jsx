@@ -8,7 +8,7 @@ import LeaderboardBoard from "./LeaderboardBoard";
 export default function QuestionGame({ question, questionImage, timeLeft, answerCount, totalPlayers, mode, playerName, options, sendAnswer, answered, paused, questionResult, gameStage, optionColors, visibleLeaderboard, nextQuestion, revealLeaderboard, currentQuestionIndex, totalQuestions, styles }) {
   const safeOptions = Array.isArray(options) ? options : [];
 
-  if (gameStage === "leaderboard" && mode !== "host") return <LeaderboardBoard visibleLeaderboard={visibleLeaderboard} styles={styles} />;
+  if (gameStage === "leaderboard" && mode !== "host" && playerName === "DISPLAY") return <LeaderboardBoard visibleLeaderboard={visibleLeaderboard} styles={styles} />;
 
   if (mode === "host") return <HostLiveStage {...{ question, questionImage, timeLeft, answerCount, totalPlayers, options: safeOptions, optionColors, questionResult, gameStage, visibleLeaderboard, nextQuestion, revealLeaderboard, currentQuestionIndex, totalQuestions, styles }} />;
 
