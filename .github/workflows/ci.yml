@@ -104,6 +104,7 @@ jobs:
             app.tests.test_import_report_manual
             app.tests.test_qbds_mapper_manual
             app.tests.test_validation_engine_manual
+            app.tests.test_content_catalog_manual
           )
 
           for module in "${modules[@]}"; do
