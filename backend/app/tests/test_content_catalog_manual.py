@@ -42,6 +42,7 @@ def run():
 
         details = app.get_published_content_set(published_id)
         assert details["question_count"] == 1
+        assert details["play_quiz_id"] == ids[0][1]
         assert details["estimated_duration_seconds"] == 15
 
         preview = app.preview_published_content_set(published_id)
