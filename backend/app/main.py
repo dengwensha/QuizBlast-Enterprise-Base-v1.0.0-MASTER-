@@ -13,6 +13,7 @@ from app.services.excel_reader import read_excel_rows_from_bytes
 from app.services.import_pipeline import run_qbds_import_pipeline, build_pipeline_user_message
 from app.services.content_catalog import serialize_set, serialize_preview_question
 from app.services.content_copy import copy_published_set
+from app.services.content_deploy import publish_if_requested
 from app.services.host_authorization import (
     require_authenticated_email,
     require_room_host,
@@ -157,6 +158,11 @@ async def restore_active_rooms():
     global closed_room_cleanup_task
     with db_session() as db:
         snapshots=[]
+        publish_status = publish_if_requested(
+            db, Quiz, Question, PublishedQuizSet
+        )
+        if publish_status != "disabled":
+            print("Initial catalog:", publish_status)
         backfill_closed_room_retention(db)
         backfill_room_identities(db)
         for record in db.query(GameRoom).filter(GameRoom.phase != 'closed').all():
