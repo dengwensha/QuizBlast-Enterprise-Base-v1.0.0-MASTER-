@@ -231,6 +231,51 @@ test("host, player and display recover after backend and browser restart", async
 });
 
 
+test("UI-09A result and leaderboard remain synchronized after reconnect", async ({ browser, request }) => {
+  test.setTimeout(90_000);
+  const email = `stage-recovery-${Date.now()}@example.com`;
+  await post(request, "/auth/register", { email, password: "integration-password" });
+  const login = await post(request, "/auth/login", { email, password: "integration-password" });
+  const user = { email, token: login.access_token };
+  const quiz = await post(request, "/quizzes", { title: "Stage recovery" }, user.token);
+  await post(request, `/quizzes/${quiz.id}/questions`, {
+    question: "Stage synchronization after reconnect?",
+    options: ["Yes", "No", "Maybe", "Later"],
+    correct: 0, time: 10, explanation: "Stage recovery explanation.",
+  }, user.token);
+  const { room_pin: pin } = await post(request, `/create-room/${quiz.id}`, {}, user.token);
+  const { instance_id: instanceId } = await (await request.get(`${apiUrl}/room-instance/${pin}`)).json();
+  const hostContext = await authenticatedContext(browser, user, { pin, who: "HOST", instanceId });
+  const playerContext = await authenticatedContext(browser, user);
+  try {
+    const host = await hostContext.newPage();
+    await host.goto("/");
+    const player = await playerContext.newPage();
+    await player.goto("/");
+    await player.getByRole("button", { name: "🎮 Join Game" }).click();
+    await player.getByPlaceholder("Room PIN").fill(pin);
+    await player.getByPlaceholder("Name").fill("Ada");
+    await player.getByRole("button", { name: "Join", exact: true }).click();
+    await expect(host.getByText("👤 Ada", { exact: true })).toBeVisible();
+    await host.getByRole("button", { name: "▶ Oyunu Başlat" }).click();
+    await expect(player.getByText("Stage synchronization after reconnect?")).toBeVisible();
+    await player.getByRole("button", { name: "Yes" }).click();
+    await expect(host.getByRole("button", { name: "🏆 Sıralamayı Göster" })).toBeVisible({ timeout: 25_000 });
+    await expect(host.getByText("Stage recovery explanation.")).toBeVisible();
+    const reveal = host.waitForResponse(response => response.url().includes(`/reveal-leaderboard/${pin}`));
+    await host.getByRole("button", { name: "🏆 Sıralamayı Göster" }).click();
+    expect((await reveal).status()).toBe(200);
+    await expect(player.getByText("#1 Ada")).toBeVisible();
+    await player.reload();
+    await expect(player.getByText("#1 Ada")).toBeVisible();
+    await host.getByRole("button", { name: "🏁 Sonuçları Göster" }).click();
+  } finally {
+    await hostContext.close();
+    await playerContext.close();
+  }
+});
+
+
 for (const role of ["HOST", "PLAYER"]) {
   test(`active ${role.toLowerCase()} session remains on game screen after browser Back`, async ({ browser, request }) => {
     test.setTimeout(90_000);
