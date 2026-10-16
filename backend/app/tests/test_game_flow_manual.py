@@ -157,7 +157,7 @@ async def run_game_flow():
                 status, rejected = await asyncio.to_thread(
                     post, f'/reveal-leaderboard/{pin}', None, token
                 )
-                assert status == 409 and rejected['detail'] == 'leaderboard_not_revealed'
+                assert status == 409 and rejected['detail'] == 'question_result_not_ready'
 
                 status, advanced = await asyncio.to_thread(
                     post, f'/next-question/{pin}', None, token
