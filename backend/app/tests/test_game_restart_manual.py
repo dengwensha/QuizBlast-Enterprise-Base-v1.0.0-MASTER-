@@ -176,6 +176,12 @@ async def run():
             restored = await event_of(socket, 'question_result')
             assert restored['stats'] == [2, 0, 0, 0]
             assert restored['explanation'] == 'This survives restart.'
+        rejected_status, rejected = await asyncio.to_thread(
+            post_error, f'/next-question/{pin}', token
+        )
+        assert rejected_status == 409 and rejected['detail'] == 'leaderboard_not_revealed'
+        reveal = await asyncio.to_thread(post, f'/reveal-leaderboard/{pin}', None, token)
+        assert reveal['status'] == 'leaderboard'
         finish = await asyncio.to_thread(post, f'/next-question/{pin}', None, token)
         assert finish['status'] == 'game_over'
 
