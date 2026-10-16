@@ -178,6 +178,7 @@ jobs:
             "UI-08F-B06 saved player session"
             "host recovers an open room"
             "host, player and display recover"
+            "UI-09A result and leaderboard remain synchronized"
             "active host session remains"
             "active player session remains"
             "UI-06A player Join Game"
