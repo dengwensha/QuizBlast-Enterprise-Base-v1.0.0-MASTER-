@@ -2,7 +2,12 @@ import React, { useEffect, useState } from "react";
 import { fetchContentSets, fetchContentSetPreview } from "../../services/contentService";
 import "./content-library.css";
 
-const COLLECTIONS = ["QuizBlast'ı Tanı", "Genel Kültür", "Bilim ve Teknoloji", "Takım Isınma"];
+const COLLECTIONS = [
+  { name: "QuizBlast'ı Tanı", icon: "🚀" },
+  { name: "Genel Kültür", icon: "▣" },
+  { name: "Bilim ve Teknoloji", icon: "⚗" },
+  { name: "Takım Isınma", icon: "♧" },
+];
 
 export default function ContentLibrary({ onBack, onPlay, onCopy }) {
   const [sets, setSets] = useState([]);
@@ -64,19 +69,20 @@ export default function ContentLibrary({ onBack, onPlay, onCopy }) {
       <div className="qb-library__shell">
         <header className="qb-library__header">
           <div>
-            <span className="qb-library__eyebrow">QUIZBLAST · HAZIR İÇERİK</span>
-            <h1>Hazır Soru Setleri</h1>
+            <span className="qb-library__eyebrow">QUIZBLAST</span>
+            <h1>Hazır Quizler</h1>
             <p>Setleri keşfet, soruları incele, hemen oyna veya kendi quizlerine kopyala.</p>
           </div>
-          <button type="button" className="qb-library__back" onClick={onBack}>Ana Menü</button>
+          <button type="button" className="qb-library__back" onClick={onBack}><span aria-hidden="true">⌂</span> Ana Menü</button>
         </header>
         <div className="qb-library__collections" aria-label="İlk koleksiyon başlıkları">
-          {COLLECTIONS.map(name => <span key={name} className="qb-library__collection">{name}</span>)}
+          {COLLECTIONS.map((item, index) => <span key={item.name} className={`qb-library__collection${index === 0 ? " qb-library__collection--featured" : ""}`}><span aria-hidden="true" className="qb-library__collection-icon">{item.icon}</span>{item.name}</span>)}
         </div>
         {error && <div role="alert" className="qb-library__alert">{error} <button onClick={loadSets}>Tekrar Dene</button></div>}
         {loading && <p role="status">Hazır setler yükleniyor...</p>}
         {!loading && !error && sets.length === 0 && (
           <div className="qb-library__empty">
+            <div className="qb-library__empty-art" aria-hidden="true"><span className="qb-library__empty-card qb-library__empty-card--rear" /><span className="qb-library__empty-card qb-library__empty-card--middle" /><span className="qb-library__empty-card qb-library__empty-card--front">?</span></div>
             <h2>İlk koleksiyon hazırlanıyor</h2>
             <p>Henüz yayınlanmış set yok. Dört koleksiyonun soruları içerik aşamasında eklenecek.</p>
           </div>
