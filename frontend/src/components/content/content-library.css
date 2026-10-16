@@ -30,3 +30,40 @@
 .qb-library__alert{padding:14px;border-radius:12px;border:1px solid var(--qb-danger);background:var(--qb-surface);color:var(--qb-danger);margin:18px 0}
 .qb-library__empty{text-align:center;padding:50px 24px}
 @media(max-width:620px){.qb-library__header{flex-direction:column}.qb-library__actions button{width:100%}.qb-library__details,.qb-library__card{padding:18px}}
+
+
+/* QB-UI Ready Quizzes — approved light-blue catalog visual refinement */
+.qb-library{
+  background:
+    radial-gradient(ellipse 42% 40% at 94% 3%, rgba(180,215,255,.44),transparent 90%),
+    radial-gradient(ellipse 42% 42% at 12% 95%,rgba(220,240,255,.55),transparent 100%),
+    linear-gradient(130deg,#f7fbff 0%,#edf6ff 48%,#f7fbff 100%);
+}
+.qb-library__shell{width:min(1240px,100%)}
+.qb-library__header{margin-bottom:30px;gap:28px}
+.qb-library__eyebrow{font-size:12px;letter-spacing:.22em;color:#1769c7}
+.qb-library h1{font-size:clamp(36px,5vw,56px);line-height:1.12;letter-spacing:-.035em;margin:14px 0 15px}
+.qb-library__header p{font-size:clamp(15px,1.55vw,18px);color:#526d92}
+.qb-library__back{box-shadow:0 5px 16px rgba(30,96,175,.10);padding:12px 21px;white-space:nowrap}
+.qb-library__back span{font-size:23px;vertical-align:-2px;margin-right:7px}
+.qb-library__collections{gap:12px;margin:0 0 30px}
+.qb-library__collection{display:inline-flex;align-items:center;gap:11px;min-height:42px;padding:8px 17px;background:rgba(255,255,255,.9);border-color:#d6e6fa;color:#233f67;font-weight:700;box-shadow:0 4px 12px rgba(23,80,142,.08)}
+.qb-library__collection--featured{background:#e0f0ff;color:#0868d4;border-color:#b8ddff}
+.qb-library__collection-icon{font-size:17px;line-height:1;min-width:19px;text-align:center}
+.qb-library__empty{padding:40px 24px 47px;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-color:#cbe2fa;box-shadow:0 12px 35px rgba(32,99,165,.07)}
+.qb-library__empty h2{color:#102e54;font-size:clamp(22px,2.7vw,29px);letter-spacing:-.02em;margin:11px 0 9px}
+.qb-library__empty p{color:#5f779b;line-height:1.55;font-size:clamp(14px,1.45vw,17px);margin:0}
+.qb-library__empty-art{height:150px;width:190px;position:relative;margin:0 auto 8px;border-radius:50%;background:radial-gradient(circle,rgba(190,220,253,.45),rgba(235,247,255,.1) 70%);transform:rotate(-7deg)}
+.qb-library__empty-card{position:absolute;width:91px;height:119px;border-radius:12px;left:50px;top:16px;border:2px solid #a8ceff;background:#a3d0ff;box-shadow:0 8px 20px rgba(39,112,210,.12)}
+.qb-library__empty-card--rear{transform:translate(25px,7px) rotate(13deg);opacity:.6}
+.qb-library__empty-card--middle{transform:translate(14px,3px) rotate(6deg);background:#92c4ff}
+.qb-library__empty-card--front{display:flex;align-items:center;justify-content:center;background:white;color:#1575e7;font-size:69px;font-weight:800;transform:rotate(-2deg)}
+.qb-library__card,.qb-library__details{border-color:#d2e5fb;box-shadow:0 8px 24px rgba(35,90,156,.08)}
+@media(max-width:620px){
+  .qb-library{padding:24px 15px 36px}
+  .qb-library__header{gap:19px}
+  .qb-library__collections{gap:9px}
+  .qb-library__collection{font-size:12px;padding:8px 12px;min-height:36px}
+  .qb-library__empty{padding:35px 18px}
+  .qb-library__empty-art{transform:scale(.85) rotate(-7deg);margin-bottom:0}
+}
