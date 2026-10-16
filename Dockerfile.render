@@ -1,0 +1,22 @@
+# Render Free: single web service with frontend and backend.
+FROM node:22-slim AS frontend-build
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+FROM python:3.11-slim AS runtime
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=10000
+RUN apt-get update && apt-get install -y --no-install-recommends nginx \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /etc/nginx/sites-enabled/default
+WORKDIR /app
+COPY backend/requirements.txt ./requirements.txt
+RUN python -m pip install --no-cache-dir -r requirements.txt
+COPY backend/app ./app
+COPY --from=frontend-build /frontend/dist /usr/share/nginx/html
+COPY deploy/render/nginx.conf.template /etc/nginx/quizblast.conf.template
+COPY deploy/render/start.py /app/render_start.py
+EXPOSE 10000
+CMD ["python", "/app/render_start.py"]
