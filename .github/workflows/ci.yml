@@ -67,6 +67,19 @@ jobs:
             quizblast-remote-ci nginx -T 2>&1 \
             | grep -F 'proxy_set_header Host $host;'
 
+      - name: Verify Render single-service build and proxy
+        shell: bash
+        run: |
+          docker build -f Dockerfile.render -t quizblast-render-ci .
+          docker run --rm -e PORT=10000 quizblast-render-ci \
+            python /app/render_start.py --check
+          docker run --rm -e PORT=10000 quizblast-render-ci \
+            sh -c 'python /app/render_start.py --check && nginx -T 2>&1' \
+            | grep -F 'proxy_pass http://127.0.0.1:8000/;'
+          docker run --rm -e PORT=10000 quizblast-render-ci \
+            sh -c 'python /app/render_start.py --check && nginx -T 2>&1' \
+            | grep -F 'listen 10000;'
+
       - name: Start infrastructure
         run: docker compose up -d postgres redis
 
