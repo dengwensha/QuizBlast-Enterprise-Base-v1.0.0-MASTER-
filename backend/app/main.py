@@ -2,7 +2,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, Boolean, String, ForeignKey, DateTime, inspect, text
+from sqlalchemy import create_engine, Column, Integer, Boolean, String, ForeignKey, DateTime, inspect, text, or_, and_
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from passlib.context import CryptContext
 from jose import jwt
@@ -496,9 +496,16 @@ def create_room(
     )
 
     with db_session() as db:
+        published = db.query(PublishedQuizSet.id).filter(
+            PublishedQuizSet.quiz_id == Quiz.id,
+            PublishedQuizSet.is_published.is_(True),
+        ).exists()
         quiz = db.query(Quiz).filter(
             Quiz.id == quiz_id,
-            Quiz.owner_email == email,
+            or_(
+                Quiz.owner_email == email,
+                and_(Quiz.owner_email.is_(None), published),
+            ),
         ).with_for_update().first()
 
         if not quiz:
