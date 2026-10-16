@@ -12,6 +12,7 @@ import os, random, asyncio, time, uuid
 from app.services.excel_reader import read_excel_rows_from_bytes
 from app.services.import_pipeline import run_qbds_import_pipeline, build_pipeline_user_message
 from app.services.content_catalog import serialize_set, serialize_preview_question
+from app.services.content_copy import copy_published_set
 from app.services.host_authorization import (
     require_authenticated_email,
     require_room_host,
@@ -384,6 +385,15 @@ def preview_published_content_set(set_id: int):
             **metadata,
             'questions': [serialize_preview_question(q) for q in questions],
         }
+
+
+@app.post('/content/sets/{set_id}/copy')
+def copy_content_set(set_id: int, authorization: str | None = Header(default=None)):
+    email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
+    with db_session() as db:
+        result = copy_published_set(db, set_id, email, Quiz, Question, PublishedQuizSet)
+        db.commit()
+        return result
 
 
 @app.get('/quizzes')
