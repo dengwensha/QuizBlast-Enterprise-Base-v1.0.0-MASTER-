@@ -100,7 +100,7 @@ export default function HostLiveStage({
               className="qb-host-live__next-action"
               style={styles.nextQuestionButton}
             >
-              "🏆 Sıralamayı Göster"
+              🏆 Sıralamayı Göster
             </button>
           </div>
         </>
