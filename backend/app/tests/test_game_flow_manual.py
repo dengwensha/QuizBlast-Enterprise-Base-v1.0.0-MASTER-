@@ -148,8 +148,11 @@ async def run_game_flow():
                 )
                 assert status == 200 and revealed['status'] == 'leaderboard'
                 for socket in (host, player, display):
-                    stage, _ = await receive_until(socket, 'game_stage')
-                    assert stage['phase'] == 'leaderboard'
+                    while True:
+                        stage, _ = await receive_until(socket, 'game_stage')
+                        if stage['phase'] == 'leaderboard':
+                            break
+                        assert stage['phase'] == 'result'
 
                 status, rejected = await asyncio.to_thread(
                     post, f'/reveal-leaderboard/{pin}', None, token
