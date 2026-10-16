@@ -121,7 +121,7 @@ async def run_game_flow():
                 status, rejected = await asyncio.to_thread(
                     post, f'/next-question/{pin}', None, token
                 )
-                assert status == 409 and rejected['detail'] == 'question_result_not_ready'
+                assert status == 409 and rejected['detail'] == 'leaderboard_not_revealed'
 
                 await player.send(json.dumps({'type': 'answer', 'answer': 0}))
                 for socket in (host, player, display):
@@ -137,6 +137,24 @@ async def run_game_flow():
                         and event['scores'][0][1] > 0
                         for event in events
                     )
+
+                status, rejected = await asyncio.to_thread(
+                    post, f'/next-question/{pin}', None, token
+                )
+                assert status == 409 and rejected['detail'] == 'leaderboard_not_revealed'
+
+                status, revealed = await asyncio.to_thread(
+                    post, f'/reveal-leaderboard/{pin}', None, token
+                )
+                assert status == 200 and revealed['status'] == 'leaderboard'
+                for socket in (host, player, display):
+                    stage, _ = await receive_until(socket, 'game_stage')
+                    assert stage['phase'] == 'leaderboard'
+
+                status, rejected = await asyncio.to_thread(
+                    post, f'/reveal-leaderboard/{pin}', None, token
+                )
+                assert status == 409 and rejected['detail'] == 'leaderboard_not_revealed'
 
                 status, advanced = await asyncio.to_thread(
                     post, f'/next-question/{pin}', None, token
