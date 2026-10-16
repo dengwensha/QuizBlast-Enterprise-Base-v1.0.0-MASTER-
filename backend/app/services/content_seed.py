@@ -55,6 +55,9 @@ def validate_initial_sets(data):
                 correct="ABCD"[correct], time=question["time"],
                 difficulty=item["difficulty"],
             )))
+        answer_positions = {question["correct"] for question in questions}
+        if len(answer_positions) != 4:
+            raise ValueError(f"{item['slug']}:unbalanced_answer_positions")
         report = validate_questions(dto_rows)
         # For centrally published content, warning-level duplicates block publication too.
         if report.error_count or report.warning_count:
