@@ -21,6 +21,11 @@ def run():
     assert [len(s["questions"]) for s in data["sets"]] == [6] * 4
 
     invalid = deepcopy(data)
+    for item in invalid["sets"][0]["questions"]:
+        item["correct"] = 0
+    expect_rejected(invalid)
+
+    invalid = deepcopy(data)
     invalid["sets"][0]["questions"][0]["correct"] = 9
     expect_rejected(invalid)
     invalid = deepcopy(data)
