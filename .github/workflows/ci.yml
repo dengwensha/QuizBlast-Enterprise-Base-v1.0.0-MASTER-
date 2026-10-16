@@ -168,9 +168,39 @@ jobs:
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
 
-      - name: Verify browser game recovery
+      - name: Verify browser game recovery (isolated scenarios)
         working-directory: frontend
-        run: npx playwright test tests/recovery.spec.js --reporter=line
+        shell: bash
+        run: |
+          # One scenario per process. Reset only the CI backend's in-memory
+          # registration limiter between scenarios; production limits stay intact.
+          scenarios=(
+            "UI-08F-B06 saved player session"
+            "host recovers an open room"
+            "host, player and display recover"
+            "active host session remains"
+            "active player session remains"
+            "UI-06A player Join Game"
+            "UI-08F-B05 QR link"
+            "UI-07B QR link"
+            "UI-07D mobile QR"
+          )
+          for scenario in "${scenarios[@]}"; do
+            echo "::group::Browser scenario: ${scenario}"
+            docker compose restart backend
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent http://localhost:8001/ | grep -q '"status":"running"'; then
+                break
+              fi
+              if [[ "$attempt" == 30 ]]; then
+                docker compose logs --tail=100 backend
+                exit 1
+              fi
+              sleep 2
+            done
+            npx playwright test tests/recovery.spec.js --grep "${scenario}" --workers=1 --reporter=line
+            echo "::endgroup::"
+          done
 
       - name: Install Microsoft Edge for browser regression
         working-directory: frontend
