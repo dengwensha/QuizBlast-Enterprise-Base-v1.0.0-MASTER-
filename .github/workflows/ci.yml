@@ -52,6 +52,21 @@ jobs:
       - name: Build production images
         run: docker compose build --pull backend frontend
 
+      - name: Verify optional remote frontend image and proxy template
+        shell: bash
+        run: |
+          docker build -f frontend/Dockerfile.remote \
+            -t quizblast-remote-ci frontend
+          # No Railway account or public deployment required for this check.
+          docker run --rm -e QB_BACKEND_UPSTREAM=127.0.0.1:8000 \
+            quizblast-remote-ci nginx -t
+          docker run --rm -e QB_BACKEND_UPSTREAM=127.0.0.1:8000 \
+            quizblast-remote-ci nginx -T 2>&1 \
+            | grep -F 'proxy_pass http://127.0.0.1:8000/;'
+          docker run --rm -e QB_BACKEND_UPSTREAM=127.0.0.1:8000 \
+            quizblast-remote-ci nginx -T 2>&1 \
+            | grep -F 'proxy_set_header Host $host;'
+
       - name: Start infrastructure
         run: docker compose up -d postgres redis
 
