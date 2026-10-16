@@ -106,6 +106,7 @@ jobs:
             app.tests.test_validation_engine_manual
             app.tests.test_content_catalog_manual
             app.tests.test_content_copy_manual
+            app.tests.test_content_play_manual
           )
 
           for module in "${modules[@]}"; do
