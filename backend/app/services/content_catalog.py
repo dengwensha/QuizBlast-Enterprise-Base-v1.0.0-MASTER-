@@ -5,6 +5,7 @@ The public preview deliberately excludes correct answers and explanations.
 def serialize_set(set_record, quiz, questions):
     return {
         "id": set_record.id,
+        "play_quiz_id": quiz.id,
         "slug": set_record.slug,
         "title": quiz.title,
         "description": set_record.description or "",
