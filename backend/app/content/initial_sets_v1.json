@@ -25,60 +25,60 @@
         {
           "question": "Oyuncular bir oyun odasına genellikle hangi bilgiyle katılır?",
           "options": [
-            "PIN kodu",
             "Ürün seri numarası",
+            "PIN kodu",
             "Posta kodu",
             "MAC adresi"
           ],
-          "correct": 0,
+          "correct": 1,
           "time": 20,
           "explanation": "Oda PIN'i oyuncuların doğru oyuna katılmasını sağlar."
         },
         {
           "question": "QuizBlast'ta Display ekranının temel görevi nedir?",
           "options": [
-            "Oyunu ortak ekranda göstermek",
             "Hesap parolasını değiştirmek",
             "Veritabanını silmek",
+            "Oyunu ortak ekranda göstermek",
             "Soruları dışa aktarmak"
           ],
-          "correct": 0,
+          "correct": 2,
           "time": 20,
           "explanation": ""
         },
         {
           "question": "Host bir oyunu duraklattığında ne olması beklenir?",
           "options": [
-            "Soru sayacının durması",
             "Tüm quizlerin silinmesi",
             "Yeni hesap açılması",
-            "Oyun PIN'inin değiştirilmesi"
+            "Oyun PIN'inin değiştirilmesi",
+            "Soru sayacının durması"
           ],
-          "correct": 0,
+          "correct": 3,
           "time": 20,
           "explanation": ""
         },
         {
           "question": "Hazır bir seti düzenlemek isteyen kullanıcı ne yapmalıdır?",
           "options": [
-            "Kendi quizlerine kopyalamalı",
             "Orijinali silmeli",
+            "Kendi quizlerine kopyalamalı",
             "Oyuncu PIN'ini değiştirmeli",
             "Display ekranını kapatmalı"
           ],
-          "correct": 0,
+          "correct": 1,
           "time": 20,
           "explanation": "Kopyalama, yayınlanmış orijinal seti korur."
         },
         {
           "question": "Bir sorunun isteğe bağlı açıklaması ne zaman gösterilmelidir?",
           "options": [
-            "Soru kapandıktan sonra",
             "Soru başlamadan önce",
             "Her yanlış tıklamada",
+            "Soru kapandıktan sonra",
             "Odaya girilir girilmez"
           ],
-          "correct": 0,
+          "correct": 2,
           "time": 20,
           "explanation": "Açıklama sonuç aşamasında gösterilir."
         }
@@ -107,60 +107,60 @@
         {
           "question": "Japonya'nın başkenti neresidir?",
           "options": [
-            "Tokyo",
             "Osaka",
+            "Tokyo",
             "Kyoto",
             "Nagoya"
           ],
-          "correct": 0,
+          "correct": 1,
           "time": 20,
           "explanation": ""
         },
         {
           "question": "Dünyanın en büyük okyanusu hangisidir?",
           "options": [
-            "Pasifik Okyanusu",
             "Atlas Okyanusu",
             "Hint Okyanusu",
+            "Pasifik Okyanusu",
             "Arktik Okyanusu"
           ],
-          "correct": 0,
+          "correct": 2,
           "time": 20,
           "explanation": ""
         },
         {
           "question": "Mona Lisa tablosunu kim yaptı?",
           "options": [
-            "Leonardo da Vinci",
             "Vincent van Gogh",
             "Claude Monet",
-            "Pablo Picasso"
+            "Pablo Picasso",
+            "Leonardo da Vinci"
           ],
-          "correct": 0,
+          "correct": 3,
           "time": 20,
           "explanation": ""
         },
         {
           "question": "Bir düzine kaç adettir?",
           "options": [
-            "12",
             "10",
+            "12",
             "15",
             "20"
           ],
-          "correct": 0,
+          "correct": 1,
           "time": 20,
           "explanation": ""
         },
         {
           "question": "Satrançta her oyuncu oyuna kaç taşla başlar?",
           "options": [
-            "16",
             "12",
             "18",
+            "16",
             "20"
           ],
-          "correct": 0,
+          "correct": 2,
           "time": 20,
           "explanation": ""
         }
@@ -189,60 +189,60 @@
         {
           "question": "Elektrik akımının SI birimi nedir?",
           "options": [
-            "Amper",
             "Volt",
+            "Amper",
             "Watt",
             "Ohm"
           ],
-          "correct": 0,
+          "correct": 1,
           "time": 25,
           "explanation": ""
         },
         {
           "question": "İnsan vücudunda oksijen taşınmasında görev alan hücre hangisidir?",
           "options": [
-            "Alyuvar",
             "Akyuvar",
             "Nöron",
+            "Alyuvar",
             "Kas hücresi"
           ],
-          "correct": 0,
+          "correct": 2,
           "time": 25,
           "explanation": ""
         },
         {
           "question": "Güneş Sistemi'nde Güneş'e en yakın gezegen hangisidir?",
           "options": [
-            "Merkür",
             "Venüs",
             "Dünya",
-            "Mars"
+            "Mars",
+            "Merkür"
           ],
-          "correct": 0,
+          "correct": 3,
           "time": 25,
           "explanation": ""
         },
         {
           "question": "İkili sayı sistemi hangi iki rakamı kullanır?",
           "options": [
-            "0 ve 1",
             "1 ve 2",
+            "0 ve 1",
             "0 ve 9",
             "2 ve 8"
           ],
-          "correct": 0,
+          "correct": 1,
           "time": 25,
           "explanation": ""
         },
         {
           "question": "Bir bilgisayarda RAM'in temel işlevi hangisidir?",
           "options": [
-            "Çalışan işlemler için geçici veri tutmak",
             "Görüntüyü kâğıda basmak",
             "Elektriği mekanik harekete çevirmek",
+            "Çalışan işlemler için geçici veri tutmak",
             "İnternet alan adı kaydetmek"
           ],
-          "correct": 0,
+          "correct": 2,
           "time": 25,
           "explanation": ""
         }
@@ -271,60 +271,60 @@
         {
           "question": "Kırmızı ile sarı renk karıştırıldığında hangi renk oluşur?",
           "options": [
-            "Turuncu",
             "Yeşil",
+            "Turuncu",
             "Mor",
             "Mavi"
           ],
-          "correct": 0,
+          "correct": 1,
           "time": 15,
           "explanation": ""
         },
         {
           "question": "Bir yılda kaç mevsim bulunur?",
           "options": [
-            "4",
             "3",
             "5",
+            "4",
             "6"
           ],
-          "correct": 0,
+          "correct": 2,
           "time": 15,
           "explanation": ""
         },
         {
           "question": "Standart bir zarın üzerinde en büyük sayı kaçtır?",
           "options": [
-            "6",
             "5",
             "8",
-            "10"
+            "10",
+            "6"
           ],
-          "correct": 0,
+          "correct": 3,
           "time": 15,
           "explanation": ""
         },
         {
           "question": "İstiklal Marşı'nın yazarı kimdir?",
           "options": [
-            "Mehmet Âkif Ersoy",
             "Nazım Hikmet",
+            "Mehmet Âkif Ersoy",
             "Yahya Kemal Beyatlı",
             "Orhan Veli Kanık"
           ],
-          "correct": 0,
+          "correct": 1,
           "time": 15,
           "explanation": ""
         },
         {
           "question": "Bir futbol takımında sahada kaç oyuncu bulunur?",
           "options": [
-            "11",
             "9",
             "10",
+            "11",
             "12"
           ],
-          "correct": 0,
+          "correct": 2,
           "time": 15,
           "explanation": ""
         }
