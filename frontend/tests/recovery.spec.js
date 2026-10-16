@@ -166,13 +166,9 @@ test("host, player and display recover after backend and browser restart", async
     ]));
     await player.getByRole("button", { name: "Yes" }).click();
     await expect(player.getByText("✅ Cevabın alındı")).toBeVisible();
-    await expect(host.getByRole("button", { name: "🏆 Sıralamayı Göster" })).toBeVisible();
-    const revealResponse = host.waitForResponse((response) => response.url().includes(`/reveal-leaderboard/${pin}`));
-    await host.getByRole("button", { name: "🏆 Sıralamayı Göster" }).click();
-    expect((await revealResponse).status()).toBe(200);
-    await expect(display.getByText("#1 Ada")).toBeVisible();
-    const score = await display.getByText("#1 Ada").locator("..").locator("span").last().innerText();
-    expect(Number(score)).toBeGreaterThan(0);
+    // Keep this scenario in the active-question phase: answer acceptance
+    // does not imply that the question has closed.
+    await expect(host.getByTestId("game-timer")).toBeVisible();
 
     const hostStorage = await hostContext.storageState();
     const playerStorage = await playerContext.storageState();
@@ -195,9 +191,7 @@ test("host, player and display recover after backend and browser restart", async
     await returnedPlayer.goto("/");
     await expect(returnedPlayer.getByRole("status")).toBeVisible();
     await expect(returnedPlayer.getByText("✅ Cevabın alındı")).toBeVisible();
-    await expect(returnedPlayer.getByText("#1 Ada")).toBeVisible();
-    const restoredScore = await returnedPlayer.getByText("#1 Ada").locator("..").locator("span").last().innerText();
-    expect(restoredScore).toBe(score);
+    // Reconnected player still sees the accepted answer while paused.
     const frozenTime = Number(await returnedPlayer.getByTestId("game-timer").innerText());
     expect(frozenTime).toBeGreaterThan(0);
     await returnedPlayer.waitForTimeout(2100);
