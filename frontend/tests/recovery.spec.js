@@ -166,6 +166,10 @@ test("host, player and display recover after backend and browser restart", async
     ]));
     await player.getByRole("button", { name: "Yes" }).click();
     await expect(player.getByText("✅ Cevabın alındı")).toBeVisible();
+    await expect(host.getByRole("button", { name: "🏆 Sıralamayı Göster" })).toBeVisible();
+    const revealResponse = host.waitForResponse((response) => response.url().includes(`/reveal-leaderboard/${pin}`));
+    await host.getByRole("button", { name: "🏆 Sıralamayı Göster" }).click();
+    expect((await revealResponse).status()).toBe(200);
     await expect(display.getByText("#1 Ada")).toBeVisible();
     const score = await display.getByText("#1 Ada").locator("..").locator("span").last().innerText();
     expect(Number(score)).toBeGreaterThan(0);
