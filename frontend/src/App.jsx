@@ -8,6 +8,8 @@ import PlayerGameOver from "./components/game/PlayerGameOver";
 import DisplayConnect from "./components/game/DisplayConnect";
 import JoinScreen from "./components/game/JoinScreen";
 import HostSetup from "./components/game/HostSetup";
+import ContentLibrary from "./components/content/ContentLibrary";
+import { copyContentSet } from "./services/contentService";
 import QuestionGame from "./components/game/QuestionGame";
 import PlayerLobbyStage from "./components/game/PlayerLobbyStage";
 import "./components/layout/home-screen.css";
@@ -267,6 +269,23 @@ export default function App() {
   setRoomPin(d.room_pin);
   connectWebsocket(d.room_pin, "HOST", user.token);
 };
+  const playPublishedSet = async (set) => {
+    if (!user?.token) throw new Error("Oyun başlatmak için giriş yapmalısın.");
+    if (!set.play_quiz_id) throw new Error("Setin oynatma bilgisi bulunamadı.");
+    const result = await createRoomRequest(set.play_quiz_id, user.token);
+    if (!result.room_pin) throw new Error(result.detail || result.error || "Oda oluşturulamadı.");
+    setRoomPin(result.room_pin);
+    navigateMode("host");
+    connectWebsocket(result.room_pin, "HOST", user.token);
+  };
+  const copyPublishedSet = async (set) => {
+    const created = await copyContentSet(user, set.id);
+    if (!created.id) throw new Error("Kopya oluşturulamadı.");
+    setSelectedQuizId(String(created.id));
+    await loadQuizzes();
+    await loadSelectedQuestions(String(created.id));
+    navigateMode("admin");
+  };
   const returnToRoom = (room) => {
     setRoomPin(room.pin);
     connectWebsocket(room.pin, 'HOST', user.token, room.instance_id);
@@ -332,7 +351,8 @@ export default function App() {
 
   // Guest access is restricted to player mode; never bypass Host/Admin authentication.
   if(!user && mode !== 'player') return <div style={styles.splash}><div style={styles.joinCard}><h1>QuizBlast 🚀</h1><h2>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</h2><input placeholder="E-posta" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={styles.input}/><input placeholder="Şifre" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={styles.input}/><button onClick={authMode==='login'?login:register} style={styles.joinButton}>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</button><button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} style={{...styles.joinButton,marginTop:10,background:'var(--qb-navy-900)'}}>{authMode==='login'?'Hesap oluştur':'Giriş ekranına dön'}</button></div></div>;
-  if(!mode) return <main className="qb-home"><div className="qb-home__shell"><header className="qb-home__header"><h1 className="qb-home__brand">QuizBlast 🚀</h1><p className="qb-home__subtitle">Multiplayer Quiz Platform</p><span className="qb-home__account">{user.email}</span></header><nav className="qb-home__grid" aria-label="QuizBlast ana menü"><button className="qb-home__action" onClick={()=>{navigateMode('host');loadQuizzes();}}>🎤 Host Game</button><button className="qb-home__action" onClick={()=>navigateMode('player')}>🎮 Join Game</button><button className="qb-home__action" onClick={()=>navigateMode('display')}>📺 Display Screen</button><button className="qb-home__action" onClick={()=>{navigateMode('admin');loadQuizzes();}}>🧠 Admin Panel</button></nav><button className="qb-home__logout" onClick={logout}>Çıkış Yap</button></div></main>;
+  if(!mode) return <main className="qb-home"><div className="qb-home__shell"><header className="qb-home__header"><h1 className="qb-home__brand">QuizBlast 🚀</h1><p className="qb-home__subtitle">Multiplayer Quiz Platform</p><span className="qb-home__account">{user.email}</span></header><nav className="qb-home__grid" aria-label="QuizBlast ana menü"><button className="qb-home__action" onClick={()=>{navigateMode('host');loadQuizzes();}}>🎤 Host Game</button><button className="qb-home__action" onClick={()=>navigateMode('player')}>🎮 Join Game</button><button className="qb-home__action" onClick={()=>navigateMode('display')}>📺 Display Screen</button><button className="qb-home__action" onClick={()=>{navigateMode('admin');loadQuizzes();}}>🧠 Admin Panel</button><button className="qb-home__action" onClick={()=>navigateMode('content')}>📚 Hazır Soru Setleri</button></nav><button className="qb-home__logout" onClick={logout}>Çıkış Yap</button></div></main>;
+  if(mode==='content') return <ContentLibrary onBack={()=>navigateMode(null)} onPlay={playPublishedSet} onCopy={copyPublishedSet} />;
   if(mode==='admin') return <AdminView styles={styles} admin={admin} {...{quizzes,selectedQuizId,setSelectedQuizId,selectedQuestions,importExcel,commitImport,importPreview,importing,importSummary,setMode:navigateMode}} />;
   if(restoringSession && !joined && hasActiveSession()) return <div style={styles.splash}><div style={styles.center}><h2>Odaya yeniden bağlanılıyor...</h2><button onClick={leaveGame} style={styles.mainButton}>Oyundan Çık</button></div></div>;
   if(reconnecting) return <div style={styles.splash}><div style={styles.center}><h2>Odaya yeniden bağlanılıyor...</h2><button onClick={leaveGame} style={styles.mainButton}>Oyundan Çık</button></div></div>;
