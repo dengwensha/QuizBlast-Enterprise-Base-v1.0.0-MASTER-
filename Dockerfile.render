@@ -16,7 +16,7 @@ COPY backend/requirements.txt ./requirements.txt
 RUN python -m pip install --no-cache-dir -r requirements.txt
 COPY backend/app ./app
 COPY --from=frontend-build /frontend/dist /usr/share/nginx/html
-COPY deploy/render/nginx.conf.template /etc/nginx/quizblast.conf.template
+COPY frontend/nginx.conf /etc/nginx/quizblast.conf.template
 COPY deploy/render/start.py /app/render_start.py
 EXPOSE 10000
 CMD ["python", "/app/render_start.py"]
