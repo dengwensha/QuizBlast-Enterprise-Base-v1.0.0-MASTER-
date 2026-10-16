@@ -107,6 +107,7 @@ jobs:
             app.tests.test_content_catalog_manual
             app.tests.test_content_copy_manual
             app.tests.test_content_play_manual
+            app.tests.test_content_seed_manual
           )
 
           for module in "${modules[@]}"; do
