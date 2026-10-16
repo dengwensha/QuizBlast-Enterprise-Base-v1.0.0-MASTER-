@@ -1,0 +1,334 @@
+{
+  "collection_version": 1,
+  "language": "tr",
+  "sets": [
+    {
+      "slug": "quizblasti-tani",
+      "title": "QuizBlast'ı Tanı",
+      "topic": "QuizBlast",
+      "audience": "Yeni kullanıcılar",
+      "difficulty": "Kolay",
+      "description": "QuizBlast oyun akışını ve temel rollerini öğren.",
+      "questions": [
+        {
+          "question": "QuizBlast'ta oyun oturumunu kim yönetir?",
+          "options": [
+            "Host",
+            "Display",
+            "Oyuncu",
+            "İzleyici"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": "Host oyun oturumunu yönetir."
+        },
+        {
+          "question": "Oyuncular bir oyun odasına genellikle hangi bilgiyle katılır?",
+          "options": [
+            "PIN kodu",
+            "Ürün seri numarası",
+            "Posta kodu",
+            "MAC adresi"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": "Oda PIN'i oyuncuların doğru oyuna katılmasını sağlar."
+        },
+        {
+          "question": "QuizBlast'ta Display ekranının temel görevi nedir?",
+          "options": [
+            "Oyunu ortak ekranda göstermek",
+            "Hesap parolasını değiştirmek",
+            "Veritabanını silmek",
+            "Soruları dışa aktarmak"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": ""
+        },
+        {
+          "question": "Host bir oyunu duraklattığında ne olması beklenir?",
+          "options": [
+            "Soru sayacının durması",
+            "Tüm quizlerin silinmesi",
+            "Yeni hesap açılması",
+            "Oyun PIN'inin değiştirilmesi"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": ""
+        },
+        {
+          "question": "Hazır bir seti düzenlemek isteyen kullanıcı ne yapmalıdır?",
+          "options": [
+            "Kendi quizlerine kopyalamalı",
+            "Orijinali silmeli",
+            "Oyuncu PIN'ini değiştirmeli",
+            "Display ekranını kapatmalı"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": "Kopyalama, yayınlanmış orijinal seti korur."
+        },
+        {
+          "question": "Bir sorunun isteğe bağlı açıklaması ne zaman gösterilmelidir?",
+          "options": [
+            "Soru kapandıktan sonra",
+            "Soru başlamadan önce",
+            "Her yanlış tıklamada",
+            "Odaya girilir girilmez"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": "Açıklama sonuç aşamasında gösterilir."
+        }
+      ]
+    },
+    {
+      "slug": "genel-kultur-baslangic",
+      "title": "Genel Kültür",
+      "topic": "Genel Kültür",
+      "audience": "Genel kullanıcılar",
+      "difficulty": "Karışık",
+      "description": "Coğrafya, tarih, sanat ve günlük yaşamdan başlangıç soruları.",
+      "questions": [
+        {
+          "question": "Türkiye Cumhuriyeti hangi yılda ilan edildi?",
+          "options": [
+            "1923",
+            "1919",
+            "1938",
+            "1950"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": "Cumhuriyet 29 Ekim 1923'te ilan edildi."
+        },
+        {
+          "question": "Japonya'nın başkenti neresidir?",
+          "options": [
+            "Tokyo",
+            "Osaka",
+            "Kyoto",
+            "Nagoya"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": ""
+        },
+        {
+          "question": "Dünyanın en büyük okyanusu hangisidir?",
+          "options": [
+            "Pasifik Okyanusu",
+            "Atlas Okyanusu",
+            "Hint Okyanusu",
+            "Arktik Okyanusu"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": ""
+        },
+        {
+          "question": "Mona Lisa tablosunu kim yaptı?",
+          "options": [
+            "Leonardo da Vinci",
+            "Vincent van Gogh",
+            "Claude Monet",
+            "Pablo Picasso"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": ""
+        },
+        {
+          "question": "Bir düzine kaç adettir?",
+          "options": [
+            "12",
+            "10",
+            "15",
+            "20"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": ""
+        },
+        {
+          "question": "Satrançta her oyuncu oyuna kaç taşla başlar?",
+          "options": [
+            "16",
+            "12",
+            "18",
+            "20"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": ""
+        }
+      ]
+    },
+    {
+      "slug": "bilim-teknoloji-baslangic",
+      "title": "Bilim ve Teknoloji",
+      "topic": "Bilim ve Teknoloji",
+      "audience": "Öğrenciler ve meraklılar",
+      "difficulty": "Orta",
+      "description": "Bilimin ve dijital teknolojinin temel kavramlarını keşfet.",
+      "questions": [
+        {
+          "question": "Su, standart atmosfer basıncında yaklaşık kaç derecede kaynar?",
+          "options": [
+            "100 °C",
+            "50 °C",
+            "75 °C",
+            "150 °C"
+          ],
+          "correct": 0,
+          "time": 25,
+          "explanation": "Standart atmosfer basıncında suyun kaynama noktası yaklaşık 100 °C'dir."
+        },
+        {
+          "question": "Elektrik akımının SI birimi nedir?",
+          "options": [
+            "Amper",
+            "Volt",
+            "Watt",
+            "Ohm"
+          ],
+          "correct": 0,
+          "time": 25,
+          "explanation": ""
+        },
+        {
+          "question": "İnsan vücudunda oksijen taşınmasında görev alan hücre hangisidir?",
+          "options": [
+            "Alyuvar",
+            "Akyuvar",
+            "Nöron",
+            "Kas hücresi"
+          ],
+          "correct": 0,
+          "time": 25,
+          "explanation": ""
+        },
+        {
+          "question": "Güneş Sistemi'nde Güneş'e en yakın gezegen hangisidir?",
+          "options": [
+            "Merkür",
+            "Venüs",
+            "Dünya",
+            "Mars"
+          ],
+          "correct": 0,
+          "time": 25,
+          "explanation": ""
+        },
+        {
+          "question": "İkili sayı sistemi hangi iki rakamı kullanır?",
+          "options": [
+            "0 ve 1",
+            "1 ve 2",
+            "0 ve 9",
+            "2 ve 8"
+          ],
+          "correct": 0,
+          "time": 25,
+          "explanation": ""
+        },
+        {
+          "question": "Bir bilgisayarda RAM'in temel işlevi hangisidir?",
+          "options": [
+            "Çalışan işlemler için geçici veri tutmak",
+            "Görüntüyü kâğıda basmak",
+            "Elektriği mekanik harekete çevirmek",
+            "İnternet alan adı kaydetmek"
+          ],
+          "correct": 0,
+          "time": 25,
+          "explanation": ""
+        }
+      ]
+    },
+    {
+      "slug": "takim-isinma",
+      "title": "Takım Isınma",
+      "topic": "Takım Etkinliği",
+      "audience": "Ekipler",
+      "difficulty": "Kolay",
+      "description": "Toplantı ve etkinliklerde ortak başlangıç için hafif sorular.",
+      "questions": [
+        {
+          "question": "Bir haftada kaç gün vardır?",
+          "options": [
+            "7",
+            "5",
+            "8",
+            "10"
+          ],
+          "correct": 0,
+          "time": 15,
+          "explanation": ""
+        },
+        {
+          "question": "Kırmızı ile sarı renk karıştırıldığında hangi renk oluşur?",
+          "options": [
+            "Turuncu",
+            "Yeşil",
+            "Mor",
+            "Mavi"
+          ],
+          "correct": 0,
+          "time": 15,
+          "explanation": ""
+        },
+        {
+          "question": "Bir yılda kaç mevsim bulunur?",
+          "options": [
+            "4",
+            "3",
+            "5",
+            "6"
+          ],
+          "correct": 0,
+          "time": 15,
+          "explanation": ""
+        },
+        {
+          "question": "Standart bir zarın üzerinde en büyük sayı kaçtır?",
+          "options": [
+            "6",
+            "5",
+            "8",
+            "10"
+          ],
+          "correct": 0,
+          "time": 15,
+          "explanation": ""
+        },
+        {
+          "question": "İstiklal Marşı'nın yazarı kimdir?",
+          "options": [
+            "Mehmet Âkif Ersoy",
+            "Nazım Hikmet",
+            "Yahya Kemal Beyatlı",
+            "Orhan Veli Kanık"
+          ],
+          "correct": 0,
+          "time": 15,
+          "explanation": ""
+        },
+        {
+          "question": "Bir futbol takımında sahada kaç oyuncu bulunur?",
+          "options": [
+            "11",
+            "9",
+            "10",
+            "12"
+          ],
+          "correct": 0,
+          "time": 15,
+          "explanation": ""
+        }
+      ]
+    }
+  ]
+}
