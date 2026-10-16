@@ -11,6 +11,7 @@ from contextlib import contextmanager, suppress
 import os, random, asyncio, time, uuid
 from app.services.excel_reader import read_excel_rows_from_bytes
 from app.services.import_pipeline import run_qbds_import_pipeline, build_pipeline_user_message
+from app.services.content_catalog import serialize_set, serialize_preview_question
 from app.services.host_authorization import (
     require_authenticated_email,
     require_room_host,
@@ -72,6 +73,19 @@ class Question(Base):
     correct=Column(Integer, nullable=False)
     time=Column(Integer, default=15)
     quiz=relationship('Quiz', back_populates='questions')
+
+
+class PublishedQuizSet(Base):
+    __tablename__ = 'published_quiz_sets'
+    id = Column(Integer, primary_key=True)
+    quiz_id = Column(Integer, ForeignKey('quizzes.id'), nullable=False, unique=True)
+    slug = Column(String, unique=True, nullable=False)
+    description = Column(String, nullable=True)
+    topic = Column(String, nullable=False)
+    audience = Column(String, nullable=False)
+    difficulty = Column(String, nullable=False)
+    version = Column(Integer, nullable=False, default=1)
+    is_published = Column(Integer, nullable=False, default=0)
 
 
 class ImportHistory(Base):
@@ -317,6 +331,60 @@ def login_user(data: UserLogin, request: Request):
             return {'error':'invalid_credentials'}
         token=create_access_token({'sub':user.email,'user_id':user.id})
         return {'access_token':token,'token_type':'bearer','email':user.email}
+
+def _published_catalog_query(db):
+    return db.query(PublishedQuizSet, Quiz).join(
+        Quiz, Quiz.id == PublishedQuizSet.quiz_id
+    ).filter(
+        PublishedQuizSet.is_published == 1,
+        Quiz.owner_email.is_(None),
+    )
+
+
+def _catalog_response(db, record, quiz):
+    questions = db.query(Question).filter(
+        Question.quiz_id == quiz.id
+    ).order_by(Question.id).all()
+    return serialize_set(record, quiz, questions), questions
+
+
+@app.get('/content/sets')
+def list_published_content_sets():
+    with db_session() as db:
+        rows = _published_catalog_query(db).order_by(
+            PublishedQuizSet.id
+        ).all()
+        return [_catalog_response(db, record, quiz)[0] for record, quiz in rows]
+
+
+@app.get('/content/sets/{set_id}')
+def get_published_content_set(set_id: int):
+    with db_session() as db:
+        row = _published_catalog_query(db).filter(
+            PublishedQuizSet.id == set_id
+        ).first()
+        if row is None:
+            raise HTTPException(status_code=404, detail='content_set_not_found')
+        record, quiz = row
+        metadata, _ = _catalog_response(db, record, quiz)
+        return metadata
+
+
+@app.get('/content/sets/{set_id}/preview')
+def preview_published_content_set(set_id: int):
+    with db_session() as db:
+        row = _published_catalog_query(db).filter(
+            PublishedQuizSet.id == set_id
+        ).first()
+        if row is None:
+            raise HTTPException(status_code=404, detail='content_set_not_found')
+        record, quiz = row
+        metadata, questions = _catalog_response(db, record, quiz)
+        return {
+            **metadata,
+            'questions': [serialize_preview_question(q) for q in questions],
+        }
+
 
 @app.get('/quizzes')
 def get_quizzes(authorization: str | None = Header(default=None)):
