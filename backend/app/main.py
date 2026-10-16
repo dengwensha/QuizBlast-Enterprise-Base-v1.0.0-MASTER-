@@ -2,7 +2,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime, inspect, text
+from sqlalchemy import create_engine, Column, Integer, Boolean, String, ForeignKey, DateTime, inspect, text
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from passlib.context import CryptContext
 from jose import jwt
@@ -85,7 +85,7 @@ class PublishedQuizSet(Base):
     audience = Column(String, nullable=False)
     difficulty = Column(String, nullable=False)
     version = Column(Integer, nullable=False, default=1)
-    is_published = Column(Integer, nullable=False, default=0)
+    is_published = Column(Boolean, nullable=False, default=False)
 
 
 class ImportHistory(Base):
@@ -336,7 +336,7 @@ def _published_catalog_query(db):
     return db.query(PublishedQuizSet, Quiz).join(
         Quiz, Quiz.id == PublishedQuizSet.quiz_id
     ).filter(
-        PublishedQuizSet.is_published == 1,
+        PublishedQuizSet.is_published.is_(True),
         Quiz.owner_email.is_(None),
     )
 
