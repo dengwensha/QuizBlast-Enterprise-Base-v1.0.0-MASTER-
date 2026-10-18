@@ -2,7 +2,17 @@
 
 The public preview deliberately excludes correct answers and explanations.
 """
+from app.services.content_taxonomy import classify_catalog_set
+
+
 def serialize_set(set_record, quiz, questions):
+    classification = classify_catalog_set(
+        getattr(set_record, "collection", None),
+        stage=getattr(set_record, "stage", None),
+        grade=getattr(set_record, "grade", None),
+        subject=getattr(set_record, "subject", None),
+        topic=getattr(set_record, "school_topic", None),
+    )
     return {
         "id": set_record.id,
         "play_quiz_id": quiz.id,
@@ -13,6 +23,11 @@ def serialize_set(set_record, quiz, questions):
         "audience": set_record.audience,
         "difficulty": set_record.difficulty,
         "version": set_record.version,
+        "collection": classification.collection,
+        "stage": classification.stage,
+        "grade": classification.grade,
+        "subject": classification.subject,
+        "school_topic": classification.topic,
         "question_count": len(questions),
         "estimated_duration_seconds": sum(q.time for q in questions),
     }
