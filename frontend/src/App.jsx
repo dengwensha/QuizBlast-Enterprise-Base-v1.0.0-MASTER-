@@ -102,6 +102,7 @@ export default function App() {
     players,
     question,
     questionImage,
+    questionImageAlt,
     options,
     leaderboard,
     currentQuestionIndex,
@@ -455,6 +456,7 @@ return (
         <QuestionGame
           question={question}
           questionImage={questionImage}
+          questionImageAlt={questionImageAlt}
           timeLeft={timeLeft}
           answerCount={answerCount}
           totalPlayers={totalPlayers}
