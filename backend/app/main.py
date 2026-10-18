@@ -1232,6 +1232,8 @@ async def send_current_state(websocket,room_pin,player_name):
                 'image_url':q.get('image_url'),'image_alt_text':q.get('image_alt_text'),'options':q['options'],'index':idx,
                 'question_count':len(questions),
                 'time':time_left if phase=='question' else 0,
+                'deadline_epoch':deadline if phase=='question' else None,
+                'server_time_epoch':time.time(),
                 'paused':phase=='question' and deadline is None,
                 'answered':player_name in answered_players[room_pin]})
         await websocket.send_json({'type':'answer_count',
@@ -1293,7 +1295,7 @@ async def send_question(room_pin):
     remaining_seconds[room_pin]=question_time
     question_deadline[room_pin]=question_start_time[room_pin]+question_time
     save_game(room_pin)
-    await safe_broadcast_json(room_pin, {'type':'question','question':q['question'],'image_url':q.get('image_url'),'image_alt_text':q.get('image_alt_text'),'options':q['options'],'index':idx,'question_count':len(questions),'time':q['time']})
+    await safe_broadcast_json(room_pin, {'type':'question','question':q['question'],'image_url':q.get('image_url'),'image_alt_text':q.get('image_alt_text'),'options':q['options'],'index':idx,'question_count':len(questions),'time':q['time'],'deadline_epoch':question_deadline[room_pin],'server_time_epoch':time.time()})
 
 async def safe_broadcast_json(room_pin, payload):
     await send_to_room(rooms, room_pin, payload)
