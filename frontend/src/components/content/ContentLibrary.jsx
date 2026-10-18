@@ -191,7 +191,7 @@ export default function ContentLibrary({ onBack, onPlay, onCopy }) {
             <ol className="qb-library__questions">
               {(preview.questions || []).map((q, index) =>
                 <li key={index}><strong>{q.question}</strong>
-                  <QuestionImage src={q.image_url} />
+                  <QuestionImage src={q.image_url} alt={q.image_alt_text} />
                   <ol type="A">{q.options.map((option, i) => <li key={i}>{option}</li>)}</ol>
                   <small>{q.time} saniye</small>
                 </li>
