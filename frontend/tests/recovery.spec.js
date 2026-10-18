@@ -607,3 +607,62 @@ test("QB-AUTH-GUEST-01 anonymous PIN join completes game without registration", 
     await hostContext.close();
   }
 });
+
+test("QB-AUTH-DISPLAY-01 anonymous Display connects without host controls", async ({ browser, request }) => {
+  test.setTimeout(90_000);
+  const email = `anon-display-host-${Date.now()}@example.com`;
+  await post(request, "/auth/register", { email, password: "integration-password" });
+  const login = await post(request, "/auth/login", { email, password: "integration-password" });
+  const quiz = await post(request, "/quizzes", { title: "Anonymous Display acceptance" }, login.access_token);
+  await post(request, `/quizzes/${quiz.id}/questions`, {
+    question: "Does anonymous Display show questions?",
+    options: ["Yes", "No", "Maybe", "Later"], correct: 0, time: 45,
+  }, login.access_token);
+  const { room_pin: pin } = await post(request, `/create-room/${quiz.id}`, {}, login.access_token);
+  const hostContext = await authenticatedContext(browser, { email, token: login.access_token });
+  const playerContext = await browser.newContext({ baseURL: frontendUrl });
+  const displayContext = await browser.newContext({ baseURL: frontendUrl });
+  try {
+    const host = await hostContext.newPage();
+    await host.goto("/");
+    await host.getByRole("button", { name: "🎤 Host Game" }).click();
+    await host.getByRole("button", { name: "Odaya Dön" }).click();
+    await expect(host.getByText(`PIN: ${pin}`, { exact: false })).toBeVisible();
+
+    const display = await displayContext.newPage();
+    await display.goto("/");
+    await expect(display.getByPlaceholder("E-posta")).toBeVisible();
+    await display.getByRole("button", { name: "📺 Üyeliksiz Display Bağlan" }).click();
+    await display.getByPlaceholder("Room PIN").fill(pin);
+    await display.getByRole("button", { name: "Connect Display" }).click();
+    await expect(display.getByRole("button", { name: "Oyundan Çık" })).toBeVisible();
+    await expect(display.getByText(`PIN: ${pin}`, { exact: false })).toBeVisible();
+    await expect(display.getByRole("button", { name: "▶ Oyunu Başlat" })).toHaveCount(0);
+    await expect(display.getByRole("button", { name: "Odayı Kapat" })).toHaveCount(0);
+    expect(await display.evaluate(() => localStorage.getItem("quizblast_user"))).toBeNull();
+
+    const player = await playerContext.newPage();
+    await player.goto(`/?pin=${pin}`);
+    await player.getByPlaceholder("Name").fill("DisplayWitness");
+    await player.getByRole("button", { name: "Join", exact: true }).click();
+    await expect(host.getByText("👤 DisplayWitness", { exact: true })).toBeVisible();
+    const started = await request.post(`${apiUrl}/start-game/${pin}`, {
+      data: {}, headers: { Authorization: `Bearer ${login.access_token}` },
+    });
+    expect(started.ok(), await started.text()).toBeTruthy();
+    expect(await started.json()).toEqual({ status: "started" });
+    await expect(display.getByText("Does anonymous Display show questions?")).toBeVisible({ timeout: 10_000 });
+    await expect(display.getByRole("button", { name: "Oyunu Sonlandır" })).toHaveCount(0);
+    const unauthorized = await request.post(`${apiUrl}/pause-game/${pin}`, { data: {} });
+    expect(unauthorized.status()).toBe(401);
+
+    await display.reload();
+    await expect(display.getByText("Does anonymous Display show questions?")).toBeVisible({ timeout: 10_000 });
+    await display.getByRole("button", { name: "Oyundan Çık" }).click();
+    await expect(display.getByPlaceholder("E-posta")).toBeVisible();
+  } finally {
+    await displayContext.close();
+    await playerContext.close();
+    await hostContext.close();
+  }
+});
