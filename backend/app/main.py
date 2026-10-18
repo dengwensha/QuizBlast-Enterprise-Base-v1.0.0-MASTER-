@@ -1113,7 +1113,7 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
                         if p['name'].strip().casefold()!='display']
         for old_socket in old_displays:
             try:
-                await old_socket.close()
+                await old_socket.close(code=4001, reason='display_replaced')
             except Exception:
                 pass
     player_token=None
