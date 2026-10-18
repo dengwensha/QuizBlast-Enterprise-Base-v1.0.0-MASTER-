@@ -80,6 +80,7 @@ def publish_initial_sets(db, data, Quiz, Question, PublishedQuizSet):
             db.add(Question(
                 quiz_id=quiz.id, question=question["question"],
                 image_url=question.get("image_url"),
+                image_alt_text=question.get("image_alt_text"),
                 explanation=question.get("explanation") or None,
                 option1=question["options"][0],
                 option2=question["options"][1],
