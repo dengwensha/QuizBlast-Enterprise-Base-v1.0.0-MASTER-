@@ -3,14 +3,16 @@ import { fetchContentSets, fetchContentSetPreview } from "../../services/content
 import "./content-library.css";
 
 const COLLECTIONS = [
-  { name: "QuizBlast'ı Tanı", icon: "🚀" },
-  { name: "Genel Kültür", icon: "▣" },
-  { name: "Bilim ve Teknoloji", icon: "⚗" },
-  { name: "Takım Isınma", icon: "♧" },
+  { id: "education", name: "Eğitim Quizleri", icon: "🎓", description: "İlkokul ve ortaokul dersleri, sınıf ve konu bazlı quizler." },
+  { id: "general_event", name: "Genel & Etkinlik Quizleri", icon: "🎉", description: "Genel kültür, bilim, eğlence ve takım etkinlikleri." },
 ];
+
+// Older published sets predate the collection field and belong to general events.
+const collectionOf = set => set.collection || "general_event";
 
 export default function ContentLibrary({ onBack, onPlay, onCopy }) {
   const [sets, setSets] = useState([]);
+  const [collection, setCollection] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState(null);
@@ -62,6 +64,7 @@ export default function ContentLibrary({ onBack, onPlay, onCopy }) {
     }
   };
 
+  const visibleSets = sets.filter(set => collectionOf(set) === collection);
   const displayMinutes = (seconds) => Math.max(1, Math.ceil((seconds || 0) / 60));
 
   return (
@@ -75,21 +78,36 @@ export default function ContentLibrary({ onBack, onPlay, onCopy }) {
           </div>
           <button type="button" className="qb-library__back" onClick={onBack}><span aria-hidden="true">⌂</span> Ana Menü</button>
         </header>
-        <div className="qb-library__collections" aria-label="İlk koleksiyon başlıkları">
-          {COLLECTIONS.map((item, index) => <span key={item.name} className={`qb-library__collection${index === 0 ? " qb-library__collection--featured" : ""}`}><span aria-hidden="true" className="qb-library__collection-icon">{item.icon}</span>{item.name}</span>)}
-        </div>
-        {error && <div role="alert" className="qb-library__alert">{error} <button onClick={loadSets}>Tekrar Dene</button></div>}
-        {loading && <p role="status">Hazır setler yükleniyor...</p>}
-        {!loading && !error && sets.length === 0 && (
-          <div className="qb-library__empty">
-            <div className="qb-library__empty-art" aria-hidden="true"><span className="qb-library__empty-card qb-library__empty-card--rear" /><span className="qb-library__empty-card qb-library__empty-card--middle" /><span className="qb-library__empty-card qb-library__empty-card--front">?</span></div>
-            <h2>İlk koleksiyon hazırlanıyor</h2>
-            <p>Henüz yayınlanmış set yok. Dört koleksiyonun soruları içerik aşamasında eklenecek.</p>
+        {selectedId === null && collection === null && (
+          <div className="qb-library__category-grid" aria-label="Quiz kategorileri">
+            {COLLECTIONS.map(item => (
+              <button type="button" key={item.id} className="qb-library__category" onClick={() => setCollection(item.id)}>
+                <span aria-hidden="true" className="qb-library__category-icon">{item.icon}</span>
+                <span className="qb-library__category-title">{item.name}</span>
+                <span className="qb-library__category-description">{item.description}</span>
+                <span className="qb-library__category-count">{sets.filter(set => collectionOf(set) === item.id).length} hazır quiz →</span>
+              </button>
+            ))}
           </div>
         )}
-        {!loading && !error && !selectedId && sets.length > 0 && (
+        {selectedId === null && collection !== null && (
+          <div className="qb-library__category-heading">
+            <button type="button" className="qb-library__back" onClick={() => setCollection(null)}>← Kategoriler</button>
+            <h2>{COLLECTIONS.find(item => item.id === collection)?.name}</h2>
+          </div>
+        )}
+        {error && <div role="alert" className="qb-library__alert">{error} <button onClick={loadSets}>Tekrar Dene</button></div>}
+        {loading && <p role="status">Hazır setler yükleniyor...</p>}
+        {!loading && !error && collection !== null && selectedId === null && visibleSets.length === 0 && (
+          <div className="qb-library__empty">
+            <div className="qb-library__empty-art" aria-hidden="true"><span className="qb-library__empty-card qb-library__empty-card--rear" /><span className="qb-library__empty-card qb-library__empty-card--middle" /><span className="qb-library__empty-card qb-library__empty-card--front">?</span></div>
+            <h2>Bu kategoride henüz hazır quiz yok</h2>
+            <p>Yeni içerikler yayınlandığında burada görünecek.</p>
+          </div>
+        )}
+        {!loading && !error && selectedId === null && collection !== null && visibleSets.length > 0 && (
           <div className="qb-library__grid">
-            {sets.map(set => <article className="qb-library__card" key={set.id}>
+            {visibleSets.map(set => <article className="qb-library__card" key={set.id}>
               <span className="qb-library__topic">{set.topic}</span>
               <h2>{set.title}</h2>
               <p>{set.description}</p>
@@ -102,7 +120,7 @@ export default function ContentLibrary({ onBack, onPlay, onCopy }) {
           </div>
         )}
         {selectedId !== null && !loading && <section className="qb-library__details">
-          <button type="button" className="qb-library__back" onClick={() => {setSelectedId(null);setPreview(null);setFeedback("");}}>← Tüm Setler</button>
+          <button type="button" className="qb-library__back" onClick={() => {setSelectedId(null);setPreview(null);setFeedback("");}}>← Bu Kategorideki Setler</button>
           {previewLoading && <p role="status">Sorular yükleniyor...</p>}
           {preview && !previewLoading && <>
             <h2>{preview.title}</h2>
