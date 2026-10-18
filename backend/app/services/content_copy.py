@@ -10,6 +10,7 @@ def clone_question(source, quiz_id, Question):
         quiz_id=quiz_id,
         question=source.question,
         image_url=source.image_url,
+        image_alt_text=getattr(source, "image_alt_text", None),
         explanation=source.explanation,
         option1=source.option1,
         option2=source.option2,
