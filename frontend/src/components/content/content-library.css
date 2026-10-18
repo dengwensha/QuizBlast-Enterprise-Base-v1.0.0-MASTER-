@@ -33,12 +33,7 @@
 
 
 /* QB-UI Ready Quizzes — approved light-blue catalog visual refinement */
-.qb-library{
-  background:
-    radial-gradient(ellipse 42% 40% at 94% 3%, rgba(180,215,255,.44),transparent 90%),
-    radial-gradient(ellipse 42% 42% at 12% 95%,rgba(220,240,255,.55),transparent 100%),
-    linear-gradient(130deg,#f7fbff 0%,#edf6ff 48%,#f7fbff 100%);
-}
+.qb-library{background:var(--qb-page-background)}
 .qb-library__shell{width:min(1240px,100%)}
 .qb-library__header{margin-bottom:30px;gap:28px}
 .qb-library__eyebrow{font-size:12px;letter-spacing:.22em;color:#1769c7}
@@ -58,7 +53,7 @@
 .qb-library__empty-card--rear{transform:translate(25px,7px) rotate(13deg);opacity:.6}
 .qb-library__empty-card--middle{transform:translate(14px,3px) rotate(6deg);background:#92c4ff}
 .qb-library__empty-card--front{display:flex;align-items:center;justify-content:center;background:white;color:#1575e7;font-size:69px;font-weight:800;transform:rotate(-2deg)}
-.qb-library__card,.qb-library__details{border-color:#d2e5fb;box-shadow:0 8px 24px rgba(35,90,156,.08)}
+.qb-library__card,.qb-library__details{border-color:var(--qb-card-outline);box-shadow:var(--qb-card-shadow)}
 @media(max-width:620px){
   .qb-library{padding:24px 15px 36px}
   .qb-library__header{gap:19px}
@@ -71,7 +66,7 @@
 
 /* QB-CATALOG-02A.2: two accessible catalog entry paths */
 .qb-library__category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin:22px 0 32px}
-.qb-library__category{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:13px;padding:30px;border:1px solid #c9dff7;border-radius:var(--qb-radius-xl);background:var(--qb-surface);box-shadow:0 8px 24px rgba(35,90,156,.08);color:var(--qb-navy-900);min-height:225px}
+.qb-library__category{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:13px;padding:30px;border:1px solid var(--qb-card-outline);border-radius:var(--qb-radius-xl);background:var(--qb-surface);box-shadow:var(--qb-card-shadow);color:var(--qb-navy-900);min-height:225px}
 .qb-library__category:hover{border-color:var(--qb-primary-600);box-shadow:0 12px 28px rgba(35,90,156,.14)}
 .qb-library__category-icon{font-size:36px;line-height:1}
 .qb-library__category-title{font-size:clamp(20px,2.3vw,28px);font-weight:800}
