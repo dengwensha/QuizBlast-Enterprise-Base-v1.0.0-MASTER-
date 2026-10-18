@@ -1,3 +1,4 @@
+import QuestionImage from "../common/QuestionImage";
 import React from "react";
 
 import ResultReveal from "./ResultReveal";
@@ -29,13 +30,7 @@ export default function HostLiveStage({
       <div style={styles.liveQuestionCard}>
         <div style={styles.liveQuestionText}>{question}</div>
 
-        {questionImage && (
-          <img
-            src={questionImage}
-            alt="Soru görseli"
-            style={styles.liveQuestionImage}
-          />
-        )}
+        <QuestionImage src={questionImage} style={styles.liveQuestionImage} />
 
         <div
           data-testid="game-timer"
