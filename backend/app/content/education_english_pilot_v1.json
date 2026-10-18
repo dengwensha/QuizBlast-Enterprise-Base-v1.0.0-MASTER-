@@ -1,0 +1,276 @@
+{
+  "collection_version": 2,
+  "language": "tr",
+  "sets": [
+    {
+      "slug": "ilkokul-3-ingilizce-renkler-sayilar",
+      "title": "Temel İngilizce — Renkler ve Sayılar",
+      "description": "Temel İngilizce renk ve sayı sözcüklerini tanıma.",
+      "topic": "İngilizce",
+      "audience": "3. sınıf öğrencileri",
+      "difficulty": "Kolay",
+      "collection": "education",
+      "stage": "primary",
+      "grade": 3,
+      "subject": "İngilizce",
+      "school_topic": "Renkler ve Sayılar",
+      "questions": [
+        {
+          "question": "İngilizcede 'kırmızı' hangi kelimedir?",
+          "options": [
+            "Red",
+            "Blue",
+            "Green",
+            "Yellow"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": "Red, kırmızı demektir."
+        },
+        {
+          "question": "'Seven' sayısının Türkçe karşılığı kaçtır?",
+          "options": [
+            "6",
+            "7",
+            "8",
+            "9"
+          ],
+          "correct": 1,
+          "time": 20,
+          "explanation": "Seven, 7 demektir."
+        },
+        {
+          "question": "İngilizcede 'mavi' hangi sözcüktür?",
+          "options": [
+            "Pink",
+            "Brown",
+            "Blue",
+            "Black"
+          ],
+          "correct": 2,
+          "time": 20,
+          "explanation": "Blue, mavi demektir."
+        },
+        {
+          "question": "'Ten' İngilizcede hangi sayıdır?",
+          "options": [
+            "12",
+            "8",
+            "9",
+            "10"
+          ],
+          "correct": 3,
+          "time": 20,
+          "explanation": "Ten, 10 demektir."
+        },
+        {
+          "question": "İngilizcede 'yeşil' hangi sözcüktür?",
+          "options": [
+            "Purple",
+            "Green",
+            "White",
+            "Orange"
+          ],
+          "correct": 1,
+          "time": 20,
+          "explanation": "Green, yeşil demektir."
+        },
+        {
+          "question": "'Four' sayısının rakamla gösterimi hangisidir?",
+          "options": [
+            "5",
+            "3",
+            "4",
+            "2"
+          ],
+          "correct": 2,
+          "time": 20,
+          "explanation": "Four, 4 demektir."
+        },
+        {
+          "question": "İngilizcede 'sarı' hangi kelimedir?",
+          "options": [
+            "Yellow",
+            "Grey",
+            "Pink",
+            "White"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": "Yellow, sarı demektir."
+        },
+        {
+          "question": "'Twelve' sayısının Türkçe karşılığı kaçtır?",
+          "options": [
+            "11",
+            "20",
+            "2",
+            "12"
+          ],
+          "correct": 3,
+          "time": 20,
+          "explanation": "Twelve, 12 demektir."
+        },
+        {
+          "question": "İngilizcede 'beyaz' hangi sözcüktür?",
+          "options": [
+            "Black",
+            "White",
+            "Blue",
+            "Brown"
+          ],
+          "correct": 1,
+          "time": 20,
+          "explanation": "White, beyaz demektir."
+        },
+        {
+          "question": "'Fifteen' rakamla nasıl yazılır?",
+          "options": [
+            "15",
+            "13",
+            "14",
+            "50"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": "Fifteen, 15 demektir."
+        }
+      ]
+    },
+    {
+      "slug": "ortaokul-5-ingilizce-gunluk-ifadeler",
+      "title": "İngilizce — Günlük İfadeler",
+      "description": "Selamlaşma, tanışma ve gündelik konuşmalarda temel ifadeler.",
+      "topic": "İngilizce",
+      "audience": "5. sınıf öğrencileri",
+      "difficulty": "Kolay",
+      "collection": "education",
+      "stage": "middle",
+      "grade": 5,
+      "subject": "İngilizce",
+      "school_topic": "Günlük İfadeler",
+      "questions": [
+        {
+          "question": "'Good morning' hangi durumda kullanılır?",
+          "options": [
+            "Gece vedalaşırken",
+            "Sabah selamlaşırken",
+            "Özür dilerken",
+            "Teşekkür ederken"
+          ],
+          "correct": 1,
+          "time": 20,
+          "explanation": "Good morning, sabah kullanılan bir selamlaşma ifadesidir."
+        },
+        {
+          "question": "'Thank you' ifadesine uygun cevap hangisidir?",
+          "options": [
+            "See you later",
+            "I'm sorry",
+            "You're welcome",
+            "Good night"
+          ],
+          "correct": 2,
+          "time": 20,
+          "explanation": "You're welcome, teşekküre verilen yaygın cevaptır."
+        },
+        {
+          "question": "'What is your name?' sorusuna hangi cevap uygundur?",
+          "options": [
+            "My name is Ada.",
+            "I am fine.",
+            "It is blue.",
+            "I am twelve."
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": "Bu soru isim sorar: My name is Ada."
+        },
+        {
+          "question": "'How are you?' sorusuna uygun cevap hangisidir?",
+          "options": [
+            "At school.",
+            "On Monday.",
+            "My name is Ali.",
+            "I'm fine, thanks."
+          ],
+          "correct": 3,
+          "time": 20,
+          "explanation": "How are you?, kişinin nasıl olduğunu sorar."
+        },
+        {
+          "question": "'See you later' ifadesinin anlamı nedir?",
+          "options": [
+            "Günaydın",
+            "Sonra görüşürüz",
+            "Teşekkürler",
+            "Özür dilerim"
+          ],
+          "correct": 1,
+          "time": 20,
+          "explanation": "See you later, sonra görüşürüz demektir."
+        },
+        {
+          "question": "Birinden özür dilemek için hangi ifade kullanılır?",
+          "options": [
+            "You're welcome",
+            "Nice to meet you",
+            "I'm sorry",
+            "Good afternoon"
+          ],
+          "correct": 2,
+          "time": 20,
+          "explanation": "I'm sorry, özür dilemek için kullanılır."
+        },
+        {
+          "question": "'Nice to meet you' Türkçede ne anlama gelir?",
+          "options": [
+            "Tanıştığıma memnun oldum",
+            "Hoşça kal",
+            "İyi geceler",
+            "Lütfen"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": "Nice to meet you, tanıştığıma memnun oldum demektir."
+        },
+        {
+          "question": "'Can you help me?' ifadesi ne anlama gelir?",
+          "options": [
+            "Adın ne?",
+            "Nasılsın?",
+            "Saat kaç?",
+            "Bana yardım edebilir misin?"
+          ],
+          "correct": 3,
+          "time": 20,
+          "explanation": "Can you help me?, yardım istemek için kullanılır."
+        },
+        {
+          "question": "Birinden nazikçe bir şey isterken hangi kelime kullanılabilir?",
+          "options": [
+            "Never",
+            "Please",
+            "Yesterday",
+            "Goodbye"
+          ],
+          "correct": 1,
+          "time": 20,
+          "explanation": "Please, rica ederken kullanılan nezaket ifadesidir."
+        },
+        {
+          "question": "'Good night' hangi durumda söylenir?",
+          "options": [
+            "Sabah selamlaşırken",
+            "Tanışırken",
+            "Gece iyi dilekte bulunurken",
+            "Teşekkür ederken"
+          ],
+          "correct": 2,
+          "time": 20,
+          "explanation": "Good night, gece söylenen iyi dilek ifadesidir."
+        }
+      ]
+    }
+  ]
+}
