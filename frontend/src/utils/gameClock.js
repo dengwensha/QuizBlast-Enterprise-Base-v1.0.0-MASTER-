@@ -5,7 +5,7 @@ export function localDeadlineFromMessage(deadlineEpoch, serverEpoch, nowMonotoni
   if (!Number.isFinite(deadlineEpoch) || !Number.isFinite(serverEpoch)) {
     return Number.isFinite(fallbackSeconds) ? nowMonotonic + Math.max(0, fallbackSeconds) * 1000 : null;
   }
-  return nowMonotonic + Math.max(0, deadlineEpoch - serverEpoch) * 1000;
+  return nowMonotonic + Math.max(0, Math.round((deadlineEpoch - serverEpoch) * 1000));
 }
 
 export function remainingFromDeadline(deadlineMonotonic, nowMonotonic) {
