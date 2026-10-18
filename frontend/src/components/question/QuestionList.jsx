@@ -1,3 +1,4 @@
+import QuestionImage from "../common/QuestionImage";
 import React from "react";
 
 import { normalizeQuestionImage } from "../../utils/questionImage";
@@ -26,13 +27,7 @@ export default function QuestionList({
                 {i + 1}. {q.question}
               </h3>
 
-              {questionImage && (
-                <img
-                  src={questionImage}
-                  alt="Soru görseli"
-                  style={styles.previewImage}
-                />
-              )}
+              <QuestionImage src={questionImage} style={styles.previewImage} />
 
               <ol>
                 {q.options?.map((opt, index) => (
