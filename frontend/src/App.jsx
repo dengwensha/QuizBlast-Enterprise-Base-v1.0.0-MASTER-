@@ -312,20 +312,28 @@ export default function App() {
       alert(result.error);
     }
   };
-  const revealLeaderboard = async () => {
-    const result = await revealLeaderboardRequest(roomPin, user.token);
-    if (result.error || result.detail) alert(result.detail || result.error);
+  // Keep a successful action locked until the server broadcasts a new stage.
+  // This guards double clicks even before React can rerender the Host controls.
+  const transitionLockRef = useRef(null);
+  const performHostTransition = async (action, request) => {
+    const key = `${roomPin}:${currentQuestionIndex}:${gameStage}:${action}`;
+    if (transitionLockRef.current === key) return;
+    transitionLockRef.current = key;
+    try {
+      const result = await request(roomPin, user.token, currentQuestionIndex);
+      if (result.error || result.detail) {
+        transitionLockRef.current = null;
+        alert(result.detail || result.error);
+      }
+    } catch (error) {
+      transitionLockRef.current = null;
+      alert("Geçiş isteği tamamlanamadı; tekrar deneyebilirsiniz.");
+    }
   };
-  const nextQuestion = async () => {
-  const result = await nextQuestionRequest(
-    roomPin,
-    user.token
-  );
-
-  if (result.error) {
-    alert(result.error);
-  }
-};
+  const revealLeaderboard = () =>
+    performHostTransition("reveal", revealLeaderboardRequest);
+  const nextQuestion = () =>
+    performHostTransition("next", nextQuestionRequest);
   const pauseGame = async () => {
     const result = await pauseGameRequest(roomPin, user.token);
     if (result.error || result.detail) alert(result.detail || result.error);
