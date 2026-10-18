@@ -27,7 +27,7 @@ export default function QuestionList({
                 {i + 1}. {q.question}
               </h3>
 
-              <QuestionImage src={questionImage} style={styles.previewImage} />
+              <QuestionImage src={questionImage} alt={q.image_alt_text} style={styles.previewImage} />
 
               <ol>
                 {q.options?.map((opt, index) => (
