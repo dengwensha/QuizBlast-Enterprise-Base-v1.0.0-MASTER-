@@ -666,3 +666,72 @@ test("QB-AUTH-DISPLAY-01 anonymous Display connects without host controls", asyn
     await hostContext.close();
   }
 });
+
+test("QB-AUTH-DISPLAY-02 F5 handles overlapping Display sockets without takeover loop", async ({ browser, request }) => {
+  test.setTimeout(90_000);
+  const email = `display-refresh-${Date.now()}@example.com`;
+  await post(request, "/auth/register", { email, password: "integration-password" });
+  const login = await post(request, "/auth/login", { email, password: "integration-password" });
+  const quiz = await post(request, "/quizzes", { title: "Display socket handover" }, login.access_token);
+  await post(request, `/quizzes/${quiz.id}/questions`, {
+    question: "Display handover still shows this question?",
+    options: ["Yes", "No", "Maybe", "Later"], correct: 0, time: 60,
+  }, login.access_token);
+  const { room_pin: pin } = await post(request, `/create-room/${quiz.id}`, {}, login.access_token);
+  const hostContext = await authenticatedContext(browser, { email, token: login.access_token });
+  const guestContext = await browser.newContext({ baseURL: frontendUrl });
+  const displayContext = await browser.newContext({ baseURL: frontendUrl });
+  try {
+    const host = await hostContext.newPage();
+    await host.goto("/");
+    await host.getByRole("button", { name: "🎤 Host Game" }).click();
+    await host.getByRole("button", { name: "Odaya Dön" }).click();
+
+    const guest = await guestContext.newPage();
+    await guest.goto(`/?pin=${pin}`);
+    await guest.getByPlaceholder("Name").fill("RefreshWitness");
+    await guest.getByRole("button", { name: "Join", exact: true }).click();
+    await expect(host.getByText("👤 RefreshWitness", { exact: true })).toBeVisible();
+
+    const original = await displayContext.newPage();
+    await original.goto("/");
+    await original.getByRole("button", { name: "📺 Üyeliksiz Display Bağlan" }).click();
+    await original.getByPlaceholder("Room PIN").fill(pin);
+    await original.getByRole("button", { name: "Connect Display" }).click();
+    await expect(original.getByRole("button", { name: "Oyundan Çık" })).toBeVisible();
+
+    const started = await request.post(`${apiUrl}/start-game/${pin}`, {
+      data: {}, headers: { Authorization: `Bearer ${login.access_token}` },
+    });
+    expect(started.ok(), await started.text()).toBeTruthy();
+    expect(await started.json()).toEqual({ status: "started" });
+    await expect(original.getByText("Display handover still shows this question?")).toBeVisible();
+
+    // Recreate the F5 race: the old Display socket is still connected when
+    // a new Display socket connects with the same PIN.
+    const replacement = await browser.newContext({ baseURL: frontendUrl });
+    try {
+      const next = await replacement.newPage();
+      await next.goto("/");
+      await next.getByRole("button", { name: "📺 Üyeliksiz Display Bağlan" }).click();
+      await next.getByPlaceholder("Room PIN").fill(pin);
+      await next.getByRole("button", { name: "Connect Display" }).click();
+      await expect(next.getByText("Display handover still shows this question?")).toBeVisible({ timeout: 10_000 });
+      await expect(original.getByRole("button", { name: "Connect Display" })).toBeVisible({ timeout: 10_000 });
+      await expect(next.getByText("Display handover still shows this question?")).toBeVisible();
+
+      // The actual browser reload must restore without registration too.
+      await next.reload();
+      await expect(next.getByText("Display handover still shows this question?")).toBeVisible({ timeout: 10_000 });
+      expect(await next.evaluate(() => localStorage.getItem("quizblast_user"))).toBeNull();
+      await expect(next.getByRole("button", { name: "▶ Oyunu Başlat" })).toHaveCount(0);
+      await expect(next.getByRole("button", { name: "Odayı Kapat" })).toHaveCount(0);
+    } finally {
+      await replacement.close();
+    }
+  } finally {
+    await displayContext.close();
+    await guestContext.close();
+    await hostContext.close();
+  }
+});
