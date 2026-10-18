@@ -292,12 +292,20 @@ test("QB-GAME-TRANSITION-01 guards repeated and stale Host actions", async ({ br
   const { room_pin: pin } = await post(request, `/create-room/${quiz.id}`, {}, user.token);
   const { instance_id: instanceId } = await (await request.get(`${apiUrl}/room-instance/${pin}`)).json();
   const hostContext = await authenticatedContext(browser, user, { pin, who: "HOST", instanceId });
+  const playerContext = await authenticatedContext(browser, user);
   try {
     const host = await hostContext.newPage();
     await host.goto("/");
+    const player = await playerContext.newPage();
+    await player.goto("/");
+    await player.getByRole("button", { name: "🎮 Join Game" }).click();
+    await player.getByPlaceholder("Room PIN").fill(pin);
+    await player.getByPlaceholder("Name").fill("TransitionPlayer");
+    await player.getByRole("button", { name: "Join", exact: true }).click();
+    await expect(host.getByText("👤 TransitionPlayer", { exact: true })).toBeVisible();
     await expect(host.getByRole("button", { name: "▶ Oyunu Başlat" })).toBeVisible();
     await host.getByRole("button", { name: "▶ Oyunu Başlat" }).click();
-    await expect(host.getByText("Transition question 1")).toBeVisible();
+    await expect(host.getByText("Transition question 1")).toBeVisible({ timeout: 10_000 });
     await expect(host.getByRole("button", { name: "🏆 Sıralamayı Göster" })).toBeVisible({ timeout: 25_000 });
     const first = await post(request, `/reveal-leaderboard/${pin}?expected_index=0`, {}, user.token);
     expect(first.status).toBe("leaderboard");
@@ -316,6 +324,7 @@ test("QB-GAME-TRANSITION-01 guards repeated and stale Host actions", async ({ br
     await expect(host.getByText("Transition question 2")).toBeVisible();
   } finally {
     await hostContext.close();
+    await playerContext.close();
   }
 });
 
