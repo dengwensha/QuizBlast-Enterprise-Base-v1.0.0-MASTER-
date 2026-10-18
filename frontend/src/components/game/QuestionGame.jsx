@@ -1,3 +1,4 @@
+import QuestionImage from "../common/QuestionImage";
 import React from "react";
 
 import HostLiveStage from "./HostLiveStage";
@@ -18,7 +19,7 @@ export default function QuestionGame({ question, questionImage, timeLeft, answer
     {paused && <p role="status">Host bekleniyor; oyun duraklatıldı.</p>}
     <div style={styles.questionCard}>
       <h1>{question}</h1>
-      {questionImage && <img src={questionImage} alt="Soru görseli" style={styles.questionImage} />}
+      <QuestionImage src={questionImage} style={styles.questionImage} />
       <div data-testid="game-timer" style={styles.timerCircle}>{timeLeft}</div>
       <div style={styles.progressOuter}><div style={{ ...styles.progressInner, width: `${(timeLeft / 15) * 100}%` }} /></div>
       <h3>Cevaplayan: {answerCount} / {totalPlayers}</h3>
