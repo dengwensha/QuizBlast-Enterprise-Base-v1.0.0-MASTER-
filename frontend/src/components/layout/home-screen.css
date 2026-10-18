@@ -1,12 +1,12 @@
 /* UI-08B: home-only visual refresh; game and auth views remain unchanged. */
-.qb-home{min-height:100dvh;box-sizing:border-box;padding:clamp(24px,5vw,64px) 20px;background:radial-gradient(circle at 85% 12%,var(--qb-primary-100),transparent 42%),linear-gradient(160deg,var(--qb-primary-50),var(--qb-background) 60%);color:var(--qb-text-primary);display:flex;align-items:center;justify-content:center}
+.qb-home{min-height:100dvh;box-sizing:border-box;padding:clamp(24px,5vw,64px) 20px;background:var(--qb-page-background);color:var(--qb-text-primary);display:flex;align-items:center;justify-content:center}
 .qb-home__shell{width:min(100%,920px);margin:auto}
 .qb-home__header{text-align:center;margin-bottom:clamp(24px,4vw,40px)}
 .qb-home__brand{font-size:clamp(36px,6vw,60px);line-height:1.1;letter-spacing:-.04em;margin:0 0 12px;color:var(--qb-navy-900)}
 .qb-home__subtitle{font-size:clamp(16px,2vw,20px);color:var(--qb-text-secondary);margin:0 0 14px}
 .qb-home__account{display:inline-block;max-width:100%;overflow-wrap:anywhere;padding:8px 16px;border:1px solid var(--qb-border);border-radius:var(--qb-radius-full);background:var(--qb-surface);font-size:14px;color:var(--qb-text-secondary)}
 .qb-home__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.qb-home__action{display:flex;align-items:center;justify-content:center;min-height:104px;padding:20px;border:1px solid var(--qb-primary-200);border-radius:var(--qb-radius-xl);background:var(--qb-surface);box-shadow:var(--qb-shadow-1);color:var(--qb-primary-700);font:inherit;font-size:clamp(17px,2.5vw,22px);font-weight:750;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
+.qb-home__action{display:flex;align-items:center;justify-content:center;min-height:104px;padding:20px;border:1px solid var(--qb-card-outline);border-radius:var(--qb-radius-xl);background:var(--qb-surface);box-shadow:var(--qb-card-shadow);color:var(--qb-primary-700);font:inherit;font-size:clamp(17px,2.5vw,22px);font-weight:750;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
 .qb-home__action:hover{transform:translateY(-2px);box-shadow:var(--qb-shadow-2);border-color:var(--qb-primary-400)}
 .qb-home__action:focus-visible,.qb-home__logout:focus-visible{outline:none;box-shadow:var(--qb-focus-ring)}
 .qb-home__logout{display:block;margin:28px auto 0;padding:12px 24px;border:1px solid var(--qb-border);border-radius:var(--qb-radius-full);background:var(--qb-surface);color:var(--qb-text-secondary);font:inherit;font-weight:650;cursor:pointer}
