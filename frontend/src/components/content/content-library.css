@@ -83,3 +83,15 @@
 .qb-library__school-filters select:focus-visible{outline:3px solid var(--qb-primary-400);outline-offset:2px}
 @media(max-width:800px){.qb-library__school-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:470px){.qb-library__school-filters{grid-template-columns:1fr}}
+
+/* UI-10A.2: align catalog controls and cards with Home interaction patterns. */
+.qb-library__primary,.qb-library__secondary,.qb-library__back{min-height:44px;display:inline-flex;align-items:center;justify-content:center;line-height:1.3;transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease}
+.qb-library__primary:hover:not(:disabled){background:var(--qb-primary-700);border-color:var(--qb-primary-700)}
+.qb-library__secondary:hover:not(:disabled),.qb-library__back:hover:not(:disabled){background:var(--qb-primary-50);border-color:var(--qb-primary-400)}
+.qb-library__card{min-width:0}
+.qb-library__card h2{overflow-wrap:anywhere;line-height:1.25}
+.qb-library__category{transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease}
+.qb-library__category:hover{transform:translateY(-2px)}
+.qb-library__category:focus-visible{outline:none;box-shadow:var(--qb-focus-ring)}
+@media(max-width:620px){.qb-library__primary,.qb-library__secondary,.qb-library__back{white-space:normal}.qb-library__header>.qb-library__back{max-width:100%}.qb-library__card .qb-library__primary{width:100%}}
+@media(prefers-reduced-motion:reduce){.qb-library__category,.qb-library__primary,.qb-library__secondary,.qb-library__back{transition:none}.qb-library__category:hover{transform:none}}
