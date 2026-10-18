@@ -80,3 +80,11 @@
 .qb-library__category-heading{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:24px}
 .qb-library__category-heading h2{margin:0;color:var(--qb-navy-900)}
 @media(max-width:620px){.qb-library__category-grid{grid-template-columns:1fr}.qb-library__category{min-height:175px;padding:22px}}
+
+/* QB-CATALOG-02A.3: education filters, kept independent of legacy event sets */
+.qb-library__school-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 24px;padding:18px;background:var(--qb-surface);border:1px solid var(--qb-border);border-radius:var(--qb-radius-xl)}
+.qb-library__school-filters label{display:flex;flex-direction:column;gap:8px;font-size:13px;font-weight:700;color:var(--qb-navy-900)}
+.qb-library__school-filters select{width:100%;min-width:0;border:1px solid var(--qb-primary-200);border-radius:10px;padding:11px 10px;background:var(--qb-surface);color:var(--qb-text-primary);font:inherit}
+.qb-library__school-filters select:focus-visible{outline:3px solid var(--qb-primary-400);outline-offset:2px}
+@media(max-width:800px){.qb-library__school-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:470px){.qb-library__school-filters{grid-template-columns:1fr}}
