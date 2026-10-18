@@ -1105,7 +1105,17 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
     normalized_name=clean_name.casefold()
     existing={p['name'].strip().casefold() for p in rooms.get(room_pin,[])}
     if normalized_name in existing and normalized_name=='display':
-        await websocket.send_json({'type':'join_error','reason':'duplicate_name'}); await websocket.close(); return
+        # A Display may refresh before its previous socket has disconnected.
+        # Replace only the previous read-only Display connection; never touch Host.
+        old_displays=[p['socket'] for p in rooms[room_pin]
+                      if p['name'].strip().casefold()=='display']
+        rooms[room_pin]=[p for p in rooms[room_pin]
+                        if p['name'].strip().casefold()!='display']
+        for old_socket in old_displays:
+            try:
+                await old_socket.close()
+            except Exception:
+                pass
     player_token=None
     returning_player=False
     if not is_host and normalized_name != 'display':
