@@ -565,8 +565,16 @@ test("QB-AUTH-GUEST-01 anonymous PIN join completes game without registration", 
   const { room_pin: pin } = await post(request, `/create-room/${quiz.id}`, {}, login.access_token);
 
   const context = await browser.newContext({ baseURL: frontendUrl });
+  const hostContext = await authenticatedContext(browser, {
+    email, token: login.access_token,
+  });
   try {
     const page = await context.newPage();
+    const host = await hostContext.newPage();
+    await host.goto("/");
+    await host.getByRole("button", { name: "🎤 Host Game" }).click();
+    await host.getByRole("button", { name: "Odaya Dön" }).click();
+    await expect(host.getByText(`PIN: ${pin}`, { exact: false })).toBeVisible();
     await page.goto("/");
     await expect(page.getByPlaceholder("E-posta")).toBeVisible();
     await expect(page.getByRole("button", { name: "🎮 PIN ile Üyeliksiz Katıl" })).toBeVisible();
@@ -582,11 +590,13 @@ test("QB-AUTH-GUEST-01 anonymous PIN join completes game without registration", 
     const storedUser = await page.evaluate(() => localStorage.getItem("quizblast_user"));
     expect(storedUser).toBeNull();
 
+    await expect(host.getByText("👤 AnonymousPlayer", { exact: true })).toBeVisible();
     const started = await request.post(`${apiUrl}/start-game/${pin}`, {
       data: {}, headers: { Authorization: `Bearer ${login.access_token}` },
     });
     expect(started.ok(), await started.text()).toBeTruthy();
-    await expect(page.getByText("Can a guest answer?")).toBeVisible();
+    expect(await started.json()).toEqual({ status: "started" });
+    await expect(page.getByText("Can a guest answer?")).toBeVisible({ timeout: 10_000 });
     await page.getByRole("button", { name: "Yes", exact: true }).click();
     await expect(page.getByText("✅ Cevabın alındı")).toBeVisible();
 
@@ -594,5 +604,6 @@ test("QB-AUTH-GUEST-01 anonymous PIN join completes game without registration", 
     await expect(page.getByPlaceholder("E-posta")).toBeVisible();
   } finally {
     await context.close();
+    await hostContext.close();
   }
 });
