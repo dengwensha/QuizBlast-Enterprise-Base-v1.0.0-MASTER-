@@ -37,6 +37,7 @@ def serialize_preview_question(question):
     return {
         "question": question.question,
         "image_url": question.image_url,
+        "image_alt_text": getattr(question, "image_alt_text", None),
         "options": [
             question.option1, question.option2,
             question.option3, question.option4,
