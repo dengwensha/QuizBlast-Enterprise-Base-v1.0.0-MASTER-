@@ -287,12 +287,21 @@ export function useGameSession({
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (socketRef.current === ws) {
         socketRef.current = null;
         setSocket(null);
         setJoined(false);
         setTimeLeft(0);
+        if (event.code === 4001 && who === "DISPLAY") {
+          // Another Display has taken over this PIN. Do not reconnect in a loop.
+          connectionRef.current = null;
+          clearTimeout(reconnectTimerRef.current);
+          setReconnecting(false);
+          sessionStorage.removeItem("quizblast_active_session");
+          localStorage.removeItem("quizblast_active_session");
+          return;
+        }
         if (connectionRef.current === connection && !pageSuspendedRef.current) {
           setReconnecting(true);
           const delay = Math.min(1000 * 2 ** connection.attempt, 5000);
