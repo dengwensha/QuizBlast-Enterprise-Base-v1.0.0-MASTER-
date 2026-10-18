@@ -38,17 +38,17 @@ export async function startGameRequest(roomPin, token) {
   return response.json();
 }
 
-export async function revealLeaderboardRequest(roomPin, token) {
-  const response = await fetch(`${API}/reveal-leaderboard/${roomPin}`, {
+export async function revealLeaderboardRequest(roomPin, token, expectedIndex) {
+  const response = await fetch(`${API}/reveal-leaderboard/${roomPin}?expected_index=${expectedIndex}`, {
     method: "POST",
     headers: createAuthorizationHeaders(token),
   });
   return response.json();
 }
 
-export async function nextQuestionRequest(roomPin, token) {
+export async function nextQuestionRequest(roomPin, token, expectedIndex) {
   const response = await fetch(
-    `${API}/next-question/${roomPin}`,
+    `${API}/next-question/${roomPin}?expected_index=${expectedIndex}`,
     {
       method: "POST",
       headers: createAuthorizationHeaders(token),
