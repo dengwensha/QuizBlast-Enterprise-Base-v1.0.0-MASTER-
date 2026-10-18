@@ -9,6 +9,7 @@ import "./host-live-stage.css";
 export default function HostLiveStage({
   question,
   questionImage,
+  questionImageAlt,
   timeLeft,
   answerCount,
   totalPlayers,
@@ -30,7 +31,7 @@ export default function HostLiveStage({
       <div style={styles.liveQuestionCard}>
         <div style={styles.liveQuestionText}>{question}</div>
 
-        <QuestionImage src={questionImage} style={styles.liveQuestionImage} />
+        <QuestionImage src={questionImage} alt={questionImageAlt} style={styles.liveQuestionImage} />
 
         <div
           data-testid="game-timer"
