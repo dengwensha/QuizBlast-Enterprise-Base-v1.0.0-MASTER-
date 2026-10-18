@@ -1,3 +1,4 @@
+import QuestionImage from "../common/QuestionImage";
 import React from "react";
 
 import { Alert, Button, Card } from "../ui";
@@ -16,7 +17,7 @@ export default function PlayerQuestionStage({ question, questionImage, timeLeft,
     <Card className="qb-player-question__card">
       <div className="qb-player-question__meta"><span>{totalQuestions ? `Soru ${currentQuestionIndex + 1} / ${totalQuestions}` : "Soru"}</span><span>Cevaplayan: {answerCount} / {totalPlayers}</span></div>
       <h1 className="qb-player-question__title">{question}</h1>
-      {questionImage && <img className="qb-player-question__image" src={questionImage} alt="Soru görseli" />}
+      <QuestionImage className="qb-player-question__image" src={questionImage} />
       <div className="qb-player-question__timer" data-testid="game-timer" aria-label={`Kalan süre ${timeLeft} saniye`}>{timeLeft}</div>
       <div className="qb-player-question__progress" aria-hidden="true"><div className="qb-player-question__progress-value" style={{ width: `${progress}%` }} /></div>
     </Card>
