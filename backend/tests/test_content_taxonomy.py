@@ -1,5 +1,8 @@
 """Contract checks for school and general/event catalog classifications."""
 import unittest
+from types import SimpleNamespace
+
+from app.services.content_catalog import serialize_set
 
 from app.services.content_taxonomy import (
     EDUCATION, GENERAL_EVENT, classify_catalog_set,
@@ -42,6 +45,32 @@ class CatalogTaxonomyTests(unittest.TestCase):
                 EDUCATION, stage="primary", grade=2,
                 subject=" ", topic="Renkler",
             )
+
+    def test_legacy_catalog_serialization_defaults_to_general(self):
+        record = SimpleNamespace(
+            id=1, slug="legacy", description="Before school metadata",
+            topic="Genel Kültür", audience="Herkes", difficulty="Kolay", version=1,
+        )
+        quiz = SimpleNamespace(id=10, title="Legacy Quiz")
+        item = serialize_set(record, quiz, [SimpleNamespace(time=20)])
+        self.assertEqual(item["collection"], GENERAL_EVENT)
+        self.assertIsNone(item["grade"])
+        self.assertEqual(item["topic"], "Genel Kültür")
+
+    def test_school_catalog_serialization_includes_filters(self):
+        record = SimpleNamespace(
+            id=2, slug="colors", description="Basic English",
+            topic="İngilizce", audience="İlkokul", difficulty="Kolay", version=1,
+            collection=EDUCATION, stage="primary", grade=3,
+            subject="İngilizce", school_topic="Renkler ve Sayılar",
+        )
+        quiz = SimpleNamespace(id=11, title="Colors")
+        item = serialize_set(record, quiz, [SimpleNamespace(time=20)])
+        self.assertEqual(
+            (item["collection"], item["stage"], item["grade"], item["subject"], item["school_topic"]),
+            (EDUCATION, "primary", 3, "İngilizce", "Renkler ve Sayılar"),
+        )
+        self.assertEqual(item["question_count"], 1)
 
     def test_unknown_category_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "invalid_catalog_collection"):
