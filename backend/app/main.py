@@ -67,6 +67,7 @@ class Question(Base):
     quiz_id=Column(Integer, ForeignKey('quizzes.id'))
     question=Column(String, nullable=False)
     image_url=Column(String, nullable=True)
+    image_alt_text=Column(String, nullable=True)
     explanation=Column(String, nullable=True)
     option1=Column(String, nullable=False)
     option2=Column(String, nullable=False)
@@ -140,9 +141,17 @@ while not connected:
                         f'ALTER TABLE published_quiz_sets ADD COLUMN {name} {sql_type} NULL'
                     ))
         question_columns={column['name'] for column in inspect(engine).get_columns('questions')}
-        if 'explanation' not in question_columns:
+        missing_question_columns = {
+            column: sql_type for column, sql_type in {
+                'explanation': 'VARCHAR', 'image_alt_text': 'VARCHAR',
+            }.items() if column not in question_columns
+        }
+        if missing_question_columns:
             with engine.begin() as connection:
-                connection.execute(text('ALTER TABLE questions ADD COLUMN explanation VARCHAR NULL'))
+                for column, sql_type in missing_question_columns.items():
+                    connection.execute(text(
+                        f'ALTER TABLE questions ADD COLUMN {column} {sql_type} NULL'
+                    ))
         connected=True
         print('PostgreSQL connected.')
     except Exception as e:
@@ -243,6 +252,7 @@ class QuestionCreate(BaseModel):
     correct: int
     time: int = 15
     image_url: str | None = None
+    image_alt_text: str | None = None
     explanation: str | None = None
 class UserRegister(BaseModel): email: str; password: str
 class UserLogin(BaseModel): email: str; password: str
@@ -287,7 +297,7 @@ def get_current_email(authorization: str | None):
         return None
 
 def serialize_question(q):
-    return {'id':q.id,'question':q.question,'image_url':q.image_url,'explanation':q.explanation,'options':[q.option1,q.option2,q.option3,q.option4],'correct':q.correct,'time':q.time}
+    return {'id':q.id,'question':q.question,'image_url':q.image_url,'image_alt_text':q.image_alt_text,'explanation':q.explanation,'options':[q.option1,q.option2,q.option3,q.option4],'correct':q.correct,'time':q.time}
 
 def get_room_questions(room_pin):
     quiz_id=room_quiz_map.get(room_pin)
@@ -449,7 +459,7 @@ def add_question(quiz_id:int, data: QuestionCreate, authorization: str | None = 
     with db_session() as db:
         quiz=lock_editable_quiz(db, quiz_id, email)
         if not quiz: return {'error':'quiz_not_found'}
-        q=Question(quiz_id=quiz_id,question=data.question,image_url=data.image_url,explanation=data.explanation,option1=data.options[0],option2=data.options[1],option3=data.options[2],option4=data.options[3],correct=data.correct,time=data.time)
+        q=Question(quiz_id=quiz_id,question=data.question,image_url=data.image_url,image_alt_text=data.image_alt_text,explanation=data.explanation,option1=data.options[0],option2=data.options[1],option3=data.options[2],option4=data.options[3],correct=data.correct,time=data.time)
         db.add(q); db.commit()
         return {'status':'question_added'}
 
@@ -502,6 +512,7 @@ def update_question(question_id:int, data: QuestionCreate, authorization: str | 
         if not q: return {'error':'question_not_found'}
         q.question=data.question
         q.image_url=data.image_url
+        q.image_alt_text=data.image_alt_text
         q.explanation=data.explanation
         q.option1=data.options[0]
         q.option2=data.options[1]
@@ -958,6 +969,7 @@ async def commit_quiz_import(
                     quiz_id=quiz_id,
                     question=item['question'],
                     image_url=item.get('image_url'),
+                    image_alt_text=item.get('image_alt_text'),
                     explanation=item.get('explanation'),
                     option1=item['options'][0],
                     option2=item['options'][1],
@@ -1198,7 +1210,7 @@ async def send_current_state(websocket,room_pin,player_name):
         time_left=max(0,deadline-time.time()) if deadline is not None else remaining_seconds.get(room_pin)
         if time_left is not None:
             await websocket.send_json({'type':'question','question':q['question'],
-                'image_url':q.get('image_url'),'options':q['options'],'index':idx,
+                'image_url':q.get('image_url'),'image_alt_text':q.get('image_alt_text'),'options':q['options'],'index':idx,
                 'question_count':len(questions),
                 'time':time_left if phase=='question' else 0,
                 'paused':phase=='question' and deadline is None,
