@@ -755,10 +755,16 @@ async def end_game(
 @app.post('/reveal-leaderboard/{room_pin}')
 async def reveal_leaderboard(
     room_pin: str,
+    expected_index: int | None = None,
     authorization: str | None = Header(default=None),
 ):
     email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
     require_room_host(room_pin, email, rooms, room_host_map)
+    index = current_question_index[room_pin]
+    if expected_index is not None and expected_index != index:
+        raise HTTPException(status_code=409, detail='stale_question_transition')
+    if game_phase.get(room_pin) == 'leaderboard':
+        return {'status': 'leaderboard', 'question_index': index, 'already_revealed': True}
     if next_stage(game_phase.get(room_pin), 'reveal_leaderboard') is None:
         raise HTTPException(status_code=409, detail='question_result_not_ready')
     game_phase[room_pin] = 'leaderboard'
@@ -773,6 +779,7 @@ async def reveal_leaderboard(
 @app.post('/next-question/{room_pin}')
 async def next_question(
     room_pin: str,
+    expected_index: int | None = None,
     authorization: str | None = Header(default=None),
 ):
     email = require_authenticated_email(
@@ -788,6 +795,11 @@ async def next_question(
         room_host_map,
     )
 
+    index = current_question_index.get(room_pin, 0)
+    if expected_index is not None and index == expected_index + 1 and game_phase.get(room_pin) == 'question':
+        return {'status': 'ok', 'question_index': index, 'already_advanced': True}
+    if expected_index is not None and expected_index != index:
+        raise HTTPException(status_code=409, detail='stale_question_transition')
     if game_phase.get(room_pin) != 'leaderboard':
         raise HTTPException(status_code=409, detail='leaderboard_not_revealed')
     questions = get_room_questions(room_pin)
