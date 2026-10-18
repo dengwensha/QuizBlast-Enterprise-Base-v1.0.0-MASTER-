@@ -12,6 +12,7 @@ import os, random, asyncio, time, uuid
 from app.services.excel_reader import read_excel_rows_from_bytes
 from app.services.import_pipeline import run_qbds_import_pipeline, build_pipeline_user_message
 from app.services.content_catalog import serialize_set, serialize_preview_question
+from app.services.question_image_policy import validate_question_image
 from app.services.content_copy import copy_published_set
 from app.services.content_deploy import publish_if_requested
 from app.services.host_authorization import (
@@ -456,10 +457,14 @@ def add_question(quiz_id:int, data: QuestionCreate, authorization: str | None = 
     if len(data.options)!=4: return {'error':'4_options_required'}
     email=get_current_email(authorization)
     if not email: return {'error':'unauthorized'}
+    try:
+        image_url, image_alt_text = validate_question_image(data.image_url, data.image_alt_text)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     with db_session() as db:
         quiz=lock_editable_quiz(db, quiz_id, email)
         if not quiz: return {'error':'quiz_not_found'}
-        q=Question(quiz_id=quiz_id,question=data.question,image_url=data.image_url,image_alt_text=data.image_alt_text,explanation=data.explanation,option1=data.options[0],option2=data.options[1],option3=data.options[2],option4=data.options[3],correct=data.correct,time=data.time)
+        q=Question(quiz_id=quiz_id,question=data.question,image_url=image_url,image_alt_text=image_alt_text,explanation=data.explanation,option1=data.options[0],option2=data.options[1],option3=data.options[2],option4=data.options[3],correct=data.correct,time=data.time)
         db.add(q); db.commit()
         return {'status':'question_added'}
 
@@ -504,6 +509,10 @@ def update_question(question_id:int, data: QuestionCreate, authorization: str | 
     if len(data.options)!=4: return {'error':'4_options_required'}
     email=get_current_email(authorization)
     if not email: return {'error':'unauthorized'}
+    try:
+        image_url, image_alt_text = validate_question_image(data.image_url, data.image_alt_text)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     with db_session() as db:
         quiz_id=db.query(Question.quiz_id).filter(Question.id==question_id).scalar()
         if quiz_id is None or not lock_editable_quiz(db, quiz_id, email):
@@ -511,8 +520,8 @@ def update_question(question_id:int, data: QuestionCreate, authorization: str | 
         q=db.get(Question, question_id)
         if not q: return {'error':'question_not_found'}
         q.question=data.question
-        q.image_url=data.image_url
-        q.image_alt_text=data.image_alt_text
+        q.image_url=image_url
+        q.image_alt_text=image_alt_text
         q.explanation=data.explanation
         q.option1=data.options[0]
         q.option2=data.options[1]
@@ -1274,7 +1283,7 @@ async def send_question(room_pin):
     remaining_seconds[room_pin]=question_time
     question_deadline[room_pin]=question_start_time[room_pin]+question_time
     save_game(room_pin)
-    await safe_broadcast_json(room_pin, {'type':'question','question':q['question'],'image_url':q.get('image_url'),'options':q['options'],'index':idx,'question_count':len(questions),'time':q['time']})
+    await safe_broadcast_json(room_pin, {'type':'question','question':q['question'],'image_url':q.get('image_url'),'image_alt_text':q.get('image_alt_text'),'options':q['options'],'index':idx,'question_count':len(questions),'time':q['time']})
 
 async def safe_broadcast_json(room_pin, payload):
     await send_to_room(rooms, room_pin, payload)
