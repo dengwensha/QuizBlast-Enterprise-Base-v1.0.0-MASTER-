@@ -46,6 +46,7 @@ export function useGameSession({
   const [players, setPlayers] = useState([]);
   const [question, setQuestion] = useState(null);
   const [questionImage, setQuestionImage] = useState("");
+  const [questionImageAlt, setQuestionImageAlt] = useState("");
 
   const [options, setOptions] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -68,6 +69,7 @@ export function useGameSession({
     setPlayers([]);
     setQuestion(null);
     setQuestionImage("");
+    setQuestionImageAlt("");
     setOptions([]);
     setLeaderboard([]);
     setQuestionResult(null);
@@ -240,6 +242,7 @@ export function useGameSession({
         setGameStage("question");
         setQuestion(data.question);
         setQuestionImage(normalizeQuestionImage(data.image_url));
+        setQuestionImageAlt(data.image_alt_text || "");
         setOptions(data.options);
         setCurrentQuestionIndex(data.index || 0);
         setTotalQuestions(data.question_count || 0);
@@ -277,6 +280,7 @@ export function useGameSession({
 
         setQuestion(null);
         setQuestionImage("");
+    setQuestionImageAlt("");
         setOptions([]);
         setGameOver(true);
         setGameStage("completed");
@@ -403,6 +407,7 @@ export function useGameSession({
     players,
     question,
     questionImage,
+    questionImageAlt,
     options,
     leaderboard,
     currentQuestionIndex,
