@@ -67,3 +67,16 @@
   .qb-library__empty{padding:35px 18px}
   .qb-library__empty-art{transform:scale(.85) rotate(-7deg);margin-bottom:0}
 }
+
+
+/* QB-CATALOG-02A.2: two accessible catalog entry paths */
+.qb-library__category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin:22px 0 32px}
+.qb-library__category{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:13px;padding:30px;border:1px solid #c9dff7;border-radius:var(--qb-radius-xl);background:var(--qb-surface);box-shadow:0 8px 24px rgba(35,90,156,.08);color:var(--qb-navy-900);min-height:225px}
+.qb-library__category:hover{border-color:var(--qb-primary-600);box-shadow:0 12px 28px rgba(35,90,156,.14)}
+.qb-library__category-icon{font-size:36px;line-height:1}
+.qb-library__category-title{font-size:clamp(20px,2.3vw,28px);font-weight:800}
+.qb-library__category-description{color:var(--qb-text-secondary);line-height:1.5;font-weight:400}
+.qb-library__category-count{margin-top:auto;color:var(--qb-primary-700)}
+.qb-library__category-heading{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:24px}
+.qb-library__category-heading h2{margin:0;color:var(--qb-navy-900)}
+@media(max-width:620px){.qb-library__category-grid{grid-template-columns:1fr}.qb-library__category{min-height:175px;padding:22px}}
