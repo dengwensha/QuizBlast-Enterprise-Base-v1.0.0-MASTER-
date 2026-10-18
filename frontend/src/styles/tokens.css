@@ -8,6 +8,10 @@
   --qb-primary-700: #1455a8;
   --qb-navy-900: #102a43;
   --qb-background: #f5f9fc;
+  /* UI-10A: shared Home / Ready Quizzes surface language. */
+  --qb-page-background: radial-gradient(circle at 88% 6%, var(--qb-primary-100), transparent 42%), linear-gradient(160deg, var(--qb-primary-50), var(--qb-background) 65%);
+  --qb-card-outline: #d2e5fb;
+  --qb-card-shadow: 0 8px 24px rgb(35 90 156 / 8%);
   --qb-surface: #ffffff;
   --qb-surface-subtle: #eff6fb;
   --qb-border: #d8e4ed;
