@@ -276,6 +276,49 @@ test("UI-09A result and leaderboard remain synchronized after reconnect", async 
 });
 
 
+test("QB-GAME-TRANSITION-01 guards repeated and stale Host actions", async ({ browser, request }) => {
+  test.setTimeout(90_000);
+  const email = `transition-${Date.now()}@example.com`;
+  await post(request, "/auth/register", { email, password: "integration-password" });
+  const login = await post(request, "/auth/login", { email, password: "integration-password" });
+  const user = { email, token: login.access_token };
+  const quiz = await post(request, "/quizzes", { title: "Safe Host transitions" }, user.token);
+  for (const index of [0, 1]) {
+    await post(request, `/quizzes/${quiz.id}/questions`, {
+      question: `Transition question ${index + 1}`,
+      options: ["A", "B", "C", "D"], correct: 0, time: 10,
+    }, user.token);
+  }
+  const { room_pin: pin } = await post(request, `/create-room/${quiz.id}`, {}, user.token);
+  const { instance_id: instanceId } = await (await request.get(`${apiUrl}/room-instance/${pin}`)).json();
+  const hostContext = await authenticatedContext(browser, user, { pin, who: "HOST", instanceId });
+  try {
+    const host = await hostContext.newPage();
+    await host.goto("/");
+    await expect(host.getByRole("button", { name: "▶ Oyunu Başlat" })).toBeVisible();
+    await host.getByRole("button", { name: "▶ Oyunu Başlat" }).click();
+    await expect(host.getByText("Transition question 1")).toBeVisible();
+    await expect(host.getByRole("button", { name: "🏆 Sıralamayı Göster" })).toBeVisible({ timeout: 25_000 });
+    const first = await post(request, `/reveal-leaderboard/${pin}?expected_index=0`, {}, user.token);
+    expect(first.status).toBe("leaderboard");
+    const repeated = await post(request, `/reveal-leaderboard/${pin}?expected_index=0`, {}, user.token);
+    expect(repeated.already_revealed).toBe(true);
+    await expect(host.getByRole("button", { name: "➜ Sonraki Soru" })).toBeVisible();
+    await host.getByRole("button", { name: "➜ Sonraki Soru" }).click();
+    await expect(host.getByText("Transition question 2")).toBeVisible({ timeout: 10_000 });
+    const repeatedNext = await post(request, `/next-question/${pin}?expected_index=0`, {}, user.token);
+    expect(repeatedNext.already_advanced).toBe(true);
+    const stale = await request.post(`${apiUrl}/reveal-leaderboard/${pin}?expected_index=0`, {
+      data: {}, headers: { Authorization: `Bearer ${user.token}` },
+    });
+    expect(stale.status()).toBe(409);
+    expect((await stale.json()).detail).toBe("stale_question_transition");
+    await expect(host.getByText("Transition question 2")).toBeVisible();
+  } finally {
+    await hostContext.close();
+  }
+});
+
 for (const role of ["HOST", "PLAYER"]) {
   test(`active ${role.toLowerCase()} session remains on game screen after browser Back`, async ({ browser, request }) => {
     test.setTimeout(90_000);
