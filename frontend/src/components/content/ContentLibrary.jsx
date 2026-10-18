@@ -13,6 +13,10 @@ const collectionOf = set => set.collection || "general_event";
 export default function ContentLibrary({ onBack, onPlay, onCopy }) {
   const [sets, setSets] = useState([]);
   const [collection, setCollection] = useState(null);
+  const [schoolStage, setSchoolStage] = useState("all");
+  const [grade, setGrade] = useState("all");
+  const [subject, setSubject] = useState("all");
+  const [schoolTopic, setSchoolTopic] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState(null);
@@ -64,7 +68,25 @@ export default function ContentLibrary({ onBack, onPlay, onCopy }) {
     }
   };
 
-  const visibleSets = sets.filter(set => collectionOf(set) === collection);
+  const educationSets = sets.filter(set => collectionOf(set) === "education");
+  const subjectOptions = [...new Set(educationSets
+    .filter(set => schoolStage === "all" || set.stage === schoolStage)
+    .filter(set => grade === "all" || String(set.grade) === grade)
+    .map(set => set.subject).filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr"));
+  const topicOptions = [...new Set(educationSets
+    .filter(set => schoolStage === "all" || set.stage === schoolStage)
+    .filter(set => grade === "all" || String(set.grade) === grade)
+    .filter(set => subject === "all" || set.subject === subject)
+    .map(set => set.school_topic).filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr"));
+  const visibleSets = sets.filter(set =>
+    collectionOf(set) === collection &&
+    (collection !== "education" || (
+      (schoolStage === "all" || set.stage === schoolStage) &&
+      (grade === "all" || String(set.grade) === grade) &&
+      (subject === "all" || set.subject === subject) &&
+      (schoolTopic === "all" || set.school_topic === schoolTopic)
+    ))
+  );
   const displayMinutes = (seconds) => Math.max(1, Math.ceil((seconds || 0) / 60));
 
   return (
@@ -94,6 +116,36 @@ export default function ContentLibrary({ onBack, onPlay, onCopy }) {
           <div className="qb-library__category-heading">
             <button type="button" className="qb-library__back" onClick={() => setCollection(null)}>← Kategoriler</button>
             <h2>{COLLECTIONS.find(item => item.id === collection)?.name}</h2>
+          </div>
+        )}
+        {collection === "education" && selectedId === null && (
+          <div className="qb-library__school-filters" role="group" aria-label="Eğitim quiz filtreleri">
+            <label>Eğitim seviyesi
+              <select value={schoolStage} onChange={e => { setSchoolStage(e.target.value); setGrade("all"); setSubject("all"); setSchoolTopic("all"); }}>
+                <option value="all">Tüm seviyeler</option>
+                <option value="primary">İlkokul</option>
+                <option value="middle">Ortaokul</option>
+              </select>
+            </label>
+            <label>Sınıf
+              <select value={grade} onChange={e => { setGrade(e.target.value); setSubject("all"); setSchoolTopic("all"); }}>
+                <option value="all">Tüm sınıflar</option>
+                {(schoolStage === "primary" ? [1, 2, 3, 4] : schoolStage === "middle" ? [5, 6, 7, 8] : [1, 2, 3, 4, 5, 6, 7, 8])
+                  .map(value => <option key={value} value={String(value)}>{value}. Sınıf</option>)}
+              </select>
+            </label>
+            <label>Ders
+              <select value={subject} onChange={e => { setSubject(e.target.value); setSchoolTopic("all"); }}>
+                <option value="all">Tüm dersler</option>
+                {subjectOptions.map(value => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </label>
+            <label>Konu
+              <select value={schoolTopic} onChange={e => setSchoolTopic(e.target.value)}>
+                <option value="all">Tüm konular</option>
+                {topicOptions.map(value => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </label>
           </div>
         )}
         {error && <div role="alert" className="qb-library__alert">{error} <button onClick={loadSets}>Tekrar Dene</button></div>}
