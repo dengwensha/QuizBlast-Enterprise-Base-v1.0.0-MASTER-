@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { API, WS } from "../services/api";
 import { normalizeQuestionImage } from "../utils/questionImage";
+import { remainingFromDeadline, localDeadlineFromMessage } from "../utils/gameClock";
 
 export function useGameSession({
   onQuestion,
@@ -55,6 +56,8 @@ export function useGameSession({
   const [questionResult, setQuestionResult] = useState(null);
   const [gameStage, setGameStage] = useState("lobby");
   const [timeLeft, setTimeLeft] = useState(0);
+  const questionDeadlineRef = useRef(null);
+  const countdownPreviousRef = useRef(null);
   const [answered, setAnswered] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -75,6 +78,8 @@ export function useGameSession({
     setQuestionResult(null);
     setGameStage("lobby");
     setTimeLeft(0);
+    questionDeadlineRef.current = null;
+    countdownPreviousRef.current = null;
     setAnswered(false);
     setGameOver(false);
     setPaused(false);
@@ -246,7 +251,17 @@ export function useGameSession({
         setOptions(data.options);
         setCurrentQuestionIndex(data.index || 0);
         setTotalQuestions(data.question_count || 0);
-        setTimeLeft(Math.ceil(data.time));
+        // A monotonic local deadline anchored to the server's absolute deadline
+        // prevents browser timer callbacks from accumulating drift.
+        const localDeadline = !data.paused
+          ? localDeadlineFromMessage(data.deadline_epoch, data.server_time_epoch, performance.now(), data.time)
+          : null;
+        questionDeadlineRef.current = localDeadline;
+        const initialSeconds = localDeadline !== null
+          ? remainingFromDeadline(localDeadline, performance.now())
+          : Math.ceil(data.time);
+        countdownPreviousRef.current = initialSeconds;
+        setTimeLeft(initialSeconds);
         setPaused(Boolean(data.paused));
         setAnswered(Boolean(data.answered));
         setGameOver(false);
@@ -258,11 +273,16 @@ export function useGameSession({
       }
 
       if (data.type === "game_paused") {
+        questionDeadlineRef.current = null;
+        countdownPreviousRef.current = null;
         setPaused(true);
         setTimeLeft(Math.ceil(data.remaining));
       }
 
       if (data.type === "question_result") {
+        questionDeadlineRef.current = null;
+        countdownPreviousRef.current = null;
+        setTimeLeft(0);
         callbacksRef.current.onQuestionResult?.();
         setQuestionResult(data);
         setGameStage("result");
@@ -347,25 +367,22 @@ export function useGameSession({
   };
 
   useEffect(() => {
-    if (!joined || paused || timeLeft <= 0) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setTimeLeft((previousTime) => {
-        if (
-          previousTime <= 6 &&
-          previousTime > 1
-        ) {
-          callbacksRef.current.onCountdown?.();
-        }
-
-        return previousTime - 1;
-      });
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [joined, paused, timeLeft]);
+    if (!joined || paused || gameStage !== "question") return;
+    const tick = () => {
+      const deadline = questionDeadlineRef.current;
+      if (deadline === null) return;
+      const next = remainingFromDeadline(deadline, performance.now());
+      const previous = countdownPreviousRef.current;
+      if (previous !== null && next < previous && next >= 1 && next <= 5) {
+        callbacksRef.current.onCountdown?.();
+      }
+      countdownPreviousRef.current = next;
+      setTimeLeft(current => current === next ? current : next);
+    };
+    tick();
+    const timer = setInterval(tick, 150);
+    return () => clearInterval(timer);
+  }, [joined, paused, gameStage]);
 
   useEffect(() => {
     const onPageHide = () => {
