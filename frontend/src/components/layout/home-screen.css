@@ -13,3 +13,11 @@
 .qb-home__logout:hover{background:var(--qb-primary-50)}
 @media(max-width:560px){.qb-home{align-items:flex-start;padding:40px 16px 28px}.qb-home__grid{grid-template-columns:1fr;gap:12px}.qb-home__action{min-height:70px}.qb-home__header{margin-bottom:24px}}
 @media(prefers-reduced-motion:reduce){.qb-home__action{transition:none}.qb-home__action:hover{transform:none}}
+
+/* UI-10A.2: consistent readable actions on Home at desktop and mobile sizes. */
+.qb-home__action{min-width:0;text-align:center;line-height:1.35}
+.qb-home__action:active{transform:translateY(0);box-shadow:var(--qb-shadow-1)}
+.qb-home__logout{min-height:44px;transition:background-color .15s ease,border-color .15s ease}
+.qb-home__logout:hover{border-color:var(--qb-primary-200)}
+@media(max-width:560px){.qb-home__brand{overflow-wrap:anywhere}.qb-home__action{padding:16px;min-height:72px}}
+@media(prefers-reduced-motion:reduce){.qb-home__action:active{transform:none}.qb-home__logout{transition:none}}
