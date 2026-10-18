@@ -552,3 +552,47 @@ test("UI-07D mobile QR join navigation", async ({ browser }) => {
     await context.close();
   }
 });
+
+test("QB-AUTH-GUEST-01 anonymous PIN join completes game without registration", async ({ browser, request }) => {
+  test.setTimeout(90_000);
+  const email = `guest-host-${Date.now()}@example.com`;
+  await post(request, "/auth/register", { email, password: "integration-password" });
+  const login = await post(request, "/auth/login", { email, password: "integration-password" });
+  const quiz = await post(request, "/quizzes", { title: "Guest PIN acceptance" }, login.access_token);
+  await post(request, `/quizzes/${quiz.id}/questions`, {
+    question: "Can a guest answer?", options: ["Yes", "No", "Maybe", "Later"], correct: 0, time: 60,
+  }, login.access_token);
+  const { room_pin: pin } = await post(request, `/create-room/${quiz.id}`, {}, login.access_token);
+
+  const context = await browser.newContext({ baseURL: frontendUrl });
+  try {
+    const page = await context.newPage();
+    await page.goto("/");
+    await expect(page.getByPlaceholder("E-posta")).toBeVisible();
+    await expect(page.getByRole("button", { name: "🎮 PIN ile Üyeliksiz Katıl" })).toBeVisible();
+    await page.getByRole("button", { name: "🎮 PIN ile Üyeliksiz Katıl" }).click();
+    await expect(page.getByRole("heading", { name: "Join Game" })).toBeVisible();
+    await page.getByRole("button", { name: "Ana Menü" }).click();
+    await expect(page.getByPlaceholder("E-posta")).toBeVisible();
+    await page.getByRole("button", { name: "🎮 PIN ile Üyeliksiz Katıl" }).click();
+    await page.getByPlaceholder("Room PIN").fill(pin);
+    await page.getByPlaceholder("Name").fill("AnonymousPlayer");
+    await page.getByRole("button", { name: "Join", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Oyundan Çık" })).toBeVisible();
+    const storedUser = await page.evaluate(() => localStorage.getItem("quizblast_user"));
+    expect(storedUser).toBeNull();
+
+    const started = await request.post(`${apiUrl}/start-game/${pin}`, {
+      data: {}, headers: { Authorization: `Bearer ${login.access_token}` },
+    });
+    expect(started.ok(), await started.text()).toBeTruthy();
+    await expect(page.getByText("Can a guest answer?")).toBeVisible();
+    await page.getByRole("button", { name: "Yes", exact: true }).click();
+    await expect(page.getByText("✅ Cevabın alındı")).toBeVisible();
+
+    await page.getByRole("button", { name: "Oyundan Çık" }).click();
+    await expect(page.getByPlaceholder("E-posta")).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
