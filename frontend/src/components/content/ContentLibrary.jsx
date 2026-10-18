@@ -1,3 +1,4 @@
+import QuestionImage from "../common/QuestionImage";
 import React, { useEffect, useState } from "react";
 import { fetchContentSets, fetchContentSetPreview } from "../../services/contentService";
 import "./content-library.css";
@@ -190,7 +191,7 @@ export default function ContentLibrary({ onBack, onPlay, onCopy }) {
             <ol className="qb-library__questions">
               {(preview.questions || []).map((q, index) =>
                 <li key={index}><strong>{q.question}</strong>
-                  {q.image_url && <img src={q.image_url} alt="Soru görseli" loading="lazy" />}
+                  <QuestionImage src={q.image_url} />
                   <ol type="A">{q.options.map((option, i) => <li key={i}>{option}</li>)}</ol>
                   <small>{q.time} saniye</small>
                 </li>
