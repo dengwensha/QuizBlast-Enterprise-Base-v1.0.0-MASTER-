@@ -86,6 +86,11 @@ class PublishedQuizSet(Base):
     topic = Column(String, nullable=False)
     audience = Column(String, nullable=False)
     difficulty = Column(String, nullable=False)
+    collection = Column(String, nullable=True)
+    stage = Column(String, nullable=True)
+    grade = Column(Integer, nullable=True)
+    subject = Column(String, nullable=True)
+    school_topic = Column(String, nullable=True)
     version = Column(Integer, nullable=False, default=1)
     is_published = Column(Boolean, nullable=False, default=False)
 
@@ -117,6 +122,23 @@ while not connected:
     try:
         Base.metadata.create_all(bind=engine)
         RecoveryBase.metadata.create_all(bind=engine)
+        # Additive columns only; older published sets remain general/event via serializer fallback.
+        catalog_columns={column['name'] for column in inspect(engine).get_columns('published_quiz_sets')}
+        catalog_additions={
+            'collection': 'VARCHAR',
+            'stage': 'VARCHAR',
+            'grade': 'INTEGER',
+            'subject': 'VARCHAR',
+            'school_topic': 'VARCHAR',
+        }
+        missing_catalog_columns={name: sql_type for name, sql_type in catalog_additions.items()
+                                 if name not in catalog_columns}
+        if missing_catalog_columns:
+            with engine.begin() as connection:
+                for name, sql_type in missing_catalog_columns.items():
+                    connection.execute(text(
+                        f'ALTER TABLE published_quiz_sets ADD COLUMN {name} {sql_type} NULL'
+                    ))
         question_columns={column['name'] for column in inspect(engine).get_columns('questions')}
         if 'explanation' not in question_columns:
             with engine.begin() as connection:
