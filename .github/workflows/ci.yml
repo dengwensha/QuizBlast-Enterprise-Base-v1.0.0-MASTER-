@@ -137,6 +137,7 @@ jobs:
             app.tests.test_content_play_manual
             app.tests.test_content_seed_manual
             app.tests.test_content_english_pilot_manual
+            app.tests.test_content_expansion_v2_manual
             app.tests.test_content_deploy_manual
           )
 
