@@ -44,7 +44,7 @@
           ],
           "correct": 2,
           "time": 20,
-          "explanation": ""
+          "explanation": "Display, soruları ve oyun sonuçlarını katılımcıların izleyebileceği ortak ekrana yansıtır."
         },
         {
           "question": "Host bir oyunu duraklattığında ne olması beklenir?",
@@ -56,7 +56,7 @@
           ],
           "correct": 3,
           "time": 20,
-          "explanation": ""
+          "explanation": "Host oyunu duraklattığında soru sayacı durur; devam edildiğinde kalan süreden sürer."
         },
         {
           "question": "Hazır bir seti düzenlemek isteyen kullanıcı ne yapmalıdır?",
@@ -114,7 +114,7 @@
           ],
           "correct": 1,
           "time": 20,
-          "explanation": ""
+          "explanation": "Tokyo, Japonya'nın başkentidir."
         },
         {
           "question": "Dünyanın en büyük okyanusu hangisidir?",
@@ -126,7 +126,7 @@
           ],
           "correct": 2,
           "time": 20,
-          "explanation": ""
+          "explanation": "Pasifik Okyanusu, yüzölçümü bakımından dünyanın en büyük okyanusudur."
         },
         {
           "question": "Mona Lisa tablosunu kim yaptı?",
@@ -138,7 +138,7 @@
           ],
           "correct": 3,
           "time": 20,
-          "explanation": ""
+          "explanation": "Mona Lisa, Leonardo da Vinci tarafından yapılmıştır."
         },
         {
           "question": "Bir düzine kaç adettir?",
@@ -150,7 +150,7 @@
           ],
           "correct": 1,
           "time": 20,
-          "explanation": ""
+          "explanation": "Bir düzine 12 adettir."
         },
         {
           "question": "Satrançta her oyuncu oyuna kaç taşla başlar?",
@@ -162,7 +162,7 @@
           ],
           "correct": 2,
           "time": 20,
-          "explanation": ""
+          "explanation": "Satrançta her oyuncu oyuna 16 taşla başlar: 8 piyon ve 8 diğer taş."
         }
       ]
     },
@@ -196,7 +196,7 @@
           ],
           "correct": 1,
           "time": 25,
-          "explanation": ""
+          "explanation": "Elektrik akımının SI birimi amperdir (A)."
         },
         {
           "question": "İnsan vücudunda oksijen taşınmasında görev alan hücre hangisidir?",
@@ -208,7 +208,7 @@
           ],
           "correct": 2,
           "time": 25,
-          "explanation": ""
+          "explanation": "Alyuvarlar, içerdikleri hemoglobin sayesinde oksijeni taşır."
         },
         {
           "question": "Güneş Sistemi'nde Güneş'e en yakın gezegen hangisidir?",
@@ -220,7 +220,7 @@
           ],
           "correct": 3,
           "time": 25,
-          "explanation": ""
+          "explanation": "Merkür, Güneş'e en yakın gezegendir."
         },
         {
           "question": "İkili sayı sistemi hangi iki rakamı kullanır?",
@@ -232,7 +232,7 @@
           ],
           "correct": 1,
           "time": 25,
-          "explanation": ""
+          "explanation": "İkili sayı sistemi yalnızca 0 ve 1 rakamlarını kullanır."
         },
         {
           "question": "Bir bilgisayarda RAM'in temel işlevi hangisidir?",
@@ -244,7 +244,7 @@
           ],
           "correct": 2,
           "time": 25,
-          "explanation": ""
+          "explanation": "RAM, çalışan programların geçici verilerini tutan bellektir."
         }
       ]
     },
@@ -266,7 +266,7 @@
           ],
           "correct": 0,
           "time": 15,
-          "explanation": ""
+          "explanation": "Bir hafta yedi gündür."
         },
         {
           "question": "Kırmızı ile sarı renk karıştırıldığında hangi renk oluşur?",
@@ -278,7 +278,7 @@
           ],
           "correct": 1,
           "time": 15,
-          "explanation": ""
+          "explanation": "Kırmızı ve sarı boyaların karışımı turuncu olur."
         },
         {
           "question": "Bir yılda kaç mevsim bulunur?",
@@ -290,7 +290,7 @@
           ],
           "correct": 2,
           "time": 15,
-          "explanation": ""
+          "explanation": "Bir yılda ilkbahar, yaz, sonbahar ve kış olmak üzere dört mevsim vardır."
         },
         {
           "question": "Standart bir zarın üzerinde en büyük sayı kaçtır?",
@@ -302,7 +302,7 @@
           ],
           "correct": 3,
           "time": 15,
-          "explanation": ""
+          "explanation": "Standart altı yüzlü zarın yüzleri 1'den 6'ya kadar numaralandırılır."
         },
         {
           "question": "İstiklal Marşı'nın yazarı kimdir?",
@@ -314,7 +314,7 @@
           ],
           "correct": 1,
           "time": 15,
-          "explanation": ""
+          "explanation": "İstiklal Marşı'nın sözlerini Mehmet Âkif Ersoy yazmıştır."
         },
         {
           "question": "Bir futbol takımında sahada kaç oyuncu bulunur?",
@@ -326,7 +326,7 @@
           ],
           "correct": 2,
           "time": 15,
-          "explanation": ""
+          "explanation": "Futbolda bir takım sahada kaleci dahil 11 oyuncuyla oynar."
         }
       ]
     }
