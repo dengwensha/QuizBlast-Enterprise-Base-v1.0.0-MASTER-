@@ -23,3 +23,10 @@ not an approved manifest; no image_url or published quiz content changes.
 6. Validate on an isolated branch and obtain CI PASS before any publication integration.
 
 No automatic publishing, database changes, or Render deployment is authorized in this step.
+
+## Verified source-page evidence (2026-10-20)
+
+- Girl with a Pearl Earring: Commons source page describes the specified WGA24666 JPG as a faithful reproduction of a public-domain two-dimensional work and marks it PDM 1.0. **Important:** Commons explicitly labels this particular JPG superseded and recommends `1665 Girl with a Pearl Earring.jpg`. For production, review the recommended replacement file's own rights metadata and image fidelity; do not automatically reuse the older file URL. Source: https://commons.wikimedia.org/wiki/File:Johannes_Vermeer_-_Girl_with_a_Pearl_Earring_-_WGA24666.jpg
+- Two Resistors in series.svg: Commons lists author **Ggia** and the image license **CC BY-SA 4.0**. Publication requires credit, license URL, changes notation if modified, and share-alike for adapted works. Source: https://commons.wikimedia.org/wiki/File:Two_Resistors_in_series.svg
+- These checks concern **source-page licensing metadata only**. Direct image URL, loading in target browsers, whether the answer is revealed, mobile legibility, alternative text and attribution display remain unverified.
+- Consequently all seven entries in `visual_assets_review_v1.json` remain `pending_review`; nothing has been approved or published.
