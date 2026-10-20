@@ -1,0 +1,83 @@
+{
+  "collection_version": 3,
+  "language": "tr",
+  "base_slug": "bilim-teknoloji-genisletilmis-v2",
+  "slug": "bilim-teknoloji-genisletilmis-v3",
+  "publication_status": "draft_only",
+  "questions": [
+    {
+      "question": "Seri bağlı iki dirençten geçen elektrik akımı için hangisi doğrudur?",
+      "options": [
+        "Büyük dirençten daha fazla akım geçer",
+        "Her iki dirençten aynı akım geçer",
+        "Küçük dirençten daha fazla akım geçer",
+        "İkinci dirençten akım geçmez"
+      ],
+      "correct": 1,
+      "time": 30,
+      "difficulty": "Orta",
+      "explanation": "Seri devrede akımın tek yolu vardır; bu nedenle her dirençten aynı akım geçer.",
+      "visual_candidate": true,
+      "visual_brief": "Seri bağlı iki direnç ve güç kaynağını gösteren, cevabı açıklamayan özgün devre şeması"
+    },
+    {
+      "question": "Güneş Sistemi'nde en büyük gezegen hangisidir?",
+      "options": [
+        "Satürn",
+        "Neptün",
+        "Jüpiter",
+        "Uranüs"
+      ],
+      "correct": 2,
+      "time": 25,
+      "difficulty": "Orta",
+      "explanation": "Jüpiter, çap ve kütle bakımından Güneş Sistemi'nin en büyük gezegenidir.",
+      "visual_candidate": true,
+      "visual_brief": "Gezegenlerin ölçekli boyutlarını gösteren, isimleri gizlenmiş lisanslı veya özgün şema"
+    },
+    {
+      "question": "Ökaryot hücrelerde ATP üretiminin büyük bölümünü hangi organel gerçekleştirir?",
+      "options": [
+        "Mitokondri",
+        "Ribozom",
+        "Golgi aygıtı",
+        "Lizozom"
+      ],
+      "correct": 0,
+      "time": 30,
+      "difficulty": "Orta",
+      "explanation": "Mitokondriler hücresel solunum sırasında ATP üretiminin büyük bölümünü gerçekleştirir.",
+      "visual_candidate": true,
+      "visual_brief": "Mitokondriyi gösteren, organel ismi gizlenmiş özgün hücre çizimi"
+    },
+    {
+      "question": "Bir makine 500 joule enerji alıp 350 joule yararlı enerji üretiyorsa verimi yüzde kaçtır?",
+      "options": [
+        "%35",
+        "%50",
+        "%70",
+        "%85"
+      ],
+      "correct": 2,
+      "time": 40,
+      "difficulty": "Zor",
+      "explanation": "Verim, yararlı enerji/giriş enerjisi × 100 ile bulunur: 350/500 × 100 = %70.",
+      "visual_candidate": false
+    },
+    {
+      "question": "İkili sayı sistemindeki 1011 sayısının onluk sistemdeki karşılığı nedir?",
+      "options": [
+        "9",
+        "11",
+        "13",
+        "15"
+      ],
+      "correct": 1,
+      "time": 40,
+      "difficulty": "Zor",
+      "explanation": "1011₂ = 1×8 + 0×4 + 1×2 + 1×1 = 11.",
+      "visual_candidate": true,
+      "visual_brief": "Yanıtı göstermeyen, dört basamaklı ikili sayı yer-değer şeması"
+    }
+  ]
+}
