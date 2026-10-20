@@ -1,0 +1,82 @@
+{
+  "collection_version": 3,
+  "language": "tr",
+  "base_slug": "genel-kultur-genisletilmis-v2",
+  "slug": "genel-kultur-genisletilmis-v3",
+  "publication_status": "draft_only",
+  "questions": [
+    {
+      "question": "İstanbul Boğazı hangi iki denizi birbirine bağlar?",
+      "options": [
+        "Karadeniz ve Ege Denizi",
+        "Karadeniz ve Marmara Denizi",
+        "Marmara Denizi ve Akdeniz",
+        "Ege Denizi ve Akdeniz"
+      ],
+      "correct": 1,
+      "time": 25,
+      "difficulty": "Orta",
+      "explanation": "İstanbul Boğazı, Karadeniz ile Marmara Denizi arasında doğal bir su yoludur.",
+      "visual_candidate": true,
+      "visual_brief": "Telif uygun, etiketleri kapalı İstanbul Boğazı haritası"
+    },
+    {
+      "question": "'İnci Küpeli Kız' tablosunun ressamı kimdir?",
+      "options": [
+        "Rembrandt",
+        "Claude Monet",
+        "Johannes Vermeer",
+        "Sandro Botticelli"
+      ],
+      "correct": 2,
+      "time": 25,
+      "difficulty": "Orta",
+      "explanation": "İnci Küpeli Kız, Hollandalı ressam Johannes Vermeer'e atfedilen ünlü bir eserdir.",
+      "visual_candidate": true,
+      "visual_brief": "Kamu malı niteliği ve kullanım şartları doğrulanmış tablo görseli"
+    },
+    {
+      "question": "Penisilinin antibakteriyel etkisini 1928'de kim gözlemledi?",
+      "options": [
+        "Louis Pasteur",
+        "Alexander Fleming",
+        "Robert Koch",
+        "Edward Jenner"
+      ],
+      "correct": 1,
+      "time": 30,
+      "difficulty": "Zor",
+      "explanation": "Alexander Fleming, 1928'de Penicillium küfünün bakterilerin gelişimini engellediğini gözlemledi.",
+      "visual_candidate": false
+    },
+    {
+      "question": "Aşağıdaki tarihsel olayların eskiden yeniye doğru sıralaması hangisidir? I. İstanbul'un Fethi II. Fransız Devrimi III. Ay'a ilk insan inişi",
+      "options": [
+        "II - I - III",
+        "I - III - II",
+        "I - II - III",
+        "III - II - I"
+      ],
+      "correct": 2,
+      "time": 35,
+      "difficulty": "Orta",
+      "explanation": "İstanbul'un Fethi 1453, Fransız Devrimi 1789 ve Ay'a ilk insan inişi 1969 yılında gerçekleşti.",
+      "visual_candidate": false
+    },
+    {
+      "question": "Ekvator ile başlangıç meridyeninin kesiştiği nokta hangi okyanustadır?",
+      "options": [
+        "Hint Okyanusu",
+        "Pasifik Okyanusu",
+        "Arktik Okyanusu",
+        "Atlas Okyanusu"
+      ],
+      "correct": 3,
+      "time": 35,
+      "difficulty": "Zor",
+      "explanation": "0° enlem ile 0° boylamın kesişimi, Gine Körfezi'nde Atlas Okyanusu üzerindedir.",
+      "visual_candidate": true,
+      "visual_brief": "Koordinat işaretleri görünür, okyanus adı gizlenmiş dünya haritası"
+    }
+  ]
+}
