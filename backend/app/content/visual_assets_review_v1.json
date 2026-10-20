@@ -1,7 +1,7 @@
 {
   "manifest_version": 1,
   "status": "draft_only",
-  "policy": "asset approval requires source, license, attribution, accessible image and visual QA",
+  "policy": "asset approval requires source, license, attribution, descriptive alternative text, accessibility check and visual QA",
   "assets": [
     {
       "set_slug": "genel-kultur-genisletilmis-v3",
@@ -13,7 +13,8 @@
       "license": null,
       "attribution": null,
       "accessibility_checked": false,
-      "visual_qa_pass": false
+      "visual_qa_pass": false,
+      "image_alt_text": null
     },
     {
       "set_slug": "genel-kultur-genisletilmis-v3",
@@ -25,7 +26,8 @@
       "license": null,
       "attribution": null,
       "accessibility_checked": false,
-      "visual_qa_pass": false
+      "visual_qa_pass": false,
+      "image_alt_text": null
     },
     {
       "set_slug": "genel-kultur-genisletilmis-v3",
@@ -37,7 +39,8 @@
       "license": null,
       "attribution": null,
       "accessibility_checked": false,
-      "visual_qa_pass": false
+      "visual_qa_pass": false,
+      "image_alt_text": null
     },
     {
       "set_slug": "bilim-teknoloji-genisletilmis-v3",
@@ -49,7 +52,8 @@
       "license": null,
       "attribution": null,
       "accessibility_checked": false,
-      "visual_qa_pass": false
+      "visual_qa_pass": false,
+      "image_alt_text": null
     },
     {
       "set_slug": "bilim-teknoloji-genisletilmis-v3",
@@ -61,7 +65,8 @@
       "license": null,
       "attribution": null,
       "accessibility_checked": false,
-      "visual_qa_pass": false
+      "visual_qa_pass": false,
+      "image_alt_text": null
     },
     {
       "set_slug": "bilim-teknoloji-genisletilmis-v3",
@@ -73,7 +78,8 @@
       "license": null,
       "attribution": null,
       "accessibility_checked": false,
-      "visual_qa_pass": false
+      "visual_qa_pass": false,
+      "image_alt_text": null
     },
     {
       "set_slug": "bilim-teknoloji-genisletilmis-v3",
@@ -85,7 +91,8 @@
       "license": null,
       "attribution": null,
       "accessibility_checked": false,
-      "visual_qa_pass": false
+      "visual_qa_pass": false,
+      "image_alt_text": null
     }
   ]
 }
