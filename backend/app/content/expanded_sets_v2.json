@@ -1,0 +1,115 @@
+{
+  "collection_version": 2,
+  "language": "tr",
+  "base_collection_version": 1,
+  "sets": [
+    {
+      "base_slug": "genel-kultur-baslangic",
+      "slug": "genel-kultur-genisletilmis-v2",
+      "questions": [
+        {
+          "question": "Fransa'nın başkenti neresidir?",
+          "options": [
+            "Paris",
+            "Lyon",
+            "Marsilya",
+            "Nice"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": "Paris, Fransa'nın başkentidir."
+        },
+        {
+          "question": "Dünya'nın tek doğal uydusunun adı nedir?",
+          "options": [
+            "Ay",
+            "Mars",
+            "Venüs",
+            "Güneş"
+          ],
+          "correct": 0,
+          "time": 20,
+          "explanation": "Ay, Dünya'nın tek doğal uydusudur."
+        },
+        {
+          "question": "Olimpiyat simgesinde kaç halka bulunur?",
+          "options": [
+            "3",
+            "4",
+            "6",
+            "5"
+          ],
+          "correct": 3,
+          "time": 20,
+          "explanation": "Olimpiyat simgesi birbirine geçen beş halkadan oluşur."
+        },
+        {
+          "question": "Anıtkabir hangi şehirdedir?",
+          "options": [
+            "İstanbul",
+            "İzmir",
+            "Samsun",
+            "Ankara"
+          ],
+          "correct": 3,
+          "time": 20,
+          "explanation": "Anıtkabir, Ankara'dadır."
+        }
+      ]
+    },
+    {
+      "base_slug": "bilim-teknoloji-baslangic",
+      "slug": "bilim-teknoloji-genisletilmis-v2",
+      "questions": [
+        {
+          "question": "Işığın boşluktaki yaklaşık hızı kaç kilometre/saniyedir?",
+          "options": [
+            "300.000",
+            "30.000",
+            "3.000",
+            "300"
+          ],
+          "correct": 0,
+          "time": 25,
+          "explanation": "Işık boşlukta saniyede yaklaşık 300 bin kilometre yol alır."
+        },
+        {
+          "question": "Bilgisayarda CPU kısaltmasının Türkçe karşılığı hangisidir?",
+          "options": [
+            "Merkezi işlem birimi",
+            "Grafik işlem birimi",
+            "Kalıcı depolama aygıtı",
+            "Ağ arabirim kartı"
+          ],
+          "correct": 0,
+          "time": 25,
+          "explanation": "CPU, Central Processing Unit ifadesinin kısaltmasıdır; merkezi işlem birimi olarak bilinir."
+        },
+        {
+          "question": "DNA'nın temel görevi hangisidir?",
+          "options": [
+            "Kanı pompalamak",
+            "Işığı kırmak",
+            "Elektrik üretmek",
+            "Genetik bilgiyi taşımak"
+          ],
+          "correct": 3,
+          "time": 25,
+          "explanation": "DNA, canlıların kalıtsal bilgisini taşır."
+        },
+        {
+          "question": "Bir elektrik devresinde direncin SI birimi hangisidir?",
+          "options": [
+            "Amper",
+            "Volt",
+            "Watt",
+            "Ohm"
+          ],
+          "correct": 3,
+          "time": 25,
+          "explanation": "Elektriksel direncin SI birimi ohmdur (Ω)."
+        }
+      ]
+    }
+  ]
+}
