@@ -1,0 +1,91 @@
+{
+  "manifest_version": 1,
+  "status": "draft_only",
+  "policy": "asset approval requires source, license, attribution, accessible image and visual QA",
+  "assets": [
+    {
+      "set_slug": "genel-kultur-genisletilmis-v3",
+      "question_number": 11,
+      "description": "İstanbul Boğazı haritası",
+      "status": "pending_review",
+      "image_url": null,
+      "source_url": null,
+      "license": null,
+      "attribution": null,
+      "accessibility_checked": false,
+      "visual_qa_pass": false
+    },
+    {
+      "set_slug": "genel-kultur-genisletilmis-v3",
+      "question_number": 12,
+      "description": "İnci Küpeli Kız tablosu",
+      "status": "pending_review",
+      "image_url": null,
+      "source_url": null,
+      "license": null,
+      "attribution": null,
+      "accessibility_checked": false,
+      "visual_qa_pass": false
+    },
+    {
+      "set_slug": "genel-kultur-genisletilmis-v3",
+      "question_number": 15,
+      "description": "0° enlem ve 0° boylam dünya haritası",
+      "status": "pending_review",
+      "image_url": null,
+      "source_url": null,
+      "license": null,
+      "attribution": null,
+      "accessibility_checked": false,
+      "visual_qa_pass": false
+    },
+    {
+      "set_slug": "bilim-teknoloji-genisletilmis-v3",
+      "question_number": 11,
+      "description": "Seri elektrik devresi şeması",
+      "status": "pending_review",
+      "image_url": null,
+      "source_url": null,
+      "license": null,
+      "attribution": null,
+      "accessibility_checked": false,
+      "visual_qa_pass": false
+    },
+    {
+      "set_slug": "bilim-teknoloji-genisletilmis-v3",
+      "question_number": 12,
+      "description": "Gezegen boyutları şeması",
+      "status": "pending_review",
+      "image_url": null,
+      "source_url": null,
+      "license": null,
+      "attribution": null,
+      "accessibility_checked": false,
+      "visual_qa_pass": false
+    },
+    {
+      "set_slug": "bilim-teknoloji-genisletilmis-v3",
+      "question_number": 13,
+      "description": "Mitokondri çizimi",
+      "status": "pending_review",
+      "image_url": null,
+      "source_url": null,
+      "license": null,
+      "attribution": null,
+      "accessibility_checked": false,
+      "visual_qa_pass": false
+    },
+    {
+      "set_slug": "bilim-teknoloji-genisletilmis-v3",
+      "question_number": 15,
+      "description": "İkili sayı yer değeri şeması",
+      "status": "pending_review",
+      "image_url": null,
+      "source_url": null,
+      "license": null,
+      "attribution": null,
+      "accessibility_checked": false,
+      "visual_qa_pass": false
+    }
+  ]
+}
