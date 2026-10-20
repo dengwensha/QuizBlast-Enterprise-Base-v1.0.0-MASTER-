@@ -24,6 +24,10 @@ def run():
     rejects(validate_visual_review, invalid)
 
     invalid = deepcopy(data)
+    invalid["assets"][0]["image_alt_text"] = "Unreviewed image"
+    rejects(validate_visual_review, invalid)
+
+    invalid = deepcopy(data)
     invalid["assets"][0]["image_url"] = "http://example.org/unsafe.png"
     rejects(validate_visual_review, invalid)
 
