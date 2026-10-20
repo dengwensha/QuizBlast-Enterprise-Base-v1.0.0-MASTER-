@@ -140,6 +140,7 @@ jobs:
             app.tests.test_content_expansion_v2_manual
             app.tests.test_content_general_culture_v3_manual
             app.tests.test_content_science_v3_manual
+            app.tests.test_content_visual_review_manual
             app.tests.test_content_deploy_manual
           )
 
