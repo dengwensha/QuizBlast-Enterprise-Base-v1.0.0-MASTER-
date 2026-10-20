@@ -53,7 +53,7 @@ def validate_visual_review(manifest, *, drafts=None):
         seen.add(key)
         status = item.get("status")
         if status == PENDING:
-            if any(item.get(field) is not None for field in ("image_url", "source_url", "license", "attribution")):
+            if any(item.get(field) is not None for field in ("image_url", "source_url", "license", "attribution", "image_alt_text")):
                 raise ValueError("unreviewed_visual_contains_asset")
             if item.get("accessibility_checked") is not False or item.get("visual_qa_pass") is not False:
                 raise ValueError("unreviewed_visual_marked_as_checked")
@@ -61,6 +61,8 @@ def validate_visual_review(manifest, *, drafts=None):
             if (not _https_url(item.get("image_url")) or not _https_url(item.get("source_url"))
                     or item.get("license") not in ALLOWED_LICENSES
                     or not isinstance(item.get("attribution"), str) or not item["attribution"].strip()
+                    or not isinstance(item.get("image_alt_text"), str)
+                    or not item["image_alt_text"].strip()
                     or item.get("accessibility_checked") is not True
                     or item.get("visual_qa_pass") is not True):
                 raise ValueError("incomplete_visual_approval")
