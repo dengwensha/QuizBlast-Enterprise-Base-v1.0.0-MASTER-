@@ -19,6 +19,12 @@ def run():
     data = load_initial_sets()
     assert validate_initial_sets(data) == {"set_count": 4, "question_count": 24}
     assert [len(s["questions"]) for s in data["sets"]] == [6] * 4
+    # Curated sets must now explain every answer after the result is revealed.
+    assert all(
+        isinstance(question.get("explanation"), str) and question["explanation"].strip()
+        for content_set in data["sets"]
+        for question in content_set["questions"]
+    )
 
     invalid = deepcopy(data)
     for item in invalid["sets"][0]["questions"]:
