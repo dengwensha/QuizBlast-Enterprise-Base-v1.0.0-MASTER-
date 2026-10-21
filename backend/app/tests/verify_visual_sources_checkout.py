@@ -37,6 +37,26 @@ def run():
         assert title is not None and title.text and title.text.strip()
         assert desc is not None and desc.text and desc.text.strip()
 
+    planet_path = ROOT / "frontend/src/assets/quiz/planet-orbits.svg"
+    root = ET.parse(planet_path).getroot()
+    circles = [
+        element for element in root.findall(SVG_NS + "circle")
+        if element.get("data-planet")
+    ]
+    assert len(circles) == 8, "Expected eight planet circles"
+    assert len({circle.get("data-planet") for circle in circles}) == 8
+    reference = next(circle for circle in circles if circle.get("data-planet") == "Jupiter")
+    ref_radius = float(reference.get("r"))
+    ref_diameter = float(reference.get("data-diameter-km"))
+    assert ref_radius > 0 and ref_diameter > 0
+    for circle in circles:
+        radius = float(circle.get("r"))
+        diameter = float(circle.get("data-diameter-km"))
+        assert abs(radius / ref_radius - diameter / ref_diameter) < 0.001, (
+            "Displayed planet radius must match actual diameter ratio"
+        )
+    assert "isimler gizli" in planet_path.read_text(encoding="utf-8")
+
 
 if __name__ == "__main__":
     run()
