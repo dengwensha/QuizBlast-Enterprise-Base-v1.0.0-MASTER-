@@ -1,7 +1,7 @@
 {
   "version": 1,
   "status": "draft_only",
-  "note": "SVG files are original source drafts; not approved for publication or runtime linkage",
+  "note": "Six original SVG source drafts; not approved for publication or runtime linkage",
   "assets": [
     {
       "set_slug": "genel-kultur-genisletilmis-v3",
@@ -35,6 +35,13 @@
       "set_slug": "bilim-teknoloji-genisletilmis-v3",
       "question_number": 15,
       "source_path": "frontend/src/assets/quiz/binary-place-values.svg",
+      "approval": "pending_review",
+      "image_url": null
+    },
+    {
+      "set_slug": "bilim-teknoloji-genisletilmis-v3",
+      "question_number": 11,
+      "source_path": "frontend/src/assets/quiz/series-resistors.svg",
       "approval": "pending_review",
       "image_url": null
     }
