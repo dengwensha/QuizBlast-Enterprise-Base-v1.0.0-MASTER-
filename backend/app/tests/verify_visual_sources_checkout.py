@@ -14,7 +14,7 @@ SVG_NS = "{http://www.w3.org/2000/svg}"
 def run():
     registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
     assert registry["status"] == "draft_only"
-    assert len(registry["assets"]) == 5
+    assert len(registry["assets"]) == 6
     for record in registry["assets"]:
         relative = Path(record["source_path"])
         assert not relative.is_absolute() and ".." not in relative.parts
@@ -60,4 +60,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-    print("PASS — five original SVG files validated from the full checkout")
+    print("PASS — six original SVG files validated from the full checkout")
