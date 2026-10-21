@@ -14,7 +14,7 @@ def run():
     register = json.loads(REGISTRY.read_text(encoding="utf-8"))
     assert register["version"] == 1 and register["status"] == "draft_only"
     entries = register["assets"]
-    assert len(entries) == 5
+    assert len(entries) == 6
     keys = set()
     for record in entries:
         key = (record["set_slug"], record["question_number"])
@@ -34,4 +34,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-    print("PASS — five original SVG metadata entries; all 7 publication approvals pending")
+    print("PASS — six original SVG metadata entries; all 7 publication approvals pending")
