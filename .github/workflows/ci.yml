@@ -113,6 +113,9 @@ jobs:
           docker compose logs redis
           exit 1
 
+      - name: Verify original SVG sources from full checkout
+        run: python backend/app/tests/verify_visual_sources_checkout.py
+
       - name: Run backend regression modules
         shell: bash
         run: |
