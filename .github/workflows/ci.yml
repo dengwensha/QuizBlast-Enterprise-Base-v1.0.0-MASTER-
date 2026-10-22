@@ -146,6 +146,7 @@ jobs:
             app.tests.test_content_visual_review_manual
             app.tests.test_content_original_visuals_manual
             app.tests.test_content_v3_final_quality_manual
+            app.tests.test_content_artwork_thumbnail_manual
             app.tests.test_content_deploy_manual
           )
 
