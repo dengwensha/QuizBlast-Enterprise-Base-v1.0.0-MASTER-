@@ -1,0 +1,24 @@
+{
+  "record_version": 1,
+  "status": "draft_only",
+  "set_slug": "genel-kultur-genisletilmis-v3",
+  "question_number": 12,
+  "work": "Girl with a Pearl Earring",
+  "artist": "Johannes Vermeer",
+  "source_page": "https://commons.wikimedia.org/wiki/File:1665_Girl_with_a_Pearl_Earring.jpg",
+  "license_mark": "PDM 1.0",
+  "license_page": "https://creativecommons.org/publicdomain/mark/1.0/",
+  "candidate_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/1665_Girl_with_a_Pearl_Earring.jpg/500px-1665_Girl_with_a_Pearl_Earring.jpg",
+  "candidate_dimensions": {
+    "width": 500,
+    "height": 592
+  },
+  "alt_text_draft": "Koyu arka plan önünde, mavi ve sarı başlık takan ve inci küpesi olan genç bir kişinin portresi.",
+  "credit_draft": "Johannes Vermeer, Girl with a Pearl Earring (c. 1665), Wikimedia Commons — Public Domain Mark 1.0.",
+  "editorial_note": "The image's source page identifies a public-domain 2D artwork reproduction; jurisdictional reuse and actual asset delivery require separate review.",
+  "source_metadata_reviewed": true,
+  "asset_download_verified": false,
+  "browser_loading_verified": false,
+  "visual_qa_pass": false,
+  "release_status": "pending_review"
+}
