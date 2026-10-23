@@ -236,6 +236,7 @@ jobs:
             "active host session remains"
             "active player session remains"
             "QB-AUTH-GUEST-01 anonymous PIN join"
+            "QB-P0-01 invalid guest PIN"
             "QB-AUTH-DISPLAY-01 anonymous Display"
             "QB-AUTH-DISPLAY-02 F5 handles overlapping Display sockets"
             "UI-06A player Join Game"
