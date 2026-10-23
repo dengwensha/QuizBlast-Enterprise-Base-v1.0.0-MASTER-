@@ -572,6 +572,32 @@ test("UI-08F-B05 QR link opens Player join without login", async ({ browser }) =
   }
 });
 
+test("QB-P0-01 invalid guest PIN is rejected without registration", async ({ browser }) => {
+  const context = await browser.newContext({ baseURL: frontendUrl });
+  try {
+    const page = await context.newPage();
+    await page.goto("/?pin=not-a-real-room");
+    await expect(page.getByRole("heading", { name: "Join Game" })).toBeVisible();
+    await expect(page.getByPlaceholder("E-posta")).toHaveCount(0);
+    await expect(page.getByPlaceholder("Room PIN")).toHaveValue("not-a-real-room");
+    await page.getByPlaceholder("Name").fill("InvalidPinGuest");
+
+    const dialogPromise = page.waitForEvent("dialog");
+    await page.getByRole("button", { name: "Join", exact: true }).click();
+    const dialog = await dialogPromise;
+    expect(dialog.type()).toBe("alert");
+    expect(dialog.message()).toContain("Oda bulunamadı");
+    await dialog.accept();
+
+    await expect(page.getByRole("heading", { name: "Join Game" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Oyundan Çık" })).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem("quizblast_user"))).toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem("quizblast_active_session"))).toBeNull();
+  } finally {
+    await context.close();
+  }
+});
+
 test("UI-07B QR link opens Player join for authenticated user", async ({ browser }) => {
   const context = await authenticatedContext(browser, {
     email: "qr-fixture@example.com", token: qrFixtureToken,
