@@ -49,6 +49,10 @@ jobs:
       - name: Validate Compose configuration
         run: docker compose config --quiet
 
+      - name: Verify isolated draft visual preview contract
+        working-directory: frontend
+        run: node --test tests/draftVisualPreview.test.mjs
+
       - name: Build production images
         run: docker compose build --pull backend frontend
 
