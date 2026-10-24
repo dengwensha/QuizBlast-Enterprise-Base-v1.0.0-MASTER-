@@ -582,12 +582,17 @@ test("QB-P0-01 invalid guest PIN is rejected without registration", async ({ bro
     await expect(page.getByPlaceholder("Room PIN")).toHaveValue("not-a-real-room");
     await page.getByPlaceholder("Name").fill("InvalidPinGuest");
 
-    const dialogPromise = page.waitForEvent("dialog");
-    await page.getByRole("button", { name: "Join", exact: true }).click();
-    const dialog = await dialogPromise;
+    // A native alert blocks Playwright's click completion until it is dismissed.
+    // Handle both concurrently instead of waiting for click before accepting.
+    const [dialog] = await Promise.all([
+      page.waitForEvent("dialog").then(async (dialog) => {
+        await dialog.accept();
+        return dialog;
+      }),
+      page.getByRole("button", { name: "Join", exact: true }).click(),
+    ]);
     expect(dialog.type()).toBe("alert");
     expect(dialog.message()).toContain("Oda bulunamadı");
-    await dialog.accept();
 
     await expect(page.getByRole("heading", { name: "Join Game" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Oyundan Çık" })).toHaveCount(0);
