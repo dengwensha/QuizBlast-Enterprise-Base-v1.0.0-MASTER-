@@ -7,6 +7,20 @@ export default function JoinQrPopup({ roomPin, joinUrl }) {
   const titleId = useId();
   const close = () => dialogRef.current?.close();
 
+  const keepFocusInDialog = (event) => {
+    if (event.key !== "Tab") return;
+    const controls = event.currentTarget.querySelectorAll("button, a[href]");
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   const closeOnBackdrop = (event) => {
     if (event.target !== dialogRef.current) return;
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -23,7 +37,7 @@ export default function JoinQrPopup({ roomPin, joinUrl }) {
         <span>QR kodunu büyüt</span>
       </button>
       <dialog ref={dialogRef} className="qb-join-qr__dialog"
-        aria-labelledby={titleId} onClick={closeOnBackdrop}>
+        aria-labelledby={titleId} onClick={closeOnBackdrop} onKeyDown={keepFocusInDialog}>
         <button type="button" className="qb-join-qr__close" autoFocus onClick={close}>
           Kapat
         </button>

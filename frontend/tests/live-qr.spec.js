@@ -53,6 +53,8 @@ for (const who of ["HOST", "DISPLAY"]) {
         await expect(link).toBeFocused();
         await page.keyboard.press("Tab");
         await expect(dialog.getByRole("button", { name: "Kapat" })).toBeFocused();
+        await page.keyboard.press("Shift+Tab");
+        await expect(link).toBeFocused();
         await page.keyboard.press("Escape");
         await expect(dialog).not.toBeVisible();
         await expect(trigger).toBeFocused();
