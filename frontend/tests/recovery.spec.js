@@ -174,7 +174,7 @@ test("host, player and display recover after backend and browser restart", async
     const playerStorage = await playerContext.storageState();
     await hostContext.close();
     hostContext = null;
-    await expect(player.getByRole("status")).toHaveText("Host bekleniyor; oyun duraklatıldı.");
+    await expect(player.getByRole("status").filter({ hasText: "Host bekleniyor; oyun duraklatıldı." })).toHaveText("Host bekleniyor; oyun duraklatıldı.");
     const pausedTime = Number(await player.getByTestId("game-timer").innerText());
     await playerContext.close();
     playerContext = null;
@@ -184,12 +184,12 @@ test("host, player and display recover after backend and browser restart", async
       cwd: repoRoot, timeout: 60_000,
     });
     await displayReconnect;
-    await expect(display.getByRole("status")).toBeVisible({ timeout: 30_000 });
+    await expect(display.getByRole("status").filter({ hasText: "Host bekleniyor; oyun duraklatıldı." })).toBeVisible({ timeout: 30_000 });
 
     playerContext = await browser.newContext({ baseURL: frontendUrl, storageState: playerStorage });
     const returnedPlayer = await playerContext.newPage();
     await returnedPlayer.goto("/");
-    await expect(returnedPlayer.getByRole("status")).toBeVisible();
+    await expect(returnedPlayer.getByRole("status").filter({ hasText: "Host bekleniyor; oyun duraklatıldı." })).toBeVisible();
     await expect(returnedPlayer.getByText("✅ Cevabın alındı")).toBeVisible();
     // Reconnected player still sees the accepted answer while paused.
     const frozenTime = Number(await returnedPlayer.getByTestId("game-timer").innerText());
@@ -201,7 +201,7 @@ test("host, player and display recover after backend and browser restart", async
     const returnedHost = await hostContext.newPage();
     await returnedHost.goto("/");
     await expect(returnedHost.getByText("Will this game resume?")).toBeVisible();
-    await expect(returnedPlayer.getByRole("status")).toBeHidden();
+    await expect(returnedPlayer.getByRole("status").filter({ hasText: "Host bekleniyor; oyun duraklatıldı." })).toBeHidden();
     await expect(returnedPlayer.getByRole("button", { name: "Yes" })).toBeDisabled();
     expect(Number(await returnedPlayer.getByTestId("game-timer").innerText())).toBeLessThanOrEqual(pausedTime);
 
