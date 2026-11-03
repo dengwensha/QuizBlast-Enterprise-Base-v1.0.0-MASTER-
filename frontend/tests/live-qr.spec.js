@@ -51,14 +51,14 @@ for (const who of ["HOST", "DISPLAY"]) {
         expect(popupBounds.height).toBeLessThanOrEqual(viewport.height);
         await expect(dialog.getByRole("button", { name: "Kapat" })).toBeFocused();
         await page.keyboard.press("Tab");
-        await expect(link).toBeFocused();
-        await page.keyboard.press("Tab");
         await expect(dialog.getByRole("button", { name: "Bağlantıyı kopyala" })).toBeFocused();
         await page.keyboard.press("Tab");
         await expect(dialog.getByRole("link", { name: "WhatsApp ile paylaş" })).toBeFocused();
         await page.keyboard.press("Tab");
-        const lastControl = dialog.getByRole("link", { name: "E-posta ile paylaş" });
-        await expect(lastControl).toBeFocused();
+        await expect(dialog.getByRole("link", { name: "E-posta ile paylaş" })).toBeFocused();
+        await page.keyboard.press("Tab");
+        const lastControl = link;
+        await expect(link).toBeFocused();
         await page.keyboard.press("Tab");
         await expect(dialog.getByRole("button", { name: "Kapat" })).toBeFocused();
         await page.keyboard.press("Shift+Tab");

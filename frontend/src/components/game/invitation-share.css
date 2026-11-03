@@ -1,4 +1,4 @@
-.qb-invitation-share { margin-top: 16px; }
+.qb-invitation-share { margin: 12px 0 20px; }
 .qb-invitation-share__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .qb-invitation-share__actions > * {
   display: inline-flex;
@@ -12,6 +12,7 @@
   background: var(--qb-primary-50);
   color: var(--qb-primary-700);
   font: inherit;
+  font-size: 18px;
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
@@ -19,7 +20,7 @@
 .qb-invitation-share__actions > :disabled { cursor: wait; opacity: .7; }
 .qb-invitation-share__actions > :focus-visible,
 .qb-invitation-share__manual:focus-visible { outline: 3px solid var(--qb-primary-500); outline-offset: 3px; }
-.qb-invitation-share__feedback { margin: 8px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+.qb-invitation-share__feedback { margin: 8px 0 0; font-size: 18px; overflow-wrap: anywhere; }
 .qb-invitation-share__feedback:empty { display: none; }
 .qb-invitation-share__manual {
   box-sizing: border-box;

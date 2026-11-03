@@ -59,6 +59,12 @@ for (const who of ["HOST", "DISPLAY"]) {
         expect(mailUrl.searchParams.get("subject")).toBe("QuizBlast yarışmasına davet");
         expect(mailUrl.searchParams.get("body")).toBe(invitation);
         const copy = dialog.getByRole("button", { name: "Bağlantıyı kopyala" });
+        await expect(copy).toHaveCSS("font-size", "18px");
+        await expect(address).toHaveCSS("font-size", "18px");
+        await expect(dialog.getByText("Telefonunun kamerasıyla QR kodunu okut.")).toHaveCSS("font-size", "18px");
+        const qrBounds = await dialog.getByRole("img", { name: "Yarışmaya katılım QR kodu" }).boundingBox();
+        const shareBounds = await copy.boundingBox();
+        expect(shareBounds.y + shareBounds.height).toBeLessThan(qrBounds.y);
         if (viewport.height >= 768) {
           const bounds = await email.boundingBox();
           expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
@@ -81,9 +87,11 @@ for (const who of ["HOST", "DISPLAY"]) {
         expect(await manual.evaluate(node => node.selectionEnd - node.selectionStart)).toBe(joinUrl.length);
         await expect(dialog.getByRole("status").filter({ hasText: "Otomatik kopyalanamadı." })).toBeVisible();
         await page.keyboard.press("Tab");
+        await expect(address).toBeFocused();
+        await page.keyboard.press("Tab");
         await expect(dialog.getByRole("button", { name: "Kapat", exact: true })).toBeFocused();
         await page.keyboard.press("Shift+Tab");
-        await expect(manual).toBeFocused();
+        await expect(address).toBeFocused();
         await page.keyboard.press("Escape");
         await expect(trigger).toBeFocused();
         await trigger.click();

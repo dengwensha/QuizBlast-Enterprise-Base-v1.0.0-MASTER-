@@ -87,3 +87,8 @@ No game-rule, scoring, deadline, pause/resume or authentication changes. UI-LIVE
 - Copy success is announced accessibly. Denied/unavailable clipboard reveals a selected read-only address for manual copying. Reopening clears feedback; modal keyboard focus includes the new controls and manual field.
 - Isolated files: InvitationShare.jsx and invitation-share.css. Shared edits: JoinQrPopup.jsx, join-qr-popup.css (reserve viewport height for the sharing controls while retaining a 160–480px QR), existing popup focus tests and CI presentation command. App.jsx, hooks, backend, game rules, scores and timers are unchanged. Event Studio must preserve these edits on integration and continue on its own branch/PR; no active Event Studio PR was present at verification.
 - Gates: production build, clock tests, QR/arrival/stage/progress regression, share text/encoding, clipboard success/denied/unavailable, responsive controls and focus, no game commands/extra sockets, quiet reopen, full CI. Physical WhatsApp/mail client handoff and clipboard on devices remain pending.
+
+### UI-LIVE-01D readability follow-up
+
+- User screenshot reports small instructions/address and undiscoverable sharing. Render reports commit `63c194f93024fca8868eeb313213bebc558944f4` live; a stale open tab remains a possible explanation for missing controls.
+- Move sharing immediately below the popup heading, ahead of the QR. Set instruction/address/action/feedback text explicitly to at least 18px, address label 20px. Preserve QR payload, PIN, arrivals and all gameplay behavior. Update focus-order tests and assert readable sizes and sharing above QR. Full regression/build gate required again.

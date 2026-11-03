@@ -50,6 +50,7 @@ export default function JoinQrPopup({ roomPin, joinUrl, players = [] }) {
           Kapat
         </button>
         <h2 id={titleId}>Yarışmaya katıl</h2>
+        <InvitationShare roomPin={roomPin} joinUrl={joinUrl} />
         <p>Telefonunun kamerasıyla QR kodunu okut.</p>
         <div className="qb-join-qr__stage">
           <QRCodeCanvas className="qb-join-qr__code" value={joinUrl} size={480}
@@ -61,7 +62,6 @@ export default function JoinQrPopup({ roomPin, joinUrl, players = [] }) {
         <a className="qb-join-qr__link" aria-label="Katılım bağlantısı" href={joinUrl} target="_blank" rel="noopener noreferrer">
           {joinUrl}
         </a>
-        <InvitationShare roomPin={roomPin} joinUrl={joinUrl} />
         </>}
       </dialog>
     </>
