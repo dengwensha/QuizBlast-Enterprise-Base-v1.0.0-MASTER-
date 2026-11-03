@@ -120,6 +120,22 @@ Backend migrations must be repeatable on an existing database and must preserve 
 Required EVENT-01 evidence: unauthenticated 401; foreign and missing 404; client owner/status rejection; stale-update 409; UTC/null/omitted schedule behavior; owner-scoped pagination; create/edit and restart persistence; frontend loading/empty/error/save states; build and full regression.
 These scenarios are planned acceptance checks, not executed tests.
 
+## EVENT-01 base selection review — 2026-11-04
+
+Fresh heads inspected: CONTENT 4d8cbfa43286c669aff8ba96cc69f529cdf936cc; UI-LIVE 739ce3d84e931b1473a866b605d02bfb89cd421e; EVENT documentation 6eb01e23938cae31f236c0ea674287ef1ff1cff5.
+
+Comparing both branches from common ancestor 075733b8d2fb7bf20734429199e3ab76f24ded09 shows 25 UI changed paths and 38 CONTENT changed paths. Their only overlapping changed path is .github/workflows/ci.yml.
+App.jsx and backend main.py are UI-side changes, not two-sided CONTENT/UI conflicts. They remain shared-file integration risks for future EVENT edits.
+
+CI hunk review: CONTENT adds draft-preview validation before image build, source-checkout validation and additional backend regression modules. UI adds a dedicated presentation Playwright step near browser recovery. The inspected additions occupy different sections; preserve all of them in a future integration. No trial merge or combined CI run has been performed, so this is not a verified clean-merge claim.
+
+Recommended EVENT-01 implementation candidate: branch from UI-LIVE tip 739ce3d84e931b1473a866b605d02bfb89cd421e and target feature/QB-UI-LIVE-01D-invite-sharing as a stacked draft PR. This keeps the latest live presentation behavior and limits the PR diff to EVENT-01. Do not target main or silently combine CONTENT changes. Recheck the head before branch creation and retarget only after the UI chain is integrated.
+
+CONTENT-01D's unaccepted V3 draft work is not a functional dependency of event-draft CRUD. Its separate acceptance remains open; neither this base recommendation nor a future EVENT implementation closes it.
+The EVENT documentation PR remains on its original CONTENT base for a one-file diff; the future implementation PR must reference this contract rather than silently carrying all CONTENT commits.
+
+Runtime implementation is not performed by EVENT-00. The initial explicit instruction forbidding code changes must be lifted before starting EVENT-01 production code. Merge and deploy remain separate and unauthorized.
+
 ## Out of scope
 
 Slides, polls, AI generation, multi-round programs, cross-round scoring, teams, multiple presenters/displays, company roles, payment/subscription, ticketing, advanced reporting and extensive branding.
