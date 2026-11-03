@@ -1,0 +1,90 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { getEvent, listEvents, saveEvent } from '../../services/eventService';
+import './event-studio.css';
+
+const blank = () => ({ title: '', organization: '', scheduled_at: '' });
+const localInput = value => {
+  if (!value) return '';
+  const date = new Date(value);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+
+export default function EventStudio({ user, onBack }) {
+  const [items, setItems] = useState([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [editor, setEditor] = useState(null);
+  const [form, setForm] = useState(blank);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const requestRef = useRef(0);
+
+  const load = async () => {
+    const current = ++requestRef.current;
+    setLoading(true); setError('');
+    try {
+      const result = await listEvents(user.token, offset);
+      if (current !== requestRef.current) return;
+      setItems(result.items); setHasMore(result.has_more);
+    } catch (e) { if (current === requestRef.current) setError(e.message); }
+    finally { if (current === requestRef.current) setLoading(false); }
+  };
+  useEffect(() => { load(); return () => { requestRef.current += 1; }; }, [user.token, offset]);
+
+  const open = async id => {
+    setFeedback(''); setError('');
+    if (!id) { setEditor({}); setForm(blank()); return; }
+    setLoading(true);
+    try {
+      const row = await getEvent(user.token, id);
+      setEditor(row);
+      setForm({ title: row.title, organization: row.organization || '', scheduled_at: localInput(row.scheduled_at) });
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+  const submit = async e => {
+    e.preventDefault();
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true); setError(''); setFeedback('');
+    try {
+      const data = { title: form.title.trim(), organization: form.organization.trim() || null,
+        scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null };
+      if (editor.id) data.revision = editor.revision;
+      await saveEvent(user.token, editor.id, data);
+      setEditor(null); setFeedback('Etkinlik taslağı kaydedildi.');
+      if (offset) setOffset(0); else await load();
+    } catch (e) { setError(e.message); }
+    finally { savingRef.current = false; setSaving(false); }
+  };
+  return <main className="qb-events">
+    <header><div><p>QUIZBLAST EVENT STUDIO</p><h1>Etkinliklerim</h1></div>
+      <button onClick={onBack} disabled={saving}>Ana Menü</button></header>
+    <p>Etkinliğini planla ve taslak bilgilerini düzenle.</p>
+    {error && <p role="alert">{error}</p>}
+    {feedback && <p role="status">{feedback}</p>}
+    {editor ? <form onSubmit={submit} className="qb-events__panel">
+      <h2>{editor.id ? 'Etkinliği Düzenle' : 'Yeni Etkinlik'}</h2>
+      <label>Etkinlik başlığı<input required maxLength={160} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} disabled={saving} /></label>
+      <label>Kurum adı (isteğe bağlı)<input maxLength={160} value={form.organization} onChange={e => setForm({ ...form, organization: e.target.value })} disabled={saving} /></label>
+      <label>Planlanan tarih (isteğe bağlı)<input type="datetime-local" value={form.scheduled_at} onChange={e => setForm({ ...form, scheduled_at: e.target.value })} disabled={saving} /></label>
+      <small>Tarih, bu cihazın saat dilimine göre gösterilir.</small>
+      <div className="qb-events__actions"><button type="submit" disabled={saving || !form.title.trim()}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</button>
+        <button type="button" disabled={saving} onClick={() => { setEditor(null); setError(''); }}>Vazgeç</button>
+        {editor.id && <button type="button" disabled={saving} onClick={() => open(editor.id)}>Güncel Kaydı Aç</button>}</div>
+    </form> : <>
+      <button onClick={() => open()} disabled={loading}>Etkinlik Oluştur</button>
+      {loading ? <p role="status">Etkinlikler yükleniyor…</p> : error ? <button onClick={load}>Tekrar Dene</button> : <>
+        {!items.length && <p>Henüz etkinlik taslağı yok.</p>}
+        <div className="qb-events__grid">{items.map(row => <article key={row.id} className="qb-events__panel">
+          <span>Taslak</span><h2>{row.title}</h2>{row.organization && <p>{row.organization}</p>}
+          <p>{row.scheduled_at ? new Date(row.scheduled_at).toLocaleString('tr-TR') : 'Tarih belirlenmedi'}</p>
+          <button aria-label={`Düzenle: ${row.title}`} onClick={() => open(row.id)}>Düzenle</button>
+        </article>)}</div>
+        <nav aria-label="Etkinlik sayfaları" className="qb-events__actions"><button disabled={!offset} onClick={() => setOffset(offset - 20)}>Önceki</button><button disabled={!hasMore} onClick={() => setOffset(offset + 20)}>Sonraki</button></nav>
+      </>}
+    </>}
+  </main>;
+}

@@ -9,6 +9,8 @@ from jose import jwt
 from datetime import datetime, timedelta
 from contextlib import contextmanager, suppress
 import os, random, asyncio, time, uuid
+from app.routes.events import create_events_router
+from app.services.event_store import register_event_model
 from app.services.excel_reader import read_excel_rows_from_bytes
 from app.services.import_pipeline import run_qbds_import_pipeline, build_pipeline_user_message
 from app.services.content_catalog import serialize_set, serialize_preview_question
@@ -119,6 +121,8 @@ class User(Base):
     email=Column(String, unique=True, nullable=False)
     password_hash=Column(String, nullable=False)
 
+EventDraft = register_event_model(Base)
+
 connected=False
 while not connected:
     try:
@@ -167,6 +171,11 @@ app.add_middleware(
     allow_methods=list(CORS_METHODS),
     allow_headers=list(CORS_HEADERS),
 )
+
+app.include_router(create_events_router(
+    SessionLocal, User, EventDraft,
+    lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
+))
 
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
 game_phase={}; remaining_seconds={}; question_deadline={}
