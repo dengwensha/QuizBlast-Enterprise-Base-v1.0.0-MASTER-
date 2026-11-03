@@ -98,6 +98,28 @@ Final structure must follow the freshly inspected implementation base.
 - CONTENT-01D physical/editorial acceptance remains a separate workstream.
 - Build and full automated tests are mandatory for implementation; physical pilot acceptance requires at least 10 real participants against the 10–25 participant target.
 
+## Implementation review findings
+
+The following are design requirements, not claims of implemented behavior:
+
+1. Stable ownership: resolve the authenticated subject to an existing User and store its immutable database ID as event owner. Never accept owner ID/email from a request body. Keep existing Host email ownership compatible at the adapter boundary; this work does not migrate authentication.
+2. Draft API: POST /events, GET /events, GET /events/{event_id}, PATCH /events/{event_id}. Reject unknown fields, including client-controlled status/ownership. Title: trimmed 1–160 characters; organization label: up to 160 characters. A schedule must include an offset; null clears it on PATCH, omission preserves it.
+3. Concurrent edits: expose a revision and require the expected revision on updates; stale writes return 409 without overwriting newer changes. Lists use bounded pagination scoped by owner and stable ordering.
+4. Room creation atomicity requires a transaction-aware helper: the existing create-room endpoint commits independently. An event route must not call that endpoint then commit a link later. Any helper extraction is a shared backend change and needs the conflict gate.
+5. Persisted event-session/result identifiers must survive deletion of RoomIdentity and GameRoom. Keep a stable historical instance identifier independent of purge-owned foreign keys, and preserve the one-session-per-event constraint after purge.
+6. Completion, close and restart guards must cover the existing Host endpoints as well as new event routes. A UI-only guard is insufficient.
+7. Finalization must serialize with answer acceptance at the server. If persistence fails, release any temporary freeze or leave an explicit retryable finalization state; do not silently strand a room with a running-looking clock and rejected answers.
+8. The unique participant count includes admitted players with zero answers; HOST and DISPLAY are excluded. Rank is competition rank (1, 1, 3); a deterministic secondary display order does not break ties.
+
+## EVENT-01 readiness boundary
+
+EVENT-01 can be implemented without resolving EVENT-03 retention duration.
+Before runtime code begins, record the selected implementation base SHA and refreshed UI-LIVE overlap review.
+A separate implementation branch/PR must carry EVENT-01 code; keep this EVENT-00 PR documentation-only.
+Backend migrations must be repeatable on an existing database and must preserve all quiz/room records.
+Required EVENT-01 evidence: unauthenticated 401; foreign and missing 404; client owner/status rejection; stale-update 409; UTC/null/omitted schedule behavior; owner-scoped pagination; create/edit and restart persistence; frontend loading/empty/error/save states; build and full regression.
+These scenarios are planned acceptance checks, not executed tests.
+
 ## Out of scope
 
 Slides, polls, AI generation, multi-round programs, cross-round scoring, teams, multiple presenters/displays, company roles, payment/subscription, ticketing, advanced reporting and extensive branding.
