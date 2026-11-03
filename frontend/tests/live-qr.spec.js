@@ -33,6 +33,7 @@ for (const who of ["HOST", "DISPLAY"]) {
         await page.goto("http://localhost:5173");
         const trigger = page.getByRole("button", { name: "QR kodunu büyüt" });
         await expect(trigger).toBeVisible();
+        await expect(page.getByText(`PIN: ${pin}`, { exact: false })).toHaveCount(1);
         await trigger.click();
         const dialog = page.getByRole("dialog", { name: "Yarışmaya katıl" });
         await expect(dialog).toBeVisible();

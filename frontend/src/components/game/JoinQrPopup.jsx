@@ -1,10 +1,14 @@
-import React, { useId, useRef } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import "./join-qr-popup.css";
 
 export default function JoinQrPopup({ roomPin, joinUrl }) {
   const dialogRef = useRef(null);
   const titleId = useId();
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (open) dialogRef.current.showModal();
+  }, [open]);
   const close = () => dialogRef.current?.close();
 
   const keepFocusInDialog = (event) => {
@@ -32,12 +36,14 @@ export default function JoinQrPopup({ roomPin, joinUrl }) {
     <>
       <button type="button" className="qb-join-qr__trigger"
         aria-haspopup="dialog" aria-label="QR kodunu büyüt"
-        onClick={() => dialogRef.current.showModal()}>
+        onClick={() => setOpen(true)}>
         <QRCodeCanvas value={joinUrl} size={160} includeMargin aria-hidden="true" />
         <span>QR kodunu büyüt</span>
       </button>
       <dialog ref={dialogRef} className="qb-join-qr__dialog"
-        aria-labelledby={titleId} onClick={closeOnBackdrop} onKeyDown={keepFocusInDialog}>
+        aria-labelledby={titleId} onClick={closeOnBackdrop} onKeyDown={keepFocusInDialog}
+        onClose={() => setOpen(false)}>
+        {open && <>
         <button type="button" className="qb-join-qr__close" autoFocus onClick={close}>
           Kapat
         </button>
@@ -50,6 +56,7 @@ export default function JoinQrPopup({ roomPin, joinUrl }) {
         <a className="qb-join-qr__link" href={joinUrl} target="_blank" rel="noopener noreferrer">
           {joinUrl}
         </a>
+        </>}
       </dialog>
     </>
   );
