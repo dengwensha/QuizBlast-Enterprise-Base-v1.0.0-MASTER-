@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { QRCodeCanvas } from "qrcode.react";
+import JoinQrPopup from "./components/game/JoinQrPopup";
 import confetti from "canvas-confetti";
 
 import AdminView from "./components/admin/AdminView.jsx";
@@ -376,13 +376,7 @@ return (
       <h2>PIN: {roomPin}</h2>
 
       {roomPin && (mode === "host" || mode === "display") && (
-        <div style={styles.qrBox}>
-          <QRCodeCanvas
-            value={`${APP_URL}?pin=${roomPin}`}
-            size={160}
-            includeMargin
-          />
-        </div>
+        <JoinQrPopup roomPin={roomPin} joinUrl={`${APP_URL}?pin=${roomPin}`} />
       )}
 
       {mode === "host" && !question && !gameOver && (
