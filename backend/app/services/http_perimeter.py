@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 from fastapi import HTTPException
 
 
-CORS_METHODS = ("GET", "POST", "PUT", "DELETE")
+CORS_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 CORS_HEADERS = ("Authorization", "Content-Type")
 
 
