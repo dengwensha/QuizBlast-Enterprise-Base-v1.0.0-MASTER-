@@ -53,3 +53,16 @@ No game-rule, scoring, deadline, pause/resume, authentication or transport chang
 - Only presentation components receive the current visible-player roster. No game hooks, backend, scoring, timer, authorization or WebSocket protocol changes.
 - Shared edit: App.jsx adds only the visible-player prop. Existing CI popup step also runs the new browser scenarios; no workflow edit is needed.
 - Gates: production build, existing clock tests, new queue/layout/replay/motion browser cases, existing popup tests and full CI. Physical Host/Display animation acceptance remains pending.
+
+## UI-LIVE-01B — Fit and fullscreen
+
+- Base: `64213a68eb1cd8c82d10ce859767607813e74f85`, PR #14, full CI PASS. User reported two new names appeared in physical testing; reused names were correctly suppressed. This does not establish separate Host and Display animation acceptance.
+- Work branch: `feature/QB-UI-LIVE-01B-stage-viewport`; separate PR targeting the animation branch. Prior PRs remain separate.
+- Host/Display receive an unscaled toolbar with independent fit and fullscreen toggles. Player UI does not receive these controls.
+- Fit measures remaining viewport space and the natural game area, downscales without cropping content, and recomputes on stage, image, font and viewport size changes. View and game controls stay unscaled with at least 44px-high buttons; only the header QR preview is compacted (the large popup remains unchanged).
+- Normal view restores the original game layout. Fullscreen uses the browser API; native exit updates the button. Unsupported browsers retain fit; rejected fullscreen requests show a recoverable message.
+- QR popup remains a native modal above the fitted view, including inside fullscreen. No gameplay component is remounted when toggling either view.
+- Shared edits: App.jsx wraps the joined game view and adds its shell class/import; CI adds the presentation test file. Isolated files: StageViewport.jsx and stage-viewport.css. Check these shared edits before integrating Event Studio.
+- No backend, game hook, game rule, score, deadline, pause/resume, authentication or transport changes. No merge/deploy in this micro-step.
+- Gates: build, clock unit tests, Host/Display long/image question, result, leaderboard and final fit at desktop/portrait/landscape sizes; resize, fullscreen entry/button/native exit and error/unsupported handling; QR popup above fit; no extra socket/game commands; existing QR and full regression CI.
+- Physical acceptance pending: Host/Display fit and normal view, actual fullscreen/Escape, QR scan while fitted/fullscreen, orientation/window resize, and continuing clock.
