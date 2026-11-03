@@ -57,3 +57,62 @@
 .qb-join-qr__pin { margin: 12px 0; font-size: clamp(28px, 6vw, 48px); }
 .qb-join-qr__address { margin: 12px 0 6px; font-weight: 700; }
 .qb-join-qr__link { display: block; overflow-wrap: anywhere; color: var(--qb-primary-700); }
+
+.qb-join-qr__stage { position: relative; }
+.qb-join-qr__arrivals {
+  display: grid;
+  min-height: 76px;
+  align-items: center;
+  justify-items: center;
+  pointer-events: none;
+}
+.qb-join-qr__arrival {
+  box-sizing: border-box;
+  width: min(100%, 240px);
+  padding: 10px 12px;
+  border: 1px solid var(--qb-primary-200);
+  border-radius: 14px;
+  background: var(--qb-primary-50);
+  color: var(--qb-primary-700);
+  box-shadow: var(--qb-shadow-1);
+  overflow-wrap: anywhere;
+  animation: qb-join-arrival 3s ease-in-out both;
+}
+.qb-join-qr__arrival-label { display: block; font-size: 13px; margin-bottom: 4px; }
+.qb-join-qr__arrival-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 18px;
+  line-height: 1.25;
+}
+@keyframes qb-join-arrival {
+  0% { opacity: 0; transform: translateY(12px); }
+  12%, 82% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-12px); }
+}
+@media (min-width: 900px) and (min-height: 600px) {
+  .qb-join-qr__dialog { width: min(1040px, calc(100vw - 24px)); }
+  .qb-join-qr__stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 480px) minmax(0, 1fr);
+    column-gap: 16px;
+  }
+  .qb-join-qr__stage > .qb-join-qr__code { grid-column: 2; grid-row: 1; }
+  .qb-join-qr__arrivals {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-template-rows: repeat(3, 1fr);
+    min-height: 0;
+  }
+  .qb-join-qr__arrival { width: 100%; }
+  .qb-join-qr__arrival[data-slot="0"] { grid-column: 1; grid-row: 1; }
+  .qb-join-qr__arrival[data-slot="1"] { grid-column: 3; grid-row: 2; }
+  .qb-join-qr__arrival[data-slot="2"] { grid-column: 1; grid-row: 3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qb-join-qr__arrival { animation: none; }
+}

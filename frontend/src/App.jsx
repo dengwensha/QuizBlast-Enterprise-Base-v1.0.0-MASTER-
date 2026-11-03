@@ -376,7 +376,7 @@ return (
       <h2>PIN: {roomPin}</h2>
 
       {roomPin && (mode === "host" || mode === "display") && (
-        <JoinQrPopup roomPin={roomPin} joinUrl={`${APP_URL}?pin=${roomPin}`} />
+        <JoinQrPopup roomPin={roomPin} joinUrl={`${APP_URL}?pin=${roomPin}`} players={visiblePlayers} />
       )}
 
       {mode === "host" && !question && !gameOver && (
