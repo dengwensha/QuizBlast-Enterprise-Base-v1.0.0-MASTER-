@@ -38,7 +38,7 @@ for (const who of ["HOST", "DISPLAY"]) {
         const dialog = page.getByRole("dialog", { name: "Yarışmaya katıl" });
         await expect(dialog).toBeVisible();
         await expect(dialog.getByText(`PIN: ${pin}`)).toBeVisible();
-        const link = dialog.getByRole("link");
+        const link = dialog.getByRole("link", { name: "Katılım bağlantısı", exact: true });
         const joinUrl = await link.getAttribute("href");
         expect(new URL(joinUrl).searchParams.get("pin")).toBe(pin);
         await expect(link).toHaveText(joinUrl);
@@ -51,11 +51,18 @@ for (const who of ["HOST", "DISPLAY"]) {
         expect(popupBounds.height).toBeLessThanOrEqual(viewport.height);
         await expect(dialog.getByRole("button", { name: "Kapat" })).toBeFocused();
         await page.keyboard.press("Tab");
+        await expect(dialog.getByRole("button", { name: "Bağlantıyı kopyala" })).toBeFocused();
+        await page.keyboard.press("Tab");
+        await expect(dialog.getByRole("link", { name: "WhatsApp ile paylaş" })).toBeFocused();
+        await page.keyboard.press("Tab");
+        await expect(dialog.getByRole("link", { name: "E-posta ile paylaş" })).toBeFocused();
+        await page.keyboard.press("Tab");
+        const lastControl = link;
         await expect(link).toBeFocused();
         await page.keyboard.press("Tab");
         await expect(dialog.getByRole("button", { name: "Kapat" })).toBeFocused();
         await page.keyboard.press("Shift+Tab");
-        await expect(link).toBeFocused();
+        await expect(lastControl).toBeFocused();
         await page.keyboard.press("Escape");
         await expect(dialog).not.toBeVisible();
         await expect(trigger).toBeFocused();

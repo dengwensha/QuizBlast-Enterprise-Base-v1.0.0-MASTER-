@@ -28,6 +28,8 @@
   background: var(--qb-surface);
   color: var(--qb-text-primary);
   font-family: inherit;
+  font-size: 18px;
+  line-height: 1.5;
   text-align: center;
   overflow: auto;
   box-shadow: var(--qb-shadow-2);
@@ -49,14 +51,14 @@
 .qb-join-qr__dialog h2 { margin: 12px 0; font-size: clamp(24px, 4vw, 36px); }
 .qb-join-qr__code {
   display: block;
-  width: min(100%, 480px, 60vh) !important;
+  width: min(100%, 480px, max(160px, calc(100dvh - 600px))) !important;
   height: auto !important;
   margin: 16px auto;
   background: white;
 }
 .qb-join-qr__pin { margin: 12px 0; font-size: clamp(28px, 6vw, 48px); }
-.qb-join-qr__address { margin: 12px 0 6px; font-weight: 700; }
-.qb-join-qr__link { display: block; overflow-wrap: anywhere; color: var(--qb-primary-700); }
+.qb-join-qr__address { margin: 12px 0 6px; font-size: 20px; font-weight: 700; }
+.qb-join-qr__link { display: block; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; color: var(--qb-primary-700); }
 
 .qb-join-qr__stage { position: relative; }
 .qb-join-qr__arrivals {
@@ -94,6 +96,7 @@
 }
 @media (min-width: 900px) and (min-height: 600px) {
   .qb-join-qr__dialog { width: min(1040px, calc(100vw - 24px)); }
+  .qb-join-qr__code { width: min(100%, 480px, max(160px, calc(100dvh - 460px))) !important; }
   .qb-join-qr__stage {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 480px) minmax(0, 1fr);

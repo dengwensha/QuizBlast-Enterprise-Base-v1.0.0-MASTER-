@@ -78,3 +78,17 @@ No game-rule, scoring, deadline, pause/resume or authentication changes. UI-LIVE
 - Gates: build, clock tests, existing QR/stage tests, all-role desktop/mobile progress cases, three-second expiry/duplicate/rapid transitions, result/leaderboard persistence, reconnect/F5/replay/motion, Player input during notice, real live-versus-recovered payload assertions, and full CI.
 - Shared files: App.jsx (badge import/props/header), useGameSession.js (presentation flag only), backend main.py (one snapshot marker), and CI test command. Coordinate these before Event Studio integration; do not replace whole files.
 - Physical all-role number/notice timing, fit/fullscreen display and refresh/reconnect acceptance remain pending. Recording review remains separate.
+
+## UI-LIVE-01D — Invitation sharing
+
+- Base: `032d12f0706e1f43077412c5d73ce1678f75107d`, PR #16, push and PR CI PASS; separate stacked branch/PR. No merge/deploy included.
+- User reports Host number persistence across result/leaderboard, new-question notice expiry and quiet F5 PASS. Display question number is confirmed; its other checks and Player physical acceptance remain pending. Recording review remains separate.
+- Add WhatsApp and email draft links plus copy-link action inside the existing Host/Display QR popup. Draft text includes the exact PIN and advertised join URL; copy writes the URL only. The user chooses recipients and sends in their own application.
+- Copy success is announced accessibly. Denied/unavailable clipboard reveals a selected read-only address for manual copying. Reopening clears feedback; modal keyboard focus includes the new controls and manual field.
+- Isolated files: InvitationShare.jsx and invitation-share.css. Shared edits: JoinQrPopup.jsx, join-qr-popup.css (reserve viewport height for the sharing controls while retaining a 160–480px QR), existing popup focus tests and CI presentation command. App.jsx, hooks, backend, game rules, scores and timers are unchanged. Event Studio must preserve these edits on integration and continue on its own branch/PR; no active Event Studio PR was present at verification.
+- Gates: production build, clock tests, QR/arrival/stage/progress regression, share text/encoding, clipboard success/denied/unavailable, responsive controls and focus, no game commands/extra sockets, quiet reopen, full CI. Physical WhatsApp/mail client handoff and clipboard on devices remain pending.
+
+### UI-LIVE-01D readability follow-up
+
+- User screenshot reports small instructions/address and undiscoverable sharing. Render reports commit `63c194f93024fca8868eeb313213bebc558944f4` live; a stale open tab remains a possible explanation for missing controls.
+- Move sharing immediately below the popup heading, ahead of the QR. Set instruction/address/action/feedback text explicitly to at least 18px, address label 20px. Preserve QR payload, PIN, arrivals and all gameplay behavior. Update focus-order tests and assert readable sizes and sharing above QR. Full regression/build gate required again.

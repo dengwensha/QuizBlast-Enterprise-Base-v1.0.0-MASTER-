@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import JoinArrivals from "./JoinArrivals";
+import InvitationShare from "./InvitationShare";
 import "./join-qr-popup.css";
 
 export default function JoinQrPopup({ roomPin, joinUrl, players = [] }) {
@@ -14,7 +15,7 @@ export default function JoinQrPopup({ roomPin, joinUrl, players = [] }) {
 
   const keepFocusInDialog = (event) => {
     if (event.key !== "Tab") return;
-    const controls = event.currentTarget.querySelectorAll("button, a[href]");
+    const controls = event.currentTarget.querySelectorAll("button:not(:disabled), a[href], input");
     const first = controls[0];
     const last = controls[controls.length - 1];
     if (event.shiftKey && document.activeElement === first) {
@@ -49,6 +50,7 @@ export default function JoinQrPopup({ roomPin, joinUrl, players = [] }) {
           Kapat
         </button>
         <h2 id={titleId}>Yarışmaya katıl</h2>
+        <InvitationShare roomPin={roomPin} joinUrl={joinUrl} />
         <p>Telefonunun kamerasıyla QR kodunu okut.</p>
         <div className="qb-join-qr__stage">
           <QRCodeCanvas className="qb-join-qr__code" value={joinUrl} size={480}
@@ -57,7 +59,7 @@ export default function JoinQrPopup({ roomPin, joinUrl, players = [] }) {
         </div>
         <p className="qb-join-qr__pin">PIN: <strong>{roomPin}</strong></p>
         <p className="qb-join-qr__address">Katılım adresi</p>
-        <a className="qb-join-qr__link" href={joinUrl} target="_blank" rel="noopener noreferrer">
+        <a className="qb-join-qr__link" aria-label="Katılım bağlantısı" href={joinUrl} target="_blank" rel="noopener noreferrer">
           {joinUrl}
         </a>
         </>}
