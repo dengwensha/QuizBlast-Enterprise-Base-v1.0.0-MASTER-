@@ -1,0 +1,36 @@
+.qb-invitation-share { margin-top: 16px; }
+.qb-invitation-share__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.qb-invitation-share__actions > * {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--qb-primary-200);
+  border-radius: 10px;
+  background: var(--qb-primary-50);
+  color: var(--qb-primary-700);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+.qb-invitation-share__actions > :disabled { cursor: wait; opacity: .7; }
+.qb-invitation-share__actions > :focus-visible,
+.qb-invitation-share__manual:focus-visible { outline: 3px solid var(--qb-primary-500); outline-offset: 3px; }
+.qb-invitation-share__feedback { margin: 8px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+.qb-invitation-share__feedback:empty { display: none; }
+.qb-invitation-share__manual {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 8px;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--qb-primary-200);
+  border-radius: 8px;
+  font: inherit;
+}
+@media (max-width: 480px) {
+  .qb-invitation-share__actions > * { flex: 1 1 100%; }
+}

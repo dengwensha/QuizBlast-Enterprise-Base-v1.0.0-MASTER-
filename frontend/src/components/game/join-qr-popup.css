@@ -49,7 +49,7 @@
 .qb-join-qr__dialog h2 { margin: 12px 0; font-size: clamp(24px, 4vw, 36px); }
 .qb-join-qr__code {
   display: block;
-  width: min(100%, 480px, 60vh) !important;
+  width: min(100%, 480px, max(160px, calc(100dvh - 600px))) !important;
   height: auto !important;
   margin: 16px auto;
   background: white;
@@ -94,6 +94,7 @@
 }
 @media (min-width: 900px) and (min-height: 600px) {
   .qb-join-qr__dialog { width: min(1040px, calc(100vw - 24px)); }
+  .qb-join-qr__code { width: min(100%, 480px, max(160px, calc(100dvh - 460px))) !important; }
   .qb-join-qr__stage {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 480px) minmax(0, 1fr);
