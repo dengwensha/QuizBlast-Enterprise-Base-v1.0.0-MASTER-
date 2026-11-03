@@ -1,0 +1,59 @@
+.qb-stage {
+  background: var(--qb-background);
+  color: var(--qb-text-primary);
+  min-height: 100dvh;
+}
+.qb-stage__toolbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--qb-z-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  background: var(--qb-surface);
+  border-bottom: 1px solid var(--qb-border);
+  box-sizing: border-box;
+}
+.qb-stage__toolbar button {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--qb-primary-200);
+  border-radius: 10px;
+  background: var(--qb-primary-50);
+  color: var(--qb-primary-700);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.qb-stage__toolbar button[aria-pressed="true"] { background: var(--qb-primary-600); color: white; }
+.qb-stage__toolbar button:focus-visible { outline: 3px solid var(--qb-primary-500); outline-offset: 2px; }
+.qb-stage__toolbar button:disabled { opacity: .55; cursor: default; }
+.qb-stage__toolbar [role="status"] { flex-basis: 100%; text-align: center; }
+.qb-stage:fullscreen { width: 100%; height: 100dvh; overflow: auto; }
+.qb-stage--fit {
+  position: fixed;
+  inset: 0;
+  z-index: var(--qb-z-overlay);
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+.qb-stage--fit .qb-stage__toolbar { flex-shrink: 0; }
+.qb-stage--fit .qb-stage__game-header {
+  flex-shrink: 0;
+  padding: 8px !important;
+  gap: 8px !important;
+}
+.qb-stage--fit .qb-stage__game-header > h1 { margin: 0; font-size: 20px; }
+.qb-stage--fit .qb-stage__game-header > h2 { margin: 0; font-size: 18px; }
+.qb-stage--fit .qb-stage__game-header > button { min-height: 44px; }
+.qb-stage--fit .qb-stage__game-header .qb-join-qr__trigger { padding: 8px; font-size: 12px; }
+.qb-stage--fit .qb-stage__game-header .qb-join-qr__trigger canvas { width: 64px !important; height: 64px !important; }
+.qb-stage--fit .qb-stage__viewport { flex: 1; min-height: 0; overflow: hidden; }
+.qb-stage--fit .qb-stage__frame { position: relative; margin: 0 auto; overflow: hidden; }
+.qb-stage--fit .qb-stage__content { position: absolute; top: 0; left: 0; transform-origin: top left; }
+.qb-game-shell:has(> .qb-stage--fit) { min-height: 0 !important; }

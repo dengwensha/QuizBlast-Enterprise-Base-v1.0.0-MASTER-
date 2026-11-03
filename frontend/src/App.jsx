@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import JoinQrPopup from "./components/game/JoinQrPopup";
+import StageViewport from "./components/game/StageViewport";
 import confetti from "canvas-confetti";
 
 import AdminView from "./components/admin/AdminView.jsx";
@@ -370,8 +371,9 @@ export default function App() {
   if(mode==='display'&&!joined) return <DisplayConnect {...{roomPin,setRoomPin,connectDisplay,setMode:navigateMode}} styles={styles}/>;
 
 return (
-  <div style={styles.app}>
-    <div style={styles.topbar}>
+  <div className="qb-game-shell" style={styles.app}>
+  <StageViewport enabled={mode === "host" || mode === "display"} header={
+    <div className="qb-stage__game-header" style={styles.topbar}>
       <h1>{mode === "display" ? "📺 QuizBlast Display" : "QuizBlast 🚀"}</h1>
       <h2>PIN: {roomPin}</h2>
 
@@ -420,7 +422,7 @@ return (
         Oyundan Çık
       </button>
     </div>
-
+  }>
     <div style={styles.container}>
       {!question && !gameOver && mode === "player" && (
         <PlayerLobbyStage roomPin={roomPin} playerName={playerName} players={visiblePlayers} />
@@ -480,6 +482,7 @@ return (
         />
       )}
     </div>
+  </StageViewport>
   </div>
 );
 }
