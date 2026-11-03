@@ -106,6 +106,7 @@ async def run_game_flow():
                 for socket in (host, player, display):
                     question, events = await receive_until(socket, 'question')
                     assert question['question'] == 'Two plus two?'
+                    assert question.get('is_snapshot', False) is False
                     assert 'explanation' not in question
                     assert any(
                         event.get('type') == 'players'
@@ -185,6 +186,7 @@ async def run_game_flow():
                 for socket in (host, player, display):
                     question, _ = await receive_until(socket, 'question')
                     assert question['index'] == 0
+                    assert question.get('is_snapshot', False) is False
                     assert 'explanation' not in question
 
                 await player.send(json.dumps({'type': 'answer', 'answer': 1}))

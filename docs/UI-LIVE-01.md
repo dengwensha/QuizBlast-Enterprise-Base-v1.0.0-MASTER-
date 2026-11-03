@@ -17,7 +17,7 @@
 4. WhatsApp/email invitation and copy link.
 5. Combined physical acceptance and sprint closure.
 
-No game-rule, scoring, deadline, pause/resume, authentication or transport changes.
+No game-rule, scoring, deadline, pause/resume or authentication changes. UI-LIVE-01C adds optional question snapshot metadata; connection behavior remains unchanged.
 
 ## UI-LIVE-01A acceptance
 
@@ -66,3 +66,15 @@ No game-rule, scoring, deadline, pause/resume, authentication or transport chang
 - No backend, game hook, game rule, score, deadline, pause/resume, authentication or transport changes. No merge/deploy in this micro-step.
 - Gates: build, clock unit tests, Host/Display long/image question, result, leaderboard and final fit at desktop/portrait/landscape sizes; resize, fullscreen entry/button/native exit and error/unsupported handling; QR popup above fit; no extra socket/game commands; existing QR and full regression CI.
 - Physical acceptance pending: Host/Display fit and normal view, actual fullscreen/Escape, QR scan while fitted/fullscreen, orientation/window resize, and continuing clock.
+
+## UI-LIVE-01C — Question progress
+
+- Base: `9bba3ea39c75a7bb63f2e6e2282b722af864ce44`, PR #15, full CI PASS. User reported fit/fullscreen/Escape and remaining checks working; the phone discrepancy was traced to Player versus Host/Display role, with correct Player behavior confirmed.
+- Work branch: `feature/QB-UI-LIVE-01C-question-progress`, separate PR targeting the stage viewport branch.
+- A common header badge shows the current one-based question number and known total on Host/Player/Display, including result and leaderboard stages. Hide it in lobby and after game over; unknown totals are not shown as zero. The old Player-only duplicate is removed.
+- New live questions show a pointer-transparent three-second notice. Duplicate deliveries do not restart it; a subsequent question replaces it with its own three seconds. Reduced motion uses static text.
+- Restored/reconnected/paused state must retain the correct number without announcing an old question. `send_current_state` marks its question payload with optional `is_snapshot: true`; the hook exposes this presentation flag. New-question broadcasts retain their original payload and behavior. Older clients ignore the extra field.
+- No connection, score, timing, pause/resume, authorization or game progression changes. No merge/deploy in this micro-step.
+- Gates: build, clock tests, existing QR/stage tests, all-role desktop/mobile progress cases, three-second expiry/duplicate/rapid transitions, result/leaderboard persistence, reconnect/F5/replay/motion, Player input during notice, real live-versus-recovered payload assertions, and full CI.
+- Shared files: App.jsx (badge import/props/header), useGameSession.js (presentation flag only), backend main.py (one snapshot marker), and CI test command. Coordinate these before Event Studio integration; do not replace whole files.
+- Physical all-role number/notice timing, fit/fullscreen display and refresh/reconnect acceptance remain pending. Recording review remains separate.

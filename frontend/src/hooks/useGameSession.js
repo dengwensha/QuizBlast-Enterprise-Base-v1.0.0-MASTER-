@@ -53,6 +53,7 @@ export function useGameSession({
   const [leaderboard, setLeaderboard] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
+  const [questionIsSnapshot, setQuestionIsSnapshot] = useState(false);
   const [questionResult, setQuestionResult] = useState(null);
   const [gameStage, setGameStage] = useState("lobby");
   const [timeLeft, setTimeLeft] = useState(0);
@@ -87,6 +88,7 @@ export function useGameSession({
     setTotalPlayers(0);
     setCurrentQuestionIndex(0);
     setTotalQuestions(0);
+    setQuestionIsSnapshot(false);
   };
 
   const closeSocket = () => {
@@ -251,6 +253,7 @@ export function useGameSession({
         setOptions(data.options);
         setCurrentQuestionIndex(data.index || 0);
         setTotalQuestions(data.question_count || 0);
+        setQuestionIsSnapshot(data.is_snapshot === true);
         // A monotonic local deadline anchored to the server's absolute deadline
         // prevents browser timer callbacks from accumulating drift.
         const localDeadline = !data.paused
@@ -438,6 +441,7 @@ export function useGameSession({
     leaderboard,
     currentQuestionIndex,
     totalQuestions,
+    questionIsSnapshot,
     questionResult,
     gameStage,
     timeLeft,
