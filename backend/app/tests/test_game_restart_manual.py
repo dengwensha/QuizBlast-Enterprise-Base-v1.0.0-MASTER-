@@ -123,6 +123,7 @@ async def run():
                              subprotocols=['quizblast-host', token])
         sockets.append(host)
         resumed = await event_of(ada, 'question')
+        assert resumed['is_snapshot'] is True
         assert abs(resumed['time'] - paused['remaining']) < 1
 
         process.kill()
@@ -141,6 +142,7 @@ async def run():
         sockets.extend([ada2, bora2])
         for socket, answered in [(ada2, True), (bora2, False)]:
             state = await event_of(socket, 'question')
+            assert state['is_snapshot'] is True
             assert 7 < state['time'] <= 12 and state['paused'] is True
             assert 'explanation' not in state
             assert state['answered'] is answered
@@ -155,6 +157,7 @@ async def run():
         sockets.append(host2)
         for socket in (ada2, bora2, host2):
             state = await event_of(socket, 'question')
+            assert state['is_snapshot'] is True
             assert 7 < state['time'] <= 12 and state['paused'] is False, state
             assert 'explanation' not in state
         await bora2.send(json.dumps({'type': 'answer', 'answer': 0}))

@@ -1240,7 +1240,7 @@ async def send_current_state(websocket,room_pin,player_name):
         deadline=question_deadline.get(room_pin)
         time_left=max(0,deadline-time.time()) if deadline is not None else remaining_seconds.get(room_pin)
         if time_left is not None:
-            await websocket.send_json({'type':'question','question':q['question'],
+            await websocket.send_json({'type':'question','is_snapshot':True,'question':q['question'],
                 'image_url':q.get('image_url'),'image_alt_text':q.get('image_alt_text'),'options':q['options'],'index':idx,
                 'question_count':len(questions),
                 'time':time_left if phase=='question' else 0,

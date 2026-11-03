@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import JoinQrPopup from "./components/game/JoinQrPopup";
 import StageViewport from "./components/game/StageViewport";
+import QuestionProgress from "./components/game/QuestionProgress";
 import confetti from "canvas-confetti";
 
 import AdminView from "./components/admin/AdminView.jsx";
@@ -108,6 +109,7 @@ export default function App() {
     leaderboard,
     currentQuestionIndex,
     totalQuestions,
+    questionIsSnapshot,
     questionResult,
     gameStage,
     timeLeft,
@@ -376,6 +378,8 @@ return (
     <div className="qb-stage__game-header" style={styles.topbar}>
       <h1>{mode === "display" ? "📺 QuizBlast Display" : "QuizBlast 🚀"}</h1>
       <h2>PIN: {roomPin}</h2>
+      <QuestionProgress active={Boolean(question) && !gameOver} index={currentQuestionIndex}
+        total={totalQuestions} isSnapshot={questionIsSnapshot} />
 
       {roomPin && (mode === "host" || mode === "display") && (
         <JoinQrPopup roomPin={roomPin} joinUrl={`${APP_URL}?pin=${roomPin}`} players={visiblePlayers} />
