@@ -81,7 +81,7 @@ export default function EventStudio({ user, onBack }) {
         <div className="qb-events__grid">{items.map(row => <article key={row.id} className="qb-events__panel">
           <span>Taslak</span><h2>{row.title}</h2>{row.organization && <p>{row.organization}</p>}
           <p>{row.scheduled_at ? new Date(row.scheduled_at).toLocaleString('tr-TR') : 'Tarih belirlenmedi'}</p>
-          <button onClick={() => open(row.id)}>Düzenle<span className="qb-events__sr">: {row.title}</span></button>
+          <button aria-label={`Düzenle: ${row.title}`} onClick={() => open(row.id)}>Düzenle</button>
         </article>)}</div>
         <nav aria-label="Etkinlik sayfaları" className="qb-events__actions"><button disabled={!offset} onClick={() => setOffset(offset - 20)}>Önceki</button><button disabled={!hasMore} onClick={() => setOffset(offset + 20)}>Sonraki</button></nav>
       </>}
