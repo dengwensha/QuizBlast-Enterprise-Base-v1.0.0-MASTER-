@@ -10,7 +10,8 @@
 
 ## Ordered scope
 
-1. UI-LIVE-01A: Large QR popup with QR, PIN and participation URL. Only implementation in this PR.
+1. UI-LIVE-01A: Large QR popup with QR, PIN and participation URL.
+   - UI-LIVE-01A.1: New player welcome animations while the popup is open (approved follow-up).
 2. Host/Display fit-to-screen and fullscreen.
 3. Persistent question number and three-second new-question notification.
 4. WhatsApp/email invitation and copy link.
@@ -37,3 +38,18 @@ No game-rule, scoring, deadline, pause/resume, authentication or transport chang
 - Shared edits: `frontend/src/App.jsx` (import and QR render only), `.github/workflows/ci.yml` (one browser-test step).
 - Event Studio must use its own branch/PR. Before integrating either stream, compare these two shared files against the latest heads and retain both changes; never replace App.jsx wholesale or merge one development branch into the other to resolve overlap.
 - Refresh source/CI and shared-file overlap checks at each micro-step. No merge/deploy is included here.
+
+## UI-LIVE-01A.1 — Join animations
+
+- Base: QR branch `e84986421cc411a101ec414872ada110011697f1`, full push/PR CI PASS.
+- User reported Host QR scan PASS, then QR test PASS. The Host screenshot confirms the enlarged QR, PIN and invitation URL; recordings have not been independently reviewed.
+- Work branch: `feature/QB-UI-LIVE-01A1-join-animation`; separate PR targeting the QR branch. PR #13 remains separate and unmerged.
+- Render test service was manually updated by the user for QR physical testing. This change is not automatically deployed; the service's linked branch and auto-deploy settings are not modified here.
+- Show only names added after opening the popup. Initial rosters, repeated snapshots, reopening, restored sessions and names leaving/returning must not replay.
+- Each name stays for three seconds. Queue burst arrivals; show at most three on wide/tall screens, one on narrow/short screens.
+- Wide screens use the QR's side columns; narrow screens use a reserved single row below it. Never cover the QR, PIN or invitation address.
+- Closing, unmounting or switching responsive layouts clears presentation timers/queues; the current roster becomes the next baseline.
+- Respect reduced-motion preference with static three-second welcome text. Render names as plain text.
+- Only presentation components receive the current visible-player roster. No game hooks, backend, scoring, timer, authorization or WebSocket protocol changes.
+- Shared edit: App.jsx adds only the visible-player prop. Existing CI popup step also runs the new browser scenarios; no workflow edit is needed.
+- Gates: production build, existing clock tests, new queue/layout/replay/motion browser cases, existing popup tests and full CI. Physical Host/Display animation acceptance remains pending.

@@ -1,8 +1,9 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
+import JoinArrivals from "./JoinArrivals";
 import "./join-qr-popup.css";
 
-export default function JoinQrPopup({ roomPin, joinUrl }) {
+export default function JoinQrPopup({ roomPin, joinUrl, players = [] }) {
   const dialogRef = useRef(null);
   const titleId = useId();
   const [open, setOpen] = useState(false);
@@ -49,8 +50,11 @@ export default function JoinQrPopup({ roomPin, joinUrl }) {
         </button>
         <h2 id={titleId}>Yarışmaya katıl</h2>
         <p>Telefonunun kamerasıyla QR kodunu okut.</p>
-        <QRCodeCanvas className="qb-join-qr__code" value={joinUrl} size={480}
-          includeMargin role="img" aria-label="Yarışmaya katılım QR kodu" />
+        <div className="qb-join-qr__stage">
+          <QRCodeCanvas className="qb-join-qr__code" value={joinUrl} size={480}
+            includeMargin role="img" aria-label="Yarışmaya katılım QR kodu" />
+          <JoinArrivals players={players} />
+        </div>
         <p className="qb-join-qr__pin">PIN: <strong>{roomPin}</strong></p>
         <p className="qb-join-qr__address">Katılım adresi</p>
         <a className="qb-join-qr__link" href={joinUrl} target="_blank" rel="noopener noreferrer">
