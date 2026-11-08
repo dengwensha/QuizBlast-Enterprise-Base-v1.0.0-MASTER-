@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getEvent, listEvents, saveEvent } from '../../services/eventService';
+import EventGameSetup from './EventGameSetup';
 import './event-studio.css';
 
+const statusLabels = { draft: 'Taslak', ready: 'Hazır', lobby: 'Oyuncular bekleniyor', question: 'Oyun sürüyor', result: 'Soru sonucu', leaderboard: 'Sıralama', completed: 'Tamamlandı', closed: 'Oda kapalı' };
 const blank = () => ({ title: '', organization: '', scheduled_at: '' });
 const localInput = value => {
   if (!value) return '';
@@ -9,7 +11,8 @@ const localInput = value => {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 };
 
-export default function EventStudio({ user, onBack }) {
+export default function EventStudio({ user, onBack, onOpenHost, onOpenDisplay }) {
+  const [gameEvent, setGameEvent] = useState(null);
   const [items, setItems] = useState([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -59,6 +62,7 @@ export default function EventStudio({ user, onBack }) {
     } catch (e) { setError(e.message); }
     finally { savingRef.current = false; setSaving(false); }
   };
+  if (gameEvent) return <EventGameSetup user={user} eventId={gameEvent} onBack={() => { setGameEvent(null); load(); }} onOpenHost={onOpenHost} onOpenDisplay={onOpenDisplay} />;
   return <main className="qb-events">
     <header><div><p>QUIZBLAST EVENT STUDIO</p><h1>Etkinliklerim</h1></div>
       <button onClick={onBack} disabled={saving}>Ana Menü</button></header>
@@ -79,8 +83,9 @@ export default function EventStudio({ user, onBack }) {
       {loading ? <p role="status">Etkinlikler yükleniyor…</p> : error ? <button onClick={load}>Tekrar Dene</button> : <>
         {!items.length && <p>Henüz etkinlik taslağı yok.</p>}
         <div className="qb-events__grid">{items.map(row => <article key={row.id} className="qb-events__panel">
-          <span>Taslak</span><h2>{row.title}</h2>{row.organization && <p>{row.organization}</p>}
+          <span>{statusLabels[row.status] || row.status}</span><h2>{row.title}</h2>{row.organization && <p>{row.organization}</p>}
           <p>{row.scheduled_at ? new Date(row.scheduled_at).toLocaleString('tr-TR') : 'Tarih belirlenmedi'}</p>
+          <button aria-label={`Quiz ve Oturum: ${row.title}`} onClick={() => setGameEvent(row.id)}>Quiz ve Oturum</button>
           <button aria-label={`Düzenle: ${row.title}`} onClick={() => open(row.id)}>Düzenle</button>
         </article>)}</div>
         <nav aria-label="Etkinlik sayfaları" className="qb-events__actions"><button disabled={!offset} onClick={() => setOffset(offset - 20)}>Önceki</button><button disabled={!hasMore} onClick={() => setOffset(offset + 20)}>Sonraki</button></nav>

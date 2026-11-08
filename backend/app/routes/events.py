@@ -4,11 +4,17 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy import update
 from app.schemas.events import EventCreate, EventUpdate
-from app.services.event_store import serialize_event
+from app.services.event_store import serialize_event, describe_event_game
 
 
-def create_events_router(session_factory, User, EventDraft, authenticate):
+def create_events_router(session_factory, User, EventDraft, authenticate, game_features=None):
     router = APIRouter(prefix='/events', tags=['events'])
+
+    def serialize(db, row):
+        if game_features is None:
+            return serialize_event(row)
+        return describe_event_game(db, row, game_features['Selection'],
+                                   game_features['EventSession'], game_features['builder'].Room)['event']
 
     def owner(authorization: str | None = Header(default=None)):
         email = authenticate(authorization)
@@ -31,7 +37,7 @@ def create_events_router(session_factory, User, EventDraft, authenticate):
             db.add(row)
             db.commit()
             db.refresh(row)
-            return serialize_event(row)
+            return serialize(db, row)
 
     @router.get('')
     def list_events(limit: int = Query(20, ge=1, le=100),
@@ -40,13 +46,13 @@ def create_events_router(session_factory, User, EventDraft, authenticate):
             rows = db.query(EventDraft).filter_by(owner_id=owner_id).order_by(
                 EventDraft.created_at.desc(), EventDraft.id.desc()
             ).offset(offset).limit(limit + 1).all()
-            return dict(items=[serialize_event(row) for row in rows[:limit]],
+            return dict(items=[serialize(db, row) for row in rows[:limit]],
                         has_more=len(rows) > limit)
 
     @router.get('/{event_id}')
     def get_event(event_id: UUID, owner_id: int = Depends(owner)):
         with session_factory() as db:
-            return serialize_event(owned(db, event_id, owner_id))
+            return serialize(db, owned(db, event_id, owner_id))
 
     @router.patch('/{event_id}')
     def update_event(event_id: UUID, data: EventUpdate, owner_id: int = Depends(owner)):
@@ -61,6 +67,9 @@ def create_events_router(session_factory, User, EventDraft, authenticate):
             if result.rowcount != 1:
                 raise HTTPException(409, detail='event_revision_conflict')
             db.commit()
-            return serialize_event(owned(db, event_id, owner_id))
+            return serialize(db, owned(db, event_id, owner_id))
 
+    if game_features is not None:
+        from app.routes.event_games import create_event_game_router
+        router.include_router(create_event_game_router(owner, session_factory, EventDraft, User, **game_features))
     return router

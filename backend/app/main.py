@@ -10,7 +10,9 @@ from datetime import datetime, timedelta
 from contextlib import contextmanager, suppress
 import os, random, asyncio, time, uuid
 from app.routes.events import create_events_router
-from app.services.event_store import register_event_model
+from app.services.event_store import register_event_model, register_event_game_models
+from app.services.room_creation import RoomBuilder
+from threading import RLock
 from app.services.excel_reader import read_excel_rows_from_bytes
 from app.services.import_pipeline import run_qbds_import_pipeline, build_pipeline_user_message
 from app.services.content_catalog import serialize_set, serialize_preview_question
@@ -122,6 +124,7 @@ class User(Base):
     password_hash=Column(String, nullable=False)
 
 EventDraft = register_event_model(Base)
+EventQuizSelection, EventGameSession = register_event_game_models(Base)
 
 connected=False
 while not connected:
@@ -172,9 +175,15 @@ app.add_middleware(
     allow_headers=list(CORS_HEADERS),
 )
 
+room_builder = RoomBuilder(Quiz, Question, PublishedQuizSet, GameRoom, RoomIdentity,
+                           lambda: generate_pin(), lambda pin: pin in rooms)
+room_initialization_lock = RLock()
+
 app.include_router(create_events_router(
     SessionLocal, User, EventDraft,
     lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
+    game_features=dict(Selection=EventQuizSelection, EventSession=EventGameSession,
+                       builder=room_builder, initialize=lambda *args: initialize_lobby_room(*args)),
 ))
 
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
@@ -313,7 +322,7 @@ def get_room_questions(room_pin):
     quiz_id=room_quiz_map.get(room_pin)
     if not quiz_id: return []
     with db_session() as db:
-        qs=db.query(Question).filter(Question.quiz_id==quiz_id).all()
+        qs=db.query(Question).filter(Question.quiz_id==quiz_id).order_by(Question.id).all()
         return [serialize_question(q) for q in qs]
 
 def lock_editable_quiz(db, quiz_id, email):
@@ -484,7 +493,7 @@ def get_questions(quiz_id:int, authorization: str | None = Header(default=None))
     with db_session() as db:
         quiz=db.query(Quiz).filter(Quiz.id==quiz_id, Quiz.owner_email==email).first()
         if not quiz: return []
-        qs=db.query(Question).filter(Question.quiz_id==quiz_id).all()
+        qs=db.query(Question).filter(Question.quiz_id==quiz_id).order_by(Question.id).all()
         return [serialize_question(q) for q in qs]
 
 @app.delete('/quizzes/{quiz_id}')
@@ -553,48 +562,36 @@ def create_room(
     )
 
     with db_session() as db:
-        published = db.query(PublishedQuizSet.id).filter(
-            PublishedQuizSet.quiz_id == Quiz.id,
-            PublishedQuizSet.is_published.is_(True),
-        ).exists()
-        quiz = db.query(Quiz).filter(
-            Quiz.id == quiz_id,
-            or_(
-                Quiz.owner_email == email,
-                and_(Quiz.owner_email.is_(None), published),
-            ),
-        ).with_for_update().first()
-
-        if not quiz:
-            raise HTTPException(status_code=404, detail='quiz_not_found')
-
-        pin = generate_pin()
-        while pin in rooms or db.get(GameRoom, pin) is not None:
-            pin = generate_pin()
-
-        instance_id=uuid.uuid4().hex
-        db.add(GameRoom(pin=pin, quiz_id=quiz_id, host_email=email,
-                        phase='lobby', question_index=0, answer_stats=[0,0,0,0],
-                        identity=RoomIdentity(instance_id=instance_id)))
+        room_builder.lock_quiz(db, quiz_id, email)
+        room = room_builder.stage(db, quiz_id, email)
+        pin, instance_id = room.pin, room.identity.instance_id
         db.commit()
-    rooms[pin] = []
-    room_instance_map[pin]=instance_id
-    scores[pin] = {}
-    current_question_index[pin] = 0
-    answered_players[pin] = set()
-    room_quiz_map[pin] = quiz_id
-    room_host_map[pin] = email
-    answer_stats_map[pin] = [0, 0, 0, 0]
-    waiting_next_question[pin] = False
-    question_start_time[pin] = None
-    game_phase[pin] = 'lobby'
-    remaining_seconds[pin] = None
-    question_deadline[pin] = None
+    initialize_lobby_room(pin, quiz_id, email, instance_id)
+    return {'room_pin': pin, 'quiz_id': quiz_id}
 
-    return {
-        'room_pin': pin,
-        'quiz_id': quiz_id,
-    }
+
+def initialize_lobby_room(pin, quiz_id, email, instance_id):
+    with room_initialization_lock:
+        if room_instance_map.get(pin) == instance_id:
+            return
+        with db_session() as db:
+            record = db.get(GameRoom, pin)
+            if (record is None or record.phase != 'lobby' or
+                    record.identity.instance_id != instance_id):
+                return
+        rooms[pin] = []
+        scores[pin] = {}
+        current_question_index[pin] = 0
+        answered_players[pin] = set()
+        room_quiz_map[pin] = quiz_id
+        room_host_map[pin] = email
+        answer_stats_map[pin] = [0, 0, 0, 0]
+        waiting_next_question[pin] = False
+        question_start_time[pin] = None
+        game_phase[pin] = 'lobby'
+        remaining_seconds[pin] = None
+        question_deadline[pin] = None
+        room_instance_map[pin] = instance_id
 
 
 @app.post('/close-room/{room_pin}')
@@ -647,6 +644,13 @@ async def start_game(
         rooms,
         room_host_map,
     )
+
+    if game_phase[room_pin] == 'completed':
+        with db_session() as db:
+            if db.query(EventGameSession.event_id).filter_by(
+                instance_id=room_instance_map[room_pin]
+            ).first():
+                raise HTTPException(409, detail='event_session_completed')
 
     old_task = game_tasks.get(room_pin)
     if game_phase[room_pin] in {'question', 'result'} or (old_task and not old_task.done()):

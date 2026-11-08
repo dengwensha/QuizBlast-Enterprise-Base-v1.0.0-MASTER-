@@ -117,6 +117,7 @@ jobs:
         shell: bash
         run: |
           modules=(
+            app.tests.test_event_sessions
             app.tests.test_events
             app.tests.test_answer_acceptance
             app.tests.test_game_progression
@@ -210,7 +211,7 @@ jobs:
         # The popup suite uses controlled transport and requires no auth limiter reset.
         # Keep it separate from the real backend regression scenarios below.
         working-directory: frontend
-        run: npx playwright test tests/live-qr.spec.js tests/stage-viewport.spec.js tests/question-progress.spec.js tests/invitation-share.spec.js tests/events.spec.js --workers=1 --reporter=line
+        run: npx playwright test tests/live-qr.spec.js tests/stage-viewport.spec.js tests/question-progress.spec.js tests/invitation-share.spec.js tests/events.spec.js tests/event-sessions.spec.js --workers=1 --reporter=line
 
       - name: Verify existing browser game recovery (isolated scenarios)
         working-directory: frontend
