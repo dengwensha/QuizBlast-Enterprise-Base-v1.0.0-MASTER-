@@ -38,3 +38,14 @@ class EventUpdate(EventFields):
         if value is None:
             raise ValueError('title cannot be null')
         return value
+
+
+class EventQuizSelect(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    quiz_id: int = Field(gt=0, strict=True)
+    revision: int = Field(ge=1, strict=True)
+
+
+class EventSessionCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    revision: int = Field(ge=1, strict=True)

@@ -12,3 +12,4 @@
 .qb-events [role=alert] { border-left: 4px solid var(--qb-danger); padding: 12px; }
 .qb-events :focus-visible { outline: 3px solid var(--qb-primary-500); outline-offset: 3px; }
 .qb-events__sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.qb-events select { display: block; box-sizing: border-box; width: 100%; font: inherit; padding: 12px; margin-top: 8px; border: 1px solid var(--qb-border); border-radius: 8px; color: var(--qb-text-primary); background: var(--qb-surface); }
