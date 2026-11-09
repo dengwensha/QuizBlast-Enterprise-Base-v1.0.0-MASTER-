@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createEventSession, getEventGame, selectEventQuiz } from '../../services/eventService';
+import EventReport from './EventReport';
 import JoinQrPopup from '../game/JoinQrPopup';
 import { APP_URL } from '../../services/api';
 
 const phases = { lobby: 'Oyuncular bekleniyor', question: 'Oyun sürüyor', result: 'Soru sonucu', leaderboard: 'Sıralama', completed: 'Tamamlandı', closed: 'Oda kapalı' };
 
 export default function EventGameSetup({ user, eventId, onBack, onOpenHost, onOpenDisplay }) {
+  const [showReport, setShowReport] = useState(false);
   const [state, setState] = useState(null);
   const [choice, setChoice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -31,6 +33,7 @@ export default function EventGameSetup({ user, eventId, onBack, onOpenHost, onOp
     finally { busyRef.current = false; if (mounted.current) setBusy(false); }
   };
   const session = state?.session;
+  if (showReport) return <EventReport token={user.token} eventId={eventId} onBack={() => setShowReport(false)} />;
   return <main className="qb-events">
     <header><h1>Quiz ve Oturum</h1><button disabled={busy} onClick={onBack}>Etkinliklere Dön</button></header>
     {error && <p role="alert">{error}</p>}
@@ -52,6 +55,7 @@ export default function EventGameSetup({ user, eventId, onBack, onOpenHost, onOp
       </> : <>
         <p role="status">{phases[session.phase] || session.phase}</p>
         <p>Quiz: {state.quizzes.find(q => q.id === session.quiz_id)?.title || `#${session.quiz_id}`}</p>
+        {['completed', 'closed'].includes(session.phase) && <button onClick={() => setShowReport(true)}>Etkinlik Raporu</button>}
         {session.can_open ? <>
           <p>PIN: <strong>{session.pin}</strong></p>
           <JoinQrPopup roomPin={session.pin} joinUrl={`${APP_URL}?pin=${session.pin}`} />

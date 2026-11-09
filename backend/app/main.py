@@ -6,11 +6,11 @@ from sqlalchemy import create_engine, Column, Integer, Boolean, String, ForeignK
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from passlib.context import CryptContext
 from jose import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager, suppress
 import os, random, asyncio, time, uuid
 from app.routes.events import create_events_router
-from app.services.event_store import register_event_model, register_event_game_models
+from app.services.event_store import register_event_model, register_event_game_models, register_event_report_model
 from app.services.room_creation import RoomBuilder
 from threading import RLock
 from app.services.excel_reader import read_excel_rows_from_bytes
@@ -125,6 +125,7 @@ class User(Base):
 
 EventDraft = register_event_model(Base)
 EventQuizSelection, EventGameSession = register_event_game_models(Base)
+EventReport = register_event_report_model(Base)
 
 connected=False
 while not connected:
@@ -183,7 +184,7 @@ app.include_router(create_events_router(
     SessionLocal, User, EventDraft,
     lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
     game_features=dict(Selection=EventQuizSelection, EventSession=EventGameSession,
-                       builder=room_builder, initialize=lambda *args: initialize_lobby_room(*args)),
+                       Report=EventReport, builder=room_builder, initialize=lambda *args: initialize_lobby_room(*args)),
 ))
 
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
@@ -194,6 +195,18 @@ closed_room_cleanup_task=None
 
 def save_game(room_pin):
     with db_session() as db:
+        if game_phase[room_pin] == 'completed':
+            link = db.query(EventGameSession).filter_by(
+                pin=room_pin, instance_id=room_instance_map.get(room_pin)
+            ).with_for_update().first()
+            if link and db.get(EventReport, link.event_id) is None:
+                completed = datetime.now(timezone.utc)
+                ranking = sorted(scores[room_pin].items(), key=lambda item: item[1], reverse=True)
+                db.add(EventReport(event_id=link.event_id,
+                    event_title=db.get(EventDraft, link.event_id).title,
+                    quiz_title=db.get(Quiz, link.quiz_id).title,
+                    completed_at=completed, expires_at=completed + timedelta(days=15),
+                    ranking=[dict(name=name, score=score) for name, score in ranking]))
         persist_game_state(
             db, room_pin, phase=game_phase[room_pin],
             index=current_question_index[room_pin], scores=scores[room_pin],
@@ -243,6 +256,7 @@ def purge_closed_room_batches():
     while True:
         with db_session() as db:
             count=purge_expired_closed_rooms(db)
+            db.query(EventReport).filter(EventReport.expires_at <= datetime.now(timezone.utc)).delete(synchronize_session=False)
             db.commit()
         if count < 100:
             return

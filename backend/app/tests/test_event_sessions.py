@@ -5,6 +5,7 @@ import socket
 import threading
 import time
 import unittest
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from urllib.error import HTTPError
@@ -14,6 +15,7 @@ from uuid import uuid4
 import uvicorn
 from websockets.asyncio.client import connect
 import app.main as main
+from app.services.extend_event_report import main as extend_report
 
 
 class EventSessionsAcceptance(unittest.TestCase):
@@ -65,6 +67,7 @@ class EventSessionsAcceptance(unittest.TestCase):
             ids = [e.id for e in db.query(main.EventDraft).join(main.User).filter(main.User.email == self.email)]
             links = db.query(main.EventGameSession).filter(main.EventGameSession.event_id.in_(ids)).all()
             pins = [link.pin for link in links]
+            db.query(main.EventReport).filter(main.EventReport.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventGameSession).filter(main.EventGameSession.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventQuizSelection).filter(main.EventQuizSelection.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventDraft).filter(main.EventDraft.id.in_(ids)).delete(synchronize_session=False)
@@ -211,6 +214,7 @@ class EventSessionsAcceptance(unittest.TestCase):
         session = state['session']
         pin, identity = session['pin'], session['instance_id']
         self.assertEqual(self.request('POST', '/start-game/' + pin, {}, email=self.other)[0], 403)
+        self.assertEqual(self.request(path=path + '/report')[0], 404)
         async def flow():
             ws = self.address.replace('http:', 'ws:') + f'/ws/{pin}/'
             async with connect(ws + f'HOST?instance={identity}', subprotocols=['quizblast-host', self.tokens[self.email]]) as host:
@@ -224,7 +228,31 @@ class EventSessionsAcceptance(unittest.TestCase):
         asyncio.run(flow())
         _, result = self.request(path=path + '/game')
         self.assertEqual(result['session']['phase'], 'completed')
-        self.request('POST', '/close-room/' + pin, {})
+        status, report = self.request(path=path + '/report')
+        self.assertEqual(status, 200)
+        self.assertEqual(report['ranking'], [{'name': 'Ada', 'score': 0}])
+        self.assertEqual(datetime.fromisoformat(report['expires_at']) -
+                         datetime.fromisoformat(report['completed_at']), timedelta(days=15))
+        self.assertEqual(self.request(path=path + '/report', email=self.other)[0], 404)
+        self.assertEqual(self.request(path=path + '/report', anonymous=True)[0], 401)
+        self.assertEqual(self.request('POST', '/close-room/' + pin, {})[0], 200)
+        with main.db_session() as db:
+            db.delete(db.get(main.GameRoom, pin))
+            db.commit()
+        self.assertEqual(self.request(path=path + '/report'), (200, report))
+        extended = datetime.fromisoformat(report['expires_at']) + timedelta(days=15)
+        with patch('sys.argv', ['extend_event_report', state['event']['id'], extended.isoformat()]):
+            extend_report()
+        status, updated = self.request(path=path + '/report')
+        self.assertEqual(status, 200)
+        self.assertEqual(datetime.fromisoformat(updated['expires_at']), extended)
+        self.assertEqual(updated['ranking'], report['ranking'])
+        with main.db_session() as db:
+            db.get(main.EventReport, state['event']['id']).expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+            db.commit()
+        self.assertEqual(self.request(path=path + '/report')[0], 410)
+        main.purge_closed_room_batches()
+        self.assertEqual(self.request(path=path + '/report')[0], 404)
 
 
 if __name__ == '__main__':
