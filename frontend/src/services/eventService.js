@@ -14,6 +14,8 @@ async function request(token, path = '', options = {}) {
       422: 'Başlık ve tarih bilgilerini kontrol edin.',
     };
     const details = {
+      event_report_unavailable: 'Bu oturum için final raporu bulunamadı.',
+      event_report_expired: 'Raporun erişim süresi doldu.',
       event_session_locked: 'Oturum oluşturulduktan sonra quiz değiştirilemez.',
       event_quiz_required: 'Önce bir quiz seçip kaydedin.',
       no_questions: 'Seçilen quizde soru bulunmuyor.',
@@ -37,3 +39,5 @@ export const selectEventQuiz = (token, id, quiz_id, revision) => request(token, 
 export const createEventSession = (token, id, revision) => request(token, `/${id}/session`, {
   method: 'POST', body: JSON.stringify({ revision }),
 });
+
+export const getEventReport = (token, id) => request(token, `/${id}/report`);

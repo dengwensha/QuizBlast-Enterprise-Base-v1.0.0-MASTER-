@@ -1,7 +1,7 @@
 """Event drafts use the existing metadata and immutable user primary key."""
 from datetime import datetime, timezone
 from uuid import uuid4
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String
 
 
 def register_event_model(base):
@@ -62,3 +62,18 @@ def describe_event_game(db, row, Selection, EventSession, Room):
     status = session['phase'] if session else 'ready' if selected else 'draft'
     return dict(event=serialize_event(row, status), quiz_id=selected.quiz_id if selected else None,
                 session=session)
+
+def register_event_report_model(base):
+    class EventReport(base):
+        __tablename__ = 'event_reports'
+        event_id = Column(String(32), ForeignKey('event_game_sessions.event_id'), primary_key=True)
+        event_title = Column(String(160), nullable=False)
+        quiz_title = Column(String, nullable=False)
+        completed_at = Column(DateTime(timezone=True), nullable=False)
+        expires_at = Column(DateTime(timezone=True), nullable=False)
+        ranking = Column(JSON, nullable=False)
+    return EventReport
+
+
+def report_utc(value):
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value

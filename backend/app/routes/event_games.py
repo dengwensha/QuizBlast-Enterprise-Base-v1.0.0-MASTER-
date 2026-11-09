@@ -4,11 +4,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import update
 from app.schemas.events import EventQuizSelect, EventSessionCreate
-from app.services.event_store import describe_event_game
+from app.services.event_store import describe_event_game, report_utc
 
 
 def create_event_game_router(owner, session_factory, EventDraft, User,
-                             Selection, EventSession, builder, initialize):
+                             Selection, EventSession, builder, initialize, Report):
     router = APIRouter()
 
     def event(db, event_id, owner_id, lock=False):
@@ -37,6 +37,20 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                 question_count=db.query(builder.Question.id).filter_by(quiz_id=q.id).count())
                 for q in builder.eligible(db, email).order_by(builder.Quiz.id).all()]
             return result
+
+    @router.get('/{event_id}/report')
+    def get_report(event_id: UUID, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            row = event(db, event_id, owner_id)
+            report = db.get(Report, row.id)
+            if report is None:
+                raise HTTPException(404, detail='event_report_unavailable')
+            expires = report_utc(report.expires_at)
+            if datetime.now(timezone.utc) >= expires:
+                raise HTTPException(410, detail='event_report_expired')
+            return dict(event_title=report.event_title, quiz_title=report.quiz_title,
+                        completed_at=report_utc(report.completed_at), expires_at=expires,
+                        ranking=report.ranking)
 
     @router.put('/{event_id}/quiz')
     def select_quiz(event_id: UUID, data: EventQuizSelect, owner_id: int = Depends(owner)):
