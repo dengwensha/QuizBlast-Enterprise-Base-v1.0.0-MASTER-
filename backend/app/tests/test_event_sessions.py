@@ -67,6 +67,7 @@ class EventSessionsAcceptance(unittest.TestCase):
             ids = [e.id for e in db.query(main.EventDraft).join(main.User).filter(main.User.email == self.email)]
             links = db.query(main.EventGameSession).filter(main.EventGameSession.event_id.in_(ids)).all()
             pins = [link.pin for link in links]
+            db.query(main.EventAgenda).filter(main.EventAgenda.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventReport).filter(main.EventReport.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventGameSession).filter(main.EventGameSession.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventQuizSelection).filter(main.EventQuizSelection.event_id.in_(ids)).delete(synchronize_session=False)
@@ -107,6 +108,24 @@ class EventSessionsAcceptance(unittest.TestCase):
         status, state = self.request('PUT', path + '/quiz', {'quiz_id': self.quiz_ids[quiz_index], 'revision': row['revision']})
         self.assertEqual(status, 200, state)
         return path, state
+
+    def test_agenda_order_ownership_and_revision(self):
+        path, _ = self.event()
+        path += '/agenda'
+        status, initial = self.request(path=path)
+        self.assertEqual(status, 200)
+        self.assertEqual(initial['steps'], [])
+        kinds = ['presentation'] * 3 + ['break'] + ['presentation'] * 2 + ['quiz', 'presentation']
+        steps = [{'kind': kind, 'title': f'Adım {index}'} for index, kind in enumerate(kinds)]
+        data = {'revision': initial['revision'], 'steps': steps}
+        self.assertEqual(self.request('PUT', path, data, email=self.other)[0], 404)
+        self.assertEqual(self.request(path=path, email=self.other)[0], 404)
+        self.assertEqual(self.request('PUT', path, {**data, 'steps': steps + [steps[-2]]})[0], 422)
+        status, saved = self.request('PUT', path, data)
+        self.assertEqual(status, 200)
+        self.assertEqual(saved['steps'], steps)
+        self.assertEqual(self.request(path=path), (200, saved))
+        self.assertEqual(self.request('PUT', path, data)[0], 409)
 
     def test_copy_event_keeps_eligible_quiz_but_creates_independent_lobby(self):
         path, state = self.event()

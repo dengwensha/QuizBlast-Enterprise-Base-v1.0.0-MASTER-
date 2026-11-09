@@ -77,3 +77,11 @@ def register_event_report_model(base):
 
 def report_utc(value):
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+
+
+def register_event_agenda_model(base):
+    class EventAgenda(base):
+        __tablename__ = 'event_agendas'
+        event_id = Column(String(32), ForeignKey('event_drafts.id'), primary_key=True)
+        steps = Column(JSON, nullable=False)
+    return EventAgenda

@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager, suppress
 import os, random, asyncio, time, uuid
 from app.routes.events import create_events_router
-from app.services.event_store import register_event_model, register_event_game_models, register_event_report_model
+from app.services.event_store import register_event_model, register_event_game_models, register_event_report_model, register_event_agenda_model
 from app.services.room_creation import RoomBuilder
 from threading import RLock
 from app.services.excel_reader import read_excel_rows_from_bytes
@@ -126,6 +126,7 @@ class User(Base):
 EventDraft = register_event_model(Base)
 EventQuizSelection, EventGameSession = register_event_game_models(Base)
 EventReport = register_event_report_model(Base)
+EventAgenda = register_event_agenda_model(Base)
 
 connected=False
 while not connected:
@@ -184,7 +185,7 @@ app.include_router(create_events_router(
     SessionLocal, User, EventDraft,
     lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
     game_features=dict(Selection=EventQuizSelection, EventSession=EventGameSession,
-                       Report=EventReport, builder=room_builder, initialize=lambda *args: initialize_lobby_room(*args)),
+                       Report=EventReport, Agenda=EventAgenda, builder=room_builder, initialize=lambda *args: initialize_lobby_room(*args)),
 ))
 
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}

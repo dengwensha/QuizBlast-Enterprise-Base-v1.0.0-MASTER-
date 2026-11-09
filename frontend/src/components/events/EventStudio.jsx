@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { copyEvent, getEvent, listEvents, saveEvent } from '../../services/eventService';
+import EventAgenda from './EventAgenda';
 import EventGameSetup from './EventGameSetup';
 import './event-studio.css';
 
@@ -12,6 +13,7 @@ const localInput = value => {
 };
 
 export default function EventStudio({ user, onBack, onOpenHost, onOpenDisplay }) {
+  const [agendaEvent, setAgendaEvent] = useState(null);
   const [gameEvent, setGameEvent] = useState(null);
   const [items, setItems] = useState([]);
   const [offset, setOffset] = useState(0);
@@ -72,6 +74,7 @@ export default function EventStudio({ user, onBack, onOpenHost, onOpenDisplay })
     } catch (e) { setError(e.message); }
     finally { savingRef.current = false; setSaving(false); }
   };
+  if (agendaEvent) return <EventAgenda token={user.token} eventId={agendaEvent} onBack={() => { setAgendaEvent(null); load(); }} />;
   if (gameEvent) return <EventGameSetup user={user} eventId={gameEvent} onBack={() => { setGameEvent(null); load(); }} onOpenHost={onOpenHost} onOpenDisplay={onOpenDisplay} />;
   return <main className="qb-events">
     <header><div><p>QUIZBLAST EVENT STUDIO</p><h1>Etkinliklerim</h1></div>
@@ -96,6 +99,7 @@ export default function EventStudio({ user, onBack, onOpenHost, onOpenDisplay })
           <span>{statusLabels[row.status] || row.status}</span><h2>{row.title}</h2>{row.organization && <p>{row.organization}</p>}
           <p>{row.scheduled_at ? new Date(row.scheduled_at).toLocaleString('tr-TR') : 'Tarih belirlenmedi'}</p>
           <button aria-label={`Quiz ve Oturum: ${row.title}`} onClick={() => setGameEvent(row.id)}>Quiz ve Oturum</button>
+          <button disabled={saving} aria-label={`Program: ${row.title}`} onClick={() => setAgendaEvent(row.id)}>Program</button>
           <button disabled={saving} aria-label={`Kopyala: ${row.title}`} onClick={() => duplicate(row.id)}>Kopyala</button>
           <button aria-label={`Düzenle: ${row.title}`} onClick={() => open(row.id)}>Düzenle</button>
         </article>)}</div>
