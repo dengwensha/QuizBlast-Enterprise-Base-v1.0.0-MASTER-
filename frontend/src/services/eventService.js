@@ -43,3 +43,8 @@ export const createEventSession = (token, id, revision) => request(token, `/${id
 export const getEventReport = (token, id) => request(token, `/${id}/report`);
 
 export const copyEvent = (token, id) => request(token, `/${id}/copy`, { method: 'POST' });
+
+export const getEventAgenda = (token, id) => request(token, `/${id}/agenda`);
+export const saveEventAgenda = (token, id, data) => request(token, `/${id}/agenda`, {
+  method: 'PUT', body: JSON.stringify(data),
+});

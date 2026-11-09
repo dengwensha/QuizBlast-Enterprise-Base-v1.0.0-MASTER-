@@ -3,12 +3,12 @@ from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import update
-from app.schemas.events import EventQuizSelect, EventSessionCreate
+from app.schemas.events import EventAgendaUpdate, EventQuizSelect, EventSessionCreate
 from app.services.event_store import describe_event_game, report_utc
 
 
 def create_event_game_router(owner, session_factory, EventDraft, User,
-                             Selection, EventSession, builder, initialize, Report):
+                             Selection, EventSession, builder, initialize, Report, Agenda):
     router = APIRouter()
 
     def event(db, event_id, owner_id, lock=False):
@@ -26,6 +26,34 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
 
     def state(db, row):
         return describe_event_game(db, row, Selection, EventSession, builder.Room)
+
+    def agenda_state(db, row):
+        agenda = db.get(Agenda, row.id)
+        return dict(title=row.title, revision=row.revision,
+                    steps=agenda.steps if agenda else [])
+
+    @router.get('/{event_id}/agenda')
+    def get_agenda(event_id: UUID, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            return agenda_state(db, event(db, event_id, owner_id))
+
+    @router.put('/{event_id}/agenda')
+    def save_agenda(event_id: UUID, data: EventAgendaUpdate, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            row = event(db, event_id, owner_id, lock=True)
+            if row.revision != data.revision:
+                raise HTTPException(409, detail='event_revision_conflict')
+            agenda = db.get(Agenda, row.id)
+            if agenda is None:
+                agenda = Agenda(event_id=row.id)
+                db.add(agenda)
+            agenda.steps = [step.model_dump() for step in data.steps]
+            row.revision += 1
+            row.updated_at = datetime.now(timezone.utc)
+            db.flush()
+            result = agenda_state(db, row)
+            db.commit()
+            return result
 
     @router.post('/{event_id}/copy', status_code=201)
     def copy_event(event_id: UUID, owner_id: int = Depends(owner)):

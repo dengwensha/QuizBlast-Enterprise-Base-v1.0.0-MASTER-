@@ -1,6 +1,7 @@
 """Strict request contracts for private event drafts."""
 from datetime import datetime, timezone
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class EventFields(BaseModel):
@@ -49,3 +50,21 @@ class EventQuizSelect(BaseModel):
 class EventSessionCreate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     revision: int = Field(ge=1, strict=True)
+
+
+class AgendaStep(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    kind: Literal['presentation', 'quiz', 'break']
+    title: str = Field(min_length=1, max_length=160)
+
+
+class EventAgendaUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    revision: int = Field(ge=1, strict=True)
+    steps: list[AgendaStep] = Field(max_length=50)
+
+    @model_validator(mode='after')
+    def single_quiz(self):
+        if sum(step.kind == 'quiz' for step in self.steps) > 1:
+            raise ValueError('only one quiz step is supported')
+        return self
