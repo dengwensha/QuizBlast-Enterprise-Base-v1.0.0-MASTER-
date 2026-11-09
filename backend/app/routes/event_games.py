@@ -27,6 +27,29 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
     def state(db, row):
         return describe_event_game(db, row, Selection, EventSession, builder.Room)
 
+    @router.post('/{event_id}/copy', status_code=201)
+    def copy_event(event_id: UUID, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            source = event(db, event_id, owner_id)
+            suffix = ' (Kopya)'
+            clone = EventDraft(owner_id=owner_id,
+                               title=source.title[:160 - len(suffix)].rstrip() + suffix,
+                               organization=source.organization)
+            db.add(clone)
+            db.flush()
+            selection = db.get(Selection, source.id)
+            if selection is not None:
+                email = db.get(User, owner_id).email
+                try:
+                    builder.lock_quiz(db, selection.quiz_id, email, require_questions=True)
+                except HTTPException as exc:
+                    if exc.detail not in {'quiz_not_found', 'no_questions'}:
+                        raise
+                else:
+                    db.add(Selection(event_id=clone.id, quiz_id=selection.quiz_id))
+            db.commit()
+            return state(db, clone)
+
     @router.get('/{event_id}/game')
     def get_game(event_id: UUID, owner_id: int = Depends(owner)):
         with session_factory() as db:
