@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createEventSession, getEventGame, selectEventQuiz } from '../../services/eventService';
 import EventReport from './EventReport';
+import InvitationShare from '../game/InvitationShare';
 import JoinQrPopup from '../game/JoinQrPopup';
 import { APP_URL } from '../../services/api';
 
@@ -33,6 +34,7 @@ export default function EventGameSetup({ user, eventId, onBack, onOpenHost, onOp
     finally { busyRef.current = false; if (mounted.current) setBusy(false); }
   };
   const session = state?.session;
+  const joinUrl = session ? `${APP_URL}?pin=${session.pin}` : null;
   if (showReport) return <EventReport token={user.token} eventId={eventId} onBack={() => setShowReport(false)} />;
   return <main className="qb-events">
     <header><h1>Quiz ve Oturum</h1><button disabled={busy} onClick={onBack}>Etkinliklere Dön</button></header>
@@ -58,7 +60,8 @@ export default function EventGameSetup({ user, eventId, onBack, onOpenHost, onOp
         {['completed', 'closed'].includes(session.phase) && <button onClick={() => setShowReport(true)}>Etkinlik Raporu</button>}
         {session.can_open ? <>
           <p>PIN: <strong>{session.pin}</strong></p>
-          <JoinQrPopup roomPin={session.pin} joinUrl={`${APP_URL}?pin=${session.pin}`} />
+          {session.phase === 'lobby' && <InvitationShare key={session.instance_id} roomPin={session.pin} joinUrl={joinUrl} />}
+          <JoinQrPopup roomPin={session.pin} joinUrl={joinUrl} />
           <div className="qb-events__actions"><button disabled={busy} onClick={() => onOpenHost(session)}>Host Ekranını Aç</button><button disabled={busy} onClick={() => onOpenDisplay(session)}>Display Ekranını Aç</button></div>
         </> : <p>Bu oturum kapatılmış. Yeni bir oyun için yeni etkinlik oluştur.</p>}
       </>}
