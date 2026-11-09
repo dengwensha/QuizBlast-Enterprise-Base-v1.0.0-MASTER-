@@ -14,6 +14,9 @@ async function request(token, path = '', options = {}) {
       422: 'Başlık ve tarih bilgilerini kontrol edin.',
     };
     const details = {
+      event_agenda_required: 'Önce etkinlik programını kaydet.',
+      event_quiz_not_completed: 'Sonraki adıma geçmeden quizi tamamla.',
+      event_run_transition_invalid: 'Bu işlem programın mevcut adımında kullanılamıyor.',
       event_report_unavailable: 'Bu oturum için final raporu bulunamadı.',
       event_report_expired: 'Raporun erişim süresi doldu.',
       event_session_locked: 'Oturum oluşturulduktan sonra quiz değiştirilemez.',
@@ -48,3 +51,10 @@ export const getEventAgenda = (token, id) => request(token, `/${id}/agenda`);
 export const saveEventAgenda = (token, id, data) => request(token, `/${id}/agenda`, {
   method: 'PUT', body: JSON.stringify(data),
 });
+
+export const getEventLive = (token, id) => request(token, `/${id}/live`);
+export const startEventLive = (token, id) => request(token, `/${id}/live`, { method: 'POST' });
+export const advanceEventLive = (token, id, data) => request(token, `/${id}/live`, {
+  method: 'PUT', body: JSON.stringify(data),
+});
+export const getEventDisplay = token => request(token, '/display/program/state', { cache: 'no-store' });

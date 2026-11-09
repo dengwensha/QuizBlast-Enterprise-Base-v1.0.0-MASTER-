@@ -1,3 +1,4 @@
+import { EventLiveDisplay } from './components/events/EventLive';
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import JoinQrPopup from "./components/game/JoinQrPopup";
 import StageViewport from "./components/game/StageViewport";
@@ -43,6 +44,11 @@ import { useImportState } from "./hooks/useImportState";
 const isMobile = window.innerWidth < 700;
 
 export default function App() {
+  const displayKey = new URLSearchParams(window.location.hash.slice(1)).get('event-display');
+  return displayKey ? <EventLiveDisplay displayKey={displayKey} /> : <QuizBlastApp />;
+}
+
+function QuizBlastApp() {
   const {
     user,
     authMode,

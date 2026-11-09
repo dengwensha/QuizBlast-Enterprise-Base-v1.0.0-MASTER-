@@ -67,6 +67,7 @@ class EventSessionsAcceptance(unittest.TestCase):
             ids = [e.id for e in db.query(main.EventDraft).join(main.User).filter(main.User.email == self.email)]
             links = db.query(main.EventGameSession).filter(main.EventGameSession.event_id.in_(ids)).all()
             pins = [link.pin for link in links]
+            db.query(main.EventRun).filter(main.EventRun.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventAgenda).filter(main.EventAgenda.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventReport).filter(main.EventReport.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventGameSession).filter(main.EventGameSession.event_id.in_(ids)).delete(synchronize_session=False)
@@ -108,6 +109,39 @@ class EventSessionsAcceptance(unittest.TestCase):
         status, state = self.request('PUT', path + '/quiz', {'quiz_id': self.quiz_ids[quiz_index], 'revision': row['revision']})
         self.assertEqual(status, 200, state)
         return path, state
+
+    def test_live_agenda_display_and_transitions(self):
+        path, _ = self.event()
+        self.assertEqual(self.request('POST', path + '/live')[0], 409)
+        _, agenda = self.request(path=path + '/agenda')
+        steps = [{'kind': 'presentation', 'title': 'Opening'},
+                 {'kind': 'break', 'title': 'Pause'},
+                 {'kind': 'quiz', 'title': 'Quiz'}]
+        self.assertEqual(self.request('PUT', path + '/agenda',
+                                      {'revision': agenda['revision'], 'steps': steps})[0], 200)
+        status, run = self.request('POST', path + '/live')
+        self.assertEqual(status, 200)
+        self.assertEqual(self.request('POST', path + '/live'), (200, run))
+        self.assertEqual(self.request(path=path + '/live', email=self.other)[0], 404)
+        self.assertEqual(self.request(path='/events/display/program/state')[0], 404)
+        request = Request(self.address + '/events/display/program/state',
+                          headers={'Authorization': 'Bearer ' + run['display_key']})
+        def display():
+            with urlopen(request, timeout=10) as response:
+                self.assertEqual(response.headers['Cache-Control'], 'no-store')
+                return json.load(response)
+        self.assertEqual(display(), run['live'])
+        command = lambda action, revision: self.request('PUT', path + '/live',
+                                                        {'action': action, 'revision': revision})
+        self.assertEqual(command('open', 1)[0], 200)
+        self.assertEqual(display()['view'], 'step')
+        self.assertEqual(command('complete', 1)[0], 409)
+        self.assertEqual(command('complete', 2)[0], 200)
+        self.assertEqual((display()['view'], display()['cursor']), ('agenda', 1))
+        self.assertEqual(command('open', 3)[0], 200)
+        self.assertEqual(command('complete', 4)[0], 200)
+        self.assertEqual(command('open', 5)[0], 200)
+        self.assertEqual(command('complete', 6)[1]['detail'], 'event_quiz_not_completed')
 
     def test_agenda_order_ownership_and_revision(self):
         path, _ = self.event()

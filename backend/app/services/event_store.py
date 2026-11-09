@@ -85,3 +85,16 @@ def register_event_agenda_model(base):
         event_id = Column(String(32), ForeignKey('event_drafts.id'), primary_key=True)
         steps = Column(JSON, nullable=False)
     return EventAgenda
+
+
+def register_event_run_model(base):
+    class EventRun(base):
+        __tablename__ = 'event_runs'
+        event_id = Column(String(32), ForeignKey('event_drafts.id'), primary_key=True)
+        display_key = Column(String(64), nullable=False, unique=True)
+        title = Column(String(160), nullable=False)
+        steps = Column(JSON, nullable=False)
+        cursor = Column(Integer, nullable=False, default=0)
+        view = Column(String(16), nullable=False, default='agenda')
+        revision = Column(Integer, nullable=False, default=1)
+    return EventRun

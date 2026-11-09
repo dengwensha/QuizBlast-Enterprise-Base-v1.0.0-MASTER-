@@ -1,14 +1,15 @@
 """One event -> one authorized quiz -> one durable room identity."""
 from datetime import datetime, timezone
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from secrets import token_urlsafe
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from sqlalchemy import update
-from app.schemas.events import EventAgendaUpdate, EventQuizSelect, EventSessionCreate
+from app.schemas.events import EventRunCommand, EventAgendaUpdate, EventQuizSelect, EventSessionCreate
 from app.services.event_store import describe_event_game, report_utc
 
 
 def create_event_game_router(owner, session_factory, EventDraft, User,
-                             Selection, EventSession, builder, initialize, Report, Agenda):
+                             Selection, EventSession, builder, initialize, Report, Agenda, Run):
     router = APIRouter()
 
     def event(db, event_id, owner_id, lock=False):
@@ -54,6 +55,70 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             result = agenda_state(db, row)
             db.commit()
             return result
+
+    def live_state(run):
+        return dict(title=run.title, steps=run.steps, cursor=run.cursor,
+                    view=run.view, revision=run.revision)
+
+    @router.get('/{event_id}/live')
+    def get_live(event_id: UUID, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            row = event(db, event_id, owner_id)
+            run = db.get(Run, row.id)
+            return dict(live=live_state(run), display_key=run.display_key) if run else None
+
+    @router.post('/{event_id}/live')
+    def start_live(event_id: UUID, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            row = event(db, event_id, owner_id, lock=True)
+            run = db.get(Run, row.id)
+            if run is None:
+                agenda = db.get(Agenda, row.id)
+                if not agenda or not agenda.steps:
+                    raise HTTPException(409, detail='event_agenda_required')
+                run = Run(event_id=row.id, title=row.title, steps=agenda.steps,
+                          display_key=token_urlsafe(32))
+                db.add(run)
+                db.flush()
+            result = dict(live=live_state(run), display_key=run.display_key)
+            db.commit()
+            return result
+
+    @router.put('/{event_id}/live')
+    def advance_live(event_id: UUID, data: EventRunCommand, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            row = event(db, event_id, owner_id, lock=True)
+            run = db.get(Run, row.id)
+            if not run:
+                raise HTTPException(404, detail='event_run_not_found')
+            if run.revision != data.revision:
+                raise HTTPException(409, detail='event_revision_conflict')
+            if data.action == 'open' and run.view == 'agenda' and run.cursor < len(run.steps):
+                run.view = 'step'
+            elif data.action == 'complete' and run.view == 'step':
+                if run.steps[run.cursor]['kind'] == 'quiz':
+                    session = state(db, row)['session']
+                    report = db.get(Report, row.id)
+                    if not report and (not session or session['phase'] != 'completed'):
+                        raise HTTPException(409, detail='event_quiz_not_completed')
+                run.cursor += 1
+                run.view = 'agenda'
+            else:
+                raise HTTPException(409, detail='event_run_transition_invalid')
+            run.revision += 1
+            result = dict(live=live_state(run), display_key=run.display_key)
+            db.commit()
+            return result
+
+    @router.get('/display/program/state')
+    def get_display_live(response: Response, authorization: str = Header(default='')):
+        key = authorization.removeprefix('Bearer ')
+        with session_factory() as db:
+            run = db.query(Run).filter_by(display_key=key).first() if key != authorization and len(key) == 43 else None
+            if not run:
+                raise HTTPException(404, detail='event_run_not_found')
+            response.headers['Cache-Control'] = 'no-store'
+            return live_state(run)
 
     @router.post('/{event_id}/copy', status_code=201)
     def copy_event(event_id: UUID, owner_id: int = Depends(owner)):
