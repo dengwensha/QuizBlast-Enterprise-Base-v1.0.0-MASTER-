@@ -105,7 +105,13 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
 
     def live_state(run, db):
         deck, page = active_deck(db, run)
-        return dict(title=run.title, steps=[{k: v for k, v in step.items() if k != 'deck_id'} for step in run.steps],
+        quiz_display = None
+        if run.view == 'step' and run.steps[run.cursor]['kind'] == 'quiz':
+            link = db.get(EventSession, run.event_id)
+            room = db.get(builder.Room, link.pin) if link else None
+            if room and room.identity and room.identity.instance_id == link.instance_id and room.phase != 'closed':
+                quiz_display = dict(pin=link.pin, instance_id=link.instance_id)
+        return dict(quiz_display=quiz_display, title=run.title, steps=[{k: v for k, v in step.items() if k != 'deck_id'} for step in run.steps],
                     cursor=run.cursor, view='step' if run.view.startswith('step') else run.view,
                     revision=run.revision, page=page, page_count=deck.page_count if deck else 0)
 
