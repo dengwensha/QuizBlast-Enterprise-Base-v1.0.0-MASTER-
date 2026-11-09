@@ -1,6 +1,7 @@
 """Strict request contracts for private event drafts."""
 from datetime import datetime, timezone
 from typing import Literal
+from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
@@ -55,6 +56,7 @@ class EventSessionCreate(BaseModel):
 class AgendaStep(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     kind: Literal['presentation', 'quiz', 'break']
+    deck_id: UUID | None = None
     title: str = Field(min_length=1, max_length=160)
 
 
@@ -72,5 +74,5 @@ class EventAgendaUpdate(BaseModel):
 
 class EventRunCommand(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    action: Literal['open', 'complete']
+    action: Literal['open', 'complete', 'previous_page', 'next_page']
     revision: int = Field(ge=1, strict=True)

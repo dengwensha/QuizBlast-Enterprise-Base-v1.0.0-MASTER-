@@ -1,15 +1,19 @@
 """One event -> one authorized quiz -> one durable room identity."""
+from base64 import b64decode
 from datetime import datetime, timezone
 from uuid import UUID
 from secrets import token_urlsafe
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, UploadFile
 from sqlalchemy import update
+from sqlalchemy.orm import defer
 from app.schemas.events import EventRunCommand, EventAgendaUpdate, EventQuizSelect, EventSessionCreate
+from app.services.event_pdf import MAX_PDF_BYTES, render_pdf
+from pypdfium2 import PdfiumError
 from app.services.event_store import describe_event_game, report_utc
 
 
 def create_event_game_router(owner, session_factory, EventDraft, User,
-                             Selection, EventSession, builder, initialize, Report, Agenda, Run):
+                             Selection, EventSession, builder, initialize, Report, Agenda, Run, Deck):
     router = APIRouter()
 
     def event(db, event_id, owner_id, lock=False):
@@ -48,7 +52,12 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             if agenda is None:
                 agenda = Agenda(event_id=row.id)
                 db.add(agenda)
-            agenda.steps = [step.model_dump() for step in data.steps]
+            for step in data.steps:
+                if step.deck_id:
+                    deck = db.get(Deck, step.deck_id.hex)
+                    if step.kind != 'presentation' or not deck or deck.event_id != row.id:
+                        raise HTTPException(422, detail='event_deck_invalid')
+            agenda.steps = [step.model_dump(mode='json', exclude_none=True) for step in data.steps]
             row.revision += 1
             row.updated_at = datetime.now(timezone.utc)
             db.flush()
@@ -56,16 +65,56 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             db.commit()
             return result
 
-    def live_state(run):
-        return dict(title=run.title, steps=run.steps, cursor=run.cursor,
-                    view=run.view, revision=run.revision)
+    @router.post('/{event_id}/decks', status_code=201)
+    def upload_deck(event_id: UUID, file: UploadFile, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            event(db, event_id, owner_id)
+        try:
+            pages = render_pdf(file.file.read(MAX_PDF_BYTES + 1))
+        except (ValueError, PdfiumError):
+            raise HTTPException(422, detail='event_pdf_invalid') from None
+        with session_factory() as db:
+            row = event(db, event_id, owner_id, lock=True)
+            if db.query(Deck.id).filter_by(event_id=row.id).count() >= 12:
+                raise HTTPException(409, detail='event_deck_limit')
+            deck = Deck(event_id=row.id, name=(file.filename or 'Sunum.pdf')[:160], page_count=len(pages), pages=pages)
+            db.add(deck)
+            db.flush()
+            result = dict(id=deck.id, name=deck.name, page_count=len(pages))
+            db.commit()
+            return result
+
+    @router.get('/{event_id}/decks/{deck_id}/{page}')
+    def preview_deck(event_id: UUID, deck_id: UUID, page: int, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            row = event(db, event_id, owner_id)
+            deck = db.get(Deck, deck_id.hex)
+            if not deck or deck.event_id != row.id or not 0 <= page < len(deck.pages):
+                raise HTTPException(404, detail='event_deck_not_found')
+            return Response(b64decode(deck.pages[page]), media_type='image/png',
+                            headers={'Cache-Control': 'no-store', 'X-Page-Count': str(len(deck.pages))})
+
+    def active_deck(db, run, include_pages=False):
+        if not run.view.startswith('step:'):
+            return None, 0
+        deck_id = run.steps[run.cursor]['deck_id']
+        query = db.query(Deck).filter_by(id=UUID(deck_id).hex)
+        if not include_pages:
+            query = query.options(defer(Deck.pages))
+        return query.first(), int(run.view.split(':')[1])
+
+    def live_state(run, db):
+        deck, page = active_deck(db, run)
+        return dict(title=run.title, steps=[{k: v for k, v in step.items() if k != 'deck_id'} for step in run.steps],
+                    cursor=run.cursor, view='step' if run.view.startswith('step') else run.view,
+                    revision=run.revision, page=page, page_count=deck.page_count if deck else 0)
 
     @router.get('/{event_id}/live')
     def get_live(event_id: UUID, owner_id: int = Depends(owner)):
         with session_factory() as db:
             row = event(db, event_id, owner_id)
             run = db.get(Run, row.id)
-            return dict(live=live_state(run), display_key=run.display_key) if run else None
+            return dict(live=live_state(run, db), display_key=run.display_key) if run else None
 
     @router.post('/{event_id}/live')
     def start_live(event_id: UUID, owner_id: int = Depends(owner)):
@@ -80,7 +129,7 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                           display_key=token_urlsafe(32))
                 db.add(run)
                 db.flush()
-            result = dict(live=live_state(run), display_key=run.display_key)
+            result = dict(live=live_state(run, db), display_key=run.display_key)
             db.commit()
             return result
 
@@ -94,8 +143,14 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             if run.revision != data.revision:
                 raise HTTPException(409, detail='event_revision_conflict')
             if data.action == 'open' and run.view == 'agenda' and run.cursor < len(run.steps):
-                run.view = 'step'
-            elif data.action == 'complete' and run.view == 'step':
+                run.view = 'step:0' if run.steps[run.cursor].get('deck_id') else 'step'
+            elif data.action in {'previous_page', 'next_page'} and run.view.startswith('step:'):
+                deck, page = active_deck(db, run)
+                page += 1 if data.action == 'next_page' else -1
+                if not deck or not 0 <= page < deck.page_count:
+                    raise HTTPException(409, detail='event_run_transition_invalid')
+                run.view = f'step:{page}'
+            elif data.action == 'complete' and run.view.startswith('step'):
                 if run.steps[run.cursor]['kind'] == 'quiz':
                     session = state(db, row)['session']
                     report = db.get(Report, row.id)
@@ -106,7 +161,7 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             else:
                 raise HTTPException(409, detail='event_run_transition_invalid')
             run.revision += 1
-            result = dict(live=live_state(run), display_key=run.display_key)
+            result = dict(live=live_state(run, db), display_key=run.display_key)
             db.commit()
             return result
 
@@ -118,7 +173,19 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             if not run:
                 raise HTTPException(404, detail='event_run_not_found')
             response.headers['Cache-Control'] = 'no-store'
-            return live_state(run)
+            return live_state(run, db)
+
+    @router.get('/display/program/page/{revision}')
+    def display_page(revision: int, authorization: str = Header(default='')):
+        key = authorization.removeprefix('Bearer ')
+        with session_factory() as db:
+            run = db.query(Run).filter_by(display_key=key).first() if key != authorization and len(key) == 43 else None
+            if run and run.revision == revision:
+                deck, page = active_deck(db, run, include_pages=True)
+                if deck:
+                    return Response(b64decode(deck.pages[page]), media_type='image/png',
+                                    headers={'Cache-Control': 'no-store'})
+            raise HTTPException(404, detail='event_deck_not_found')
 
     @router.post('/{event_id}/copy', status_code=201)
     def copy_event(event_id: UUID, owner_id: int = Depends(owner)):

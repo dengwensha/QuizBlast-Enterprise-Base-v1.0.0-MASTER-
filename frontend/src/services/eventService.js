@@ -3,17 +3,21 @@ import { API } from './api';
 async function request(token, path = '', options = {}) {
   const response = await fetch(`${API}/events${path}`, {
     ...options,
-    headers: { Authorization: `Bearer ${token}`, ...(options.body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: { Authorization: `Bearer ${token}`, ...(typeof options.body === 'string' ? { 'Content-Type': 'application/json' } : {}) },
   });
-  const data = await response.json();
+  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const messages = {
       401: 'Oturumunuz sona erdi. Yeniden giriş yapın.',
       404: 'Etkinlik bulunamadı veya erişiminiz yok.',
+      413: 'PDF dosyası yükleme sınırını aşıyor.',
       409: 'Etkinlik başka bir yerde güncellendi. Güncel kaydı yeniden açın.',
       422: 'Başlık ve tarih bilgilerini kontrol edin.',
     };
     const details = {
+      event_pdf_invalid: 'PDF açılamadı veya dosya 10 MB, 30 sayfa ya da görsel boyutu sınırını aşıyor.',
+      event_deck_limit: 'Etkinlik başına en fazla 12 PDF yüklenebilir.',
+      event_deck_invalid: 'Seçilen PDF bu sunum adımına bağlanamadı.',
       event_agenda_required: 'Önce etkinlik programını kaydet.',
       event_quiz_not_completed: 'Sonraki adıma geçmeden quizi tamamla.',
       event_run_transition_invalid: 'Bu işlem programın mevcut adımında kullanılamıyor.',
@@ -58,3 +62,17 @@ export const advanceEventLive = (token, id, data) => request(token, `/${id}/live
   method: 'PUT', body: JSON.stringify(data),
 });
 export const getEventDisplay = token => request(token, '/display/program/state', { cache: 'no-store' });
+
+export const uploadEventDeck = (token, id, file) => {
+  const body = new FormData();
+  body.append('file', file);
+  return request(token, `/${id}/decks`, { method: 'POST', body });
+};
+
+export async function getSlideImage(token, path) {
+  const response = await fetch(`${API}/events${path}`, {
+    headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('Slayt yüklenemedi.');
+  return { blob: await response.blob(), count: Number(response.headers.get('X-Page-Count')) };
+}
