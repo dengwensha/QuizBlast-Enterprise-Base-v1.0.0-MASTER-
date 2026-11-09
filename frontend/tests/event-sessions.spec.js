@@ -86,3 +86,58 @@ test('EVENT-02 closed session cannot create another room', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Oturum Oluştur', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Host Ekranını Aç' })).toHaveCount(0);
 });
+
+test('EVENT-06 program Display follows slides, quiz and closing on one URL', async ({ page }) => {
+  const instance = 'f'.repeat(32);
+  const key = 'k'.repeat(43);
+  const original = { who: 'HOST', pin: '123456', instanceId: 'b'.repeat(32) };
+  await page.addInitScript(value => {
+    if (!localStorage.getItem('quizblast_active_session')) {
+      localStorage.setItem('quizblast_active_session', JSON.stringify(value));
+    }
+  }, original);
+  const live = {
+    title: 'Company program',
+    steps: [{ title: 'Opening', kind: 'presentation' }, { title: 'Team quiz', kind: 'quiz' },
+      { title: 'Closing', kind: 'presentation' }],
+    cursor: 0, view: 'step', revision: 2, page: 0, page_count: 2, quiz_display: null,
+  };
+  await page.route('**/api/events/display/program/state', route => {
+    expect(route.request().headers().authorization).toBe(`Bearer ${key}`);
+    return route.fulfill({ json: live });
+  });
+  await page.route('**/api/events/display/program/page/*', route => {
+    expect(route.request().headers().authorization).toBe(`Bearer ${key}`);
+    return route.fulfill({
+      contentType: 'image/png',
+      body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5ZkAAAAASUVORK5CYII=', 'base64'),
+    });
+  });
+  let quizConnections = 0;
+  await page.routeWebSocket('**/ws/**', ws => {
+    expect(new URL(ws.url()).pathname).toBe('/ws/654321/DISPLAY');
+    expect(new URL(ws.url()).searchParams.get('instance')).toBe(instance);
+    quizConnections += 1;
+    ws.send(JSON.stringify({ type: 'players', players: ['HOST', 'DISPLAY', 'Ada'] }));
+  });
+  const displayUrl = `http://localhost:5173/#event-display=${key}`;
+  await page.goto(displayUrl);
+  await expect(page.getByRole('heading', { name: 'Opening' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Sunum slaytı' })).toBeVisible();
+  Object.assign(live, { page: 1, revision: 3 });
+  await expect(page.getByText('Slayt 2 / 2')).toBeVisible();
+  Object.assign(live, { cursor: 1, revision: 4, page_count: 0, quiz_display: { pin: '654321', instance_id: instance } });
+  await expect(page.getByRole('heading', { name: 'Oyuncular Bekleniyor...' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Oyunu Başlat' })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Oyuncular Bekleniyor...' })).toBeVisible();
+  expect(quizConnections).toBe(2);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('quizblast_active_session')))).toEqual(original);
+  expect(await page.evaluate(() => sessionStorage.getItem('quizblast_active_session'))).toBeNull();
+  Object.assign(live, { cursor: 2, view: 'agenda', revision: 5, quiz_display: null });
+  await expect(page.getByRole('heading', { name: 'Sırada: Closing' })).toBeVisible();
+  Object.assign(live, { view: 'step', revision: 6, page: 0, page_count: 1 });
+  await expect(page.getByRole('heading', { name: 'Closing', exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Sunum slaytı' })).toBeVisible();
+  await expect(page).toHaveURL(displayUrl);
+});
