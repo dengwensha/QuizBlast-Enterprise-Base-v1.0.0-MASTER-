@@ -68,3 +68,9 @@ class EventAgendaUpdate(BaseModel):
         if sum(step.kind == 'quiz' for step in self.steps) > 1:
             raise ValueError('only one quiz step is supported')
         return self
+
+
+class EventRunCommand(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    action: Literal['open', 'complete']
+    revision: int = Field(ge=1, strict=True)
