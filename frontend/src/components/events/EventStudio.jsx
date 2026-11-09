@@ -13,8 +13,8 @@ const localInput = value => {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 };
 
-export default function EventStudio({ user, onBack, onOpenHost, onOpenDisplay }) {
-  const [liveEvent, setLiveEvent] = useState(null);
+export default function EventStudio({ user, initialLiveEvent, onBack, onOpenHost, onOpenDisplay }) {
+  const [liveEvent, setLiveEvent] = useState(initialLiveEvent || null);
   const [agendaEvent, setAgendaEvent] = useState(null);
   const [gameEvent, setGameEvent] = useState(null);
   const [items, setItems] = useState([]);
@@ -77,7 +77,7 @@ export default function EventStudio({ user, onBack, onOpenHost, onOpenDisplay })
     finally { savingRef.current = false; setSaving(false); }
   };
   if (agendaEvent) return <EventAgenda token={user.token} eventId={agendaEvent} onBack={() => { setAgendaEvent(null); load(); }} />;
-  if (gameEvent) return <EventGameSetup user={user} eventId={gameEvent} onBack={() => { setGameEvent(null); load(); }} onOpenHost={onOpenHost} onOpenDisplay={onOpenDisplay} />;
+  if (gameEvent) return <EventGameSetup user={user} eventId={gameEvent} onBack={() => { setGameEvent(null); load(); }} onOpenHost={session => onOpenHost(session, liveEvent)} onOpenDisplay={onOpenDisplay} />;
   if (liveEvent) return <EventLive token={user.token} eventId={liveEvent}
     onBack={() => setLiveEvent(null)} onQuiz={() => setGameEvent(liveEvent)} />;
   return <main className="qb-events">

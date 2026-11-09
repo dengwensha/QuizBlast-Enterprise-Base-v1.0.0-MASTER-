@@ -20,7 +20,7 @@ function Program({ live, displayKey }) {
   </section>;
 }
 
-export function EventLiveDisplay({ displayKey }) {
+export function EventLiveDisplay({ displayKey, renderQuiz }) {
   const [live, setLive] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -39,6 +39,7 @@ export function EventLiveDisplay({ displayKey }) {
     refresh();
     return () => { active = false; clearTimeout(timer); };
   }, [displayKey]);
+  if (!error && live?.quiz_display) return renderQuiz(live.quiz_display);
   return <main className="qb-events">
     <h1>{live?.title || 'Etkinlik Programı'}</h1>
     {error ? <p role="alert">Program bağlantısı kurulamadı. Yeniden deneniyor.</p>
