@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { getEvent, listEvents, saveEvent } from '../../services/eventService';
+import { copyEvent, getEvent, listEvents, saveEvent } from '../../services/eventService';
 import EventGameSetup from './EventGameSetup';
 import './event-studio.css';
 
@@ -62,6 +62,16 @@ export default function EventStudio({ user, onBack, onOpenHost, onOpenDisplay })
     } catch (e) { setError(e.message); }
     finally { savingRef.current = false; setSaving(false); }
   };
+  const duplicate = async id => {
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true); setError(''); setFeedback('');
+    try {
+      const { event } = await copyEvent(user.token, id);
+      setFeedback(`“${event.title}” oluşturuldu.`);
+      if (offset) setOffset(0); else await load();
+    } catch (e) { setError(e.message); }
+    finally { savingRef.current = false; setSaving(false); }
+  };
   if (gameEvent) return <EventGameSetup user={user} eventId={gameEvent} onBack={() => { setGameEvent(null); load(); }} onOpenHost={onOpenHost} onOpenDisplay={onOpenDisplay} />;
   return <main className="qb-events">
     <header><div><p>QUIZBLAST EVENT STUDIO</p><h1>Etkinliklerim</h1></div>
@@ -86,6 +96,7 @@ export default function EventStudio({ user, onBack, onOpenHost, onOpenDisplay })
           <span>{statusLabels[row.status] || row.status}</span><h2>{row.title}</h2>{row.organization && <p>{row.organization}</p>}
           <p>{row.scheduled_at ? new Date(row.scheduled_at).toLocaleString('tr-TR') : 'Tarih belirlenmedi'}</p>
           <button aria-label={`Quiz ve Oturum: ${row.title}`} onClick={() => setGameEvent(row.id)}>Quiz ve Oturum</button>
+          <button disabled={saving} aria-label={`Kopyala: ${row.title}`} onClick={() => duplicate(row.id)}>Kopyala</button>
           <button aria-label={`Düzenle: ${row.title}`} onClick={() => open(row.id)}>Düzenle</button>
         </article>)}</div>
         <nav aria-label="Etkinlik sayfaları" className="qb-events__actions"><button disabled={!offset} onClick={() => setOffset(offset - 20)}>Önceki</button><button disabled={!hasMore} onClick={() => setOffset(offset + 20)}>Sonraki</button></nav>

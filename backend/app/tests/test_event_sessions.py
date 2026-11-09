@@ -108,6 +108,23 @@ class EventSessionsAcceptance(unittest.TestCase):
         self.assertEqual(status, 200, state)
         return path, state
 
+    def test_copy_event_keeps_eligible_quiz_but_creates_independent_lobby(self):
+        path, state = self.event()
+        _, source = self.request('POST', path + '/session', {'revision': state['event']['revision']})
+        self.assertEqual(self.request('POST', path + '/copy', email=self.other)[0], 404)
+        self.assertEqual(self.request('POST', path + '/copy', anonymous=True)[0], 401)
+        status, clone = self.request('POST', path + '/copy')
+        self.assertEqual(status, 201)
+        self.assertEqual(clone['event']['title'], 'Event game (Kopya)')
+        self.assertEqual(clone['quiz_id'], self.quiz_ids[0])
+        self.assertIsNone(clone['session'])
+        clone_path = '/events/' + clone['event']['id']
+        self.assertNotEqual(clone_path, path)
+        status, new_game = self.request('POST', clone_path + '/session', {'revision': clone['event']['revision']})
+        self.assertEqual(status, 200)
+        self.assertNotEqual(new_game['session']['pin'], source['session']['pin'])
+        self.assertEqual(self.request(path=path + '/game')[1]['session'], source['session'])
+
     def test_eligible_quizzes_and_foreign_event(self):
         path, state = self.event()
         status, game = self.request(path=path + '/game')
