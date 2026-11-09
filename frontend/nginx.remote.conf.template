@@ -12,6 +12,13 @@ server {
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
+    location ~ ^/api/events/[0-9a-fA-F-]+/decks$ {
+        client_max_body_size 11m;
+        rewrite ^/api(/.*)$ $1 break;
+        proxy_pass http://${QB_BACKEND_UPSTREAM};
+        proxy_set_header Host $host;
+    }
+
     location /api/ {
         proxy_pass http://${QB_BACKEND_UPSTREAM}/;
         proxy_set_header Host $host;

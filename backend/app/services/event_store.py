@@ -98,3 +98,14 @@ def register_event_run_model(base):
         view = Column(String(16), nullable=False, default='agenda')
         revision = Column(Integer, nullable=False, default=1)
     return EventRun
+
+
+def register_event_deck_model(base):
+    class EventDeck(base):
+        __tablename__ = 'event_decks'
+        id = Column(String(32), primary_key=True, default=lambda: uuid4().hex)
+        event_id = Column(String(32), ForeignKey('event_drafts.id'), nullable=False, index=True)
+        name = Column(String(160), nullable=False)
+        page_count = Column(Integer, nullable=False)
+        pages = Column(JSON, nullable=False)
+    return EventDeck

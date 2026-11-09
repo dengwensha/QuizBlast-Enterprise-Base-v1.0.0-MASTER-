@@ -33,3 +33,5 @@ uvicorn==0.53.0
 uvloop==0.22.1
 watchfiles==1.2.0
 websockets==17.1
+pypdfium2==5.15.1
+Pillow==12.3.0

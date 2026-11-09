@@ -1,5 +1,7 @@
 """EVENT-02 HTTP + SQL acceptance against the configured production app."""
 import asyncio
+from io import BytesIO
+from PIL import Image
 import json
 import socket
 import threading
@@ -67,6 +69,7 @@ class EventSessionsAcceptance(unittest.TestCase):
             ids = [e.id for e in db.query(main.EventDraft).join(main.User).filter(main.User.email == self.email)]
             links = db.query(main.EventGameSession).filter(main.EventGameSession.event_id.in_(ids)).all()
             pins = [link.pin for link in links]
+            db.query(main.EventDeck).filter(main.EventDeck.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventRun).filter(main.EventRun.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventAgenda).filter(main.EventAgenda.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventReport).filter(main.EventReport.event_id.in_(ids)).delete(synchronize_session=False)
@@ -109,6 +112,55 @@ class EventSessionsAcceptance(unittest.TestCase):
         status, state = self.request('PUT', path + '/quiz', {'quiz_id': self.quiz_ids[quiz_index], 'revision': row['revision']})
         self.assertEqual(status, 200, state)
         return path, state
+
+    def test_pdf_deck_preview_and_live_page_isolation(self):
+        path, _ = self.event()
+        pdf = BytesIO()
+        Image.new('RGB', (48, 36), 'white').save(
+            pdf, 'PDF', save_all=True, append_images=[Image.new('RGB', (48, 36), 'blue')])
+        body = (b'--deck\r\nContent-Disposition: form-data; name="file"; filename="opening.pdf"\r\n'
+                b'Content-Type: application/pdf\r\n\r\n' + pdf.getvalue() + b'\r\n--deck--\r\n')
+        upload = Request(self.address + path + '/decks', data=body,
+                         headers={'Authorization': 'Bearer ' + self.tokens[self.email],
+                                  'Content-Type': 'multipart/form-data; boundary=deck'})
+        with urlopen(upload, timeout=10) as response:
+            self.assertEqual(response.status, 201)
+            deck = json.load(response)
+        self.assertEqual(deck['page_count'], 2)
+        _, agenda = self.request(path=path + '/agenda')
+        data = {'revision': agenda['revision'], 'steps': [
+            {'kind': 'presentation', 'title': 'Opening', 'deck_id': deck['id']}]}
+        other_path, _ = self.event()
+        self.assertEqual(self.request('PUT', other_path + '/agenda', data)[0], 422)
+        self.assertEqual(self.request('PUT', path + '/agenda', data)[0], 200)
+        preview_path = path + '/decks/' + deck['id'] + '/0'
+        self.assertEqual(self.request(path=preview_path, email=self.other)[0], 404)
+        def png(suffix, token):
+            request = Request(self.address + suffix, headers={'Authorization': 'Bearer ' + token})
+            try:
+                response = urlopen(request, timeout=10)
+            except HTTPError as exc:
+                return exc.code, b''
+            with response:
+                self.assertEqual(response.headers.get_content_type(), 'image/png')
+                return response.status, response.read()
+        self.assertEqual(png(preview_path, self.tokens[self.email])[0], 200)
+        _, run = self.request('POST', path + '/live')
+        key = run['display_key']
+        page_path = '/events/display/program/page/'
+        self.assertEqual(png(page_path + '1', key)[0], 404)
+        _, current = self.request('PUT', path + '/live', {'action': 'open', 'revision': 1})
+        self.assertEqual(current['live']['page_count'], 2)
+        first = png(page_path + '2', key)
+        self.assertEqual(first[0], 200)
+        _, next_page = self.request('PUT', path + '/live', {'action': 'next_page', 'revision': 2})
+        self.assertEqual(next_page['live']['page'], 1)
+        self.assertEqual(png(page_path + '2', key)[0], 404)
+        second = png(page_path + '3', key)
+        self.assertEqual(second[0], 200)
+        self.assertNotEqual(first[1], second[1])
+        self.assertEqual(self.request('PUT', path + '/live',
+                                      {'action': 'next_page', 'revision': 3})[0], 409)
 
     def test_live_agenda_display_and_transitions(self):
         path, _ = self.event()
