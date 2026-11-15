@@ -17,7 +17,7 @@ def configure():
     source = SOURCE.read_text(encoding="utf-8")
     if source.count("listen 80;") != 1:
         raise RuntimeError("Unexpected Nginx listen configuration")
-    if source.count("backend:8000") != 2:
+    if source.count("backend:8000") != 3:
         raise RuntimeError("Unexpected Nginx backend routing")
     config = source.replace("listen 80;", f"listen {int(port)};")
     config = config.replace("backend:8000", "127.0.0.1:8000")
