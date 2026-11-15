@@ -57,6 +57,7 @@ class AgendaStep(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     kind: Literal['presentation', 'quiz', 'break']
     deck_id: UUID | None = None
+    step_id: UUID | None = None
     title: str = Field(min_length=1, max_length=160)
 
 
