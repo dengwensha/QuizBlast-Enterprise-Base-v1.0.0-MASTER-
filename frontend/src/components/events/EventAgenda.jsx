@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getEventAgenda, saveEventAgenda, uploadEventDeck } from '../../services/eventService';
 
 import SlideImage from './SlideImage';
+import './event-agenda.css';
 
 const labels = { presentation: 'Sunum', quiz: 'Quiz', break: 'Ara' };
 
@@ -55,35 +56,37 @@ export default function EventAgenda({ token, eventId, onBack }) {
     finally { setBusy(false); }
   };
 
-  return <main className="qb-events">
-    <header><h1>Etkinlik Programı</h1><button disabled={busy} onClick={onBack}>Etkinliklere Dön</button></header>
+  return <main className="qb-events qb-agenda">
+    <header className="qb-agenda__header"><div><h1>Etkinlik Programı</h1><p>Sunum, quiz ve araları etkinlik sırasına göre düzenle.</p></div><button disabled={busy} onClick={onBack}>Etkinliklere Dön</button></header>
     {error && <p role="alert">{error}</p>}
     {error && <button disabled={busy} onClick={() => {
       setBusy(true); setError(''); setSaved(false); setReload(value => value + 1);
     }}>Güncel Programı Yükle</button>}
     {saved && <p role="status">Program kaydedildi.</p>}
+    {busy && !agenda && <p role="status">Program yükleniyor…</p>}
     {agenda && <form className="qb-events__panel" onSubmit={submit}>
       <h2>{agenda.title}</h2>
       {!steps.length && <p>Programa bir adım ekle.</p>}
-      <ol>{steps.map((step, index) => <li key={index}>
+      <ol className="qb-agenda__steps">{steps.map((step, index) => <li key={index} className="qb-agenda__step" data-kind={step.kind}>
+        <h3><span className="qb-agenda__number">{index + 1}.</span> {labels[step.kind]}</h3>
         <label>{labels[step.kind]} başlığı
           <input required maxLength={160} disabled={busy} value={step.title}
             onChange={e => edit(steps.map((item, i) => i === index ? { ...item, title: e.target.value } : item))} />
         </label>
-        {step.kind === 'presentation' && <>
-          <label>{index + 1}. adım için PDF<input type="file" accept="application/pdf,.pdf" disabled={busy}
+        {step.kind === 'presentation' && <div className="qb-agenda__pdf">
+          <label>{step.deck_id ? "PDF’yi değiştir" : "PDF yükle"}<input type="file" accept="application/pdf,.pdf" disabled={busy}
             onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; upload(index, file); }} /></label>
           {step.deck_id && <button type="button" disabled={busy} onClick={() => {
             setPreview(step.deck_id); setPage(0); setCount(0);
           }}>PDF Önizle</button>}
-        </>}
-        <div className="qb-events__actions">
+        </div>}
+        <div className="qb-events__actions qb-agenda__tools">
           <button type="button" aria-label={`${index + 1}. adımı yukarı taşı`} disabled={busy || !index} onClick={() => move(index, -1)}>Yukarı</button>
           <button type="button" aria-label={`${index + 1}. adımı aşağı taşı`} disabled={busy || index === steps.length - 1} onClick={() => move(index, 1)}>Aşağı</button>
           <button type="button" aria-label={`${index + 1}. adımı kaldır`} disabled={busy} onClick={() => edit(steps.filter((_, i) => i !== index))}>Kaldır</button>
         </div>
       </li>)}</ol>
-      <div className="qb-events__actions">
+      <div className="qb-events__actions qb-agenda__footer">
         {Object.entries(labels).map(([kind, title]) => <button key={kind} type="button"
           disabled={busy || steps.length >= 50 || (kind === 'quiz' && steps.some(step => step.kind === kind))}
           onClick={() => edit([...steps, { kind, title }])}>{title} Ekle</button>)}
@@ -93,9 +96,9 @@ export default function EventAgenda({ token, eventId, onBack }) {
     {preview && <section className="qb-events__panel">
       <h2>PDF Önizleme</h2>
       <SlideImage key={`${preview}:${page}`} token={token} path={`/${eventId}/decks/${preview}/${page}`} onCount={setCount} />
-      <button disabled={!page} onClick={() => setPage(page - 1)}>Önceki Slayt</button>
+      <div className="qb-events__actions qb-agenda__tools"><button disabled={!page} onClick={() => setPage(page - 1)}>Önceki Slayt</button>
       <button disabled={page + 1 >= count} onClick={() => setPage(page + 1)}>Sonraki Slayt</button>
-      <button onClick={() => setPreview(null)}>Önizlemeyi Kapat</button>
+      <button onClick={() => setPreview(null)}>Önizlemeyi Kapat</button></div>
     </section>}
   </main>;
 }

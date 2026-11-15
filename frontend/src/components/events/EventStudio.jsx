@@ -80,10 +80,9 @@ export default function EventStudio({ user, initialLiveEvent, onBack, onOpenHost
   if (gameEvent) return <EventGameSetup user={user} eventId={gameEvent} onBack={() => { setGameEvent(null); load(); }} onOpenHost={session => onOpenHost(session, liveEvent)} onOpenDisplay={onOpenDisplay} />;
   if (liveEvent) return <EventLive token={user.token} eventId={liveEvent}
     onBack={() => setLiveEvent(null)} onQuiz={() => setGameEvent(liveEvent)} />;
-  return <main className="qb-events">
-    <header><div><p>QUIZBLAST EVENT STUDIO</p><h1>Etkinliklerim</h1></div>
+  return <main className="qb-events qb-events--studio">
+    <header className="qb-events__hero"><div><p className="qb-events__eyebrow">QUIZBLAST EVENT STUDIO</p><h1>Etkinliklerim</h1><p>Programını hazırla, sunumlarını ekle ve etkinliğini yönet.</p></div>
       <button onClick={onBack} disabled={saving}>Ana Menü</button></header>
-    <p>Etkinliğini planla ve taslak bilgilerini düzenle.</p>
     {error && <p role="alert">{error}</p>}
     {feedback && <p role="status">{feedback}</p>}
     {editor ? <form onSubmit={submit} className="qb-events__panel">
@@ -96,17 +95,17 @@ export default function EventStudio({ user, initialLiveEvent, onBack, onOpenHost
         <button type="button" disabled={saving} onClick={() => { setEditor(null); setError(''); }}>Vazgeç</button>
         {editor.id && <button type="button" disabled={saving} onClick={() => open(editor.id)}>Güncel Kaydı Aç</button>}</div>
     </form> : <>
-      <button onClick={() => open()} disabled={loading}>Etkinlik Oluştur</button>
+      <div className="qb-events__toolbar"><h2>Etkinlik listesi</h2><button onClick={() => open()} disabled={loading}>Etkinlik Oluştur</button></div>
       {loading ? <p role="status">Etkinlikler yükleniyor…</p> : error ? <button onClick={load}>Tekrar Dene</button> : <>
         {!items.length && <p>Henüz etkinlik taslağı yok.</p>}
-        <div className="qb-events__grid">{items.map(row => <article key={row.id} className="qb-events__panel">
-          <span>{statusLabels[row.status] || row.status}</span><h2>{row.title}</h2>{row.organization && <p>{row.organization}</p>}
+        <div className="qb-events__grid">{items.map(row => <article key={row.id} className="qb-events__panel qb-events__card">
+          <span className="qb-events__badge">{statusLabels[row.status] || row.status}</span><h2>{row.title}</h2>{row.organization && <p>{row.organization}</p>}
           <p>{row.scheduled_at ? new Date(row.scheduled_at).toLocaleString('tr-TR') : 'Tarih belirlenmedi'}</p>
-          <button aria-label={`Quiz ve Oturum: ${row.title}`} onClick={() => setGameEvent(row.id)}>Quiz ve Oturum</button>
+          <div className="qb-events__card-actions"><button aria-label={`Quiz ve Oturum: ${row.title}`} onClick={() => setGameEvent(row.id)}>Quiz ve Oturum</button>
           <button disabled={saving} aria-label={`Canlı Etkinlik: ${row.title}`} onClick={() => setLiveEvent(row.id)}>Canlı Etkinlik</button>
           <button disabled={saving} aria-label={`Program: ${row.title}`} onClick={() => setAgendaEvent(row.id)}>Program</button>
           <button disabled={saving} aria-label={`Kopyala: ${row.title}`} onClick={() => duplicate(row.id)}>Kopyala</button>
-          <button aria-label={`Düzenle: ${row.title}`} onClick={() => open(row.id)}>Düzenle</button>
+          <button aria-label={`Düzenle: ${row.title}`} onClick={() => open(row.id)}>Düzenle</button></div>
         </article>)}</div>
         <nav aria-label="Etkinlik sayfaları" className="qb-events__actions"><button disabled={!offset} onClick={() => setOffset(offset - 20)}>Önceki</button><button disabled={!hasMore} onClick={() => setOffset(offset + 20)}>Sonraki</button></nav>
       </>}
