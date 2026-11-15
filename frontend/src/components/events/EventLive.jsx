@@ -3,6 +3,7 @@ import { advanceEventLive, getEventDisplay, getEventLive, startEventLive } from 
 import './event-studio.css';
 import './event-live.css';
 import SlideImage from './SlideImage';
+import StageViewport from '../game/StageViewport';
 
 const labels = { presentation: 'Sunum', quiz: 'Quiz', break: 'Ara' };
 
@@ -54,11 +55,11 @@ export function EventLiveDisplay({ displayKey, renderQuiz }) {
     return () => { active = false; clearTimeout(timer); };
   }, [displayKey]);
   if (!error && live?.quiz_display) return renderQuiz(live.quiz_display);
-  return <main className="qb-events qb-live qb-live--display">
+  return <StageViewport enabled><main className="qb-events qb-live qb-live--display">
     <header className="qb-live__header"><div><p className="qb-live__eyebrow">Etkinlik Programı</p><h1>{live?.title || 'Canlı Etkinlik'}</h1></div></header>
     {error ? <p role="alert">Program bağlantısı kurulamadı. Yeniden deneniyor.</p>
       : live ? <Program live={live} displayKey={displayKey} /> : <p role="status">Program yükleniyor…</p>}
-  </main>;
+  </main></StageViewport>;
 }
 
 export default function EventLive({ token, eventId, onBack, onQuiz }) {
@@ -85,7 +86,7 @@ export default function EventLive({ token, eventId, onBack, onQuiz }) {
   const live = data?.live;
   const step = live?.steps[live.cursor];
   const command = action => perform(() => advanceEventLive(token, eventId, { action, revision: live.revision }));
-  return <main className="qb-events qb-live">
+  return <StageViewport enabled><main className="qb-events qb-live">
     <header className="qb-live__header"><div><p className="qb-live__eyebrow">Event Studio</p><h1>Canlı Etkinlik</h1>{live?.title && <p>{live.title}</p>}</div><button disabled={busy} onClick={onBack}>Etkinliklere Dön</button></header>
     {error && <p role="alert">{error}</p>}
     {!live && <button disabled={busy} onClick={() => perform(() => startEventLive(token, eventId))}>Programı Başlat</button>}
@@ -105,5 +106,5 @@ export default function EventLive({ token, eventId, onBack, onQuiz }) {
         <button disabled={busy} onClick={() => perform(() => getEventLive(token, eventId))}>Güncel Durumu Yükle</button>
       </div>
     </>}
-  </main>;
+  </main></StageViewport>;
 }
