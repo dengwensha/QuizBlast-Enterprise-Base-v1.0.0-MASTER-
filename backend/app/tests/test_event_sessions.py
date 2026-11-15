@@ -113,6 +113,42 @@ class EventSessionsAcceptance(unittest.TestCase):
         self.assertEqual(status, 200, state)
         return path, state
 
+    def test_delete_unstarted_event_and_protect_started_events(self):
+        path, state = self.event()
+        self.assertTrue(self.request(path=path)[1]['can_delete'])
+        revision = state['event']['revision']
+        self.assertEqual(self.request('DELETE', f'{path}?revision={revision}', email=self.other)[0], 404)
+        self.assertEqual(self.request('DELETE', f'{path}?revision={revision}', anonymous=True)[0], 401)
+        status, agenda = self.request('PUT', path + '/agenda', {
+            'revision': revision, 'steps': [{'kind': 'break', 'title': 'Coffee'}]})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.request('DELETE', f'{path}?revision={revision}')[0], 409)
+        with main.db_session() as db:
+            db.add(main.EventDeck(event_id=state['event']['id'], name='slides.pdf', page_count=1, pages=['']))
+            db.commit()
+        self.assertEqual(self.request('DELETE', f"{path}?revision={agenda['revision']}")[0], 204)
+        self.assertEqual(self.request(path=path)[0], 404)
+        with main.db_session() as db:
+            event_id = state['event']['id']
+            self.assertIsNone(db.get(main.EventAgenda, event_id))
+            self.assertIsNone(db.get(main.EventQuizSelection, event_id))
+            self.assertFalse(db.query(main.EventDeck).filter_by(event_id=event_id).count())
+            self.assertIsNotNone(db.get(main.Quiz, self.quiz_ids[0]))
+
+        for mode in ('live', 'session'):
+            path, state = self.event()
+            revision = state['event']['revision']
+            if mode == 'live':
+                _, agenda = self.request('PUT', path + '/agenda', {
+                    'revision': revision, 'steps': [{'kind': 'break', 'title': 'Coffee'}]})
+                self.assertEqual(self.request('POST', path + '/live')[0], 200)
+                revision = agenda['revision']
+            else:
+                self.assertEqual(self.request('POST', path + '/session', {'revision': revision})[0], 200)
+            self.assertFalse(self.request(path=path)[1]['can_delete'])
+            self.assertEqual(self.request('DELETE', f'{path}?revision={revision}'),
+                             (409, {'detail': 'event_delete_started'}))
+
     def test_pdf_deck_preview_and_live_page_isolation(self):
         path, _ = self.event()
         pdf = BytesIO()

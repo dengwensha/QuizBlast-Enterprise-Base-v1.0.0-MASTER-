@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { copyEvent, getEvent, listEvents, saveEvent } from '../../services/eventService';
+import { copyEvent, deleteEvent, getEvent, listEvents, saveEvent } from '../../services/eventService';
 import EventLive from './EventLive';
 import EventAgenda from './EventAgenda';
 import EventGameSetup from './EventGameSetup';
@@ -76,10 +76,22 @@ export default function EventStudio({ user, initialLiveEvent, onBack, onOpenHost
     } catch (e) { setError(e.message); }
     finally { savingRef.current = false; setSaving(false); }
   };
+  const remove = async row => {
+    if (savingRef.current || !window.confirm(
+      `“${row.title}” etkinliği, programı ve yüklenen sunumlarıyla birlikte kalıcı olarak silinsin mi?`
+    )) return;
+    savingRef.current = true; setSaving(true); setError(''); setFeedback('');
+    try {
+      await deleteEvent(user.token, row.id, row.revision);
+      setFeedback('Etkinlik silindi.');
+      if (offset && items.length === 1) setOffset(offset - 20); else await load();
+    } catch (e) { setError(e.message); }
+    finally { savingRef.current = false; setSaving(false); }
+  };
   if (agendaEvent) return <EventAgenda token={user.token} eventId={agendaEvent} onBack={() => { setAgendaEvent(null); load(); }} />;
   if (gameEvent) return <EventGameSetup user={user} eventId={gameEvent} onBack={() => { setGameEvent(null); load(); }} onOpenHost={session => onOpenHost(session, liveEvent)} onOpenDisplay={onOpenDisplay} />;
   if (liveEvent) return <EventLive token={user.token} eventId={liveEvent}
-    onBack={() => setLiveEvent(null)} onQuiz={() => setGameEvent(liveEvent)} />;
+    onBack={() => { setLiveEvent(null); load(); }} onQuiz={() => setGameEvent(liveEvent)} />;
   return <main className="qb-events qb-events--studio">
     <header className="qb-events__hero"><div><p className="qb-events__eyebrow">QUIZBLAST EVENT STUDIO</p><h1>Etkinliklerim</h1><p>Programını hazırla, sunumlarını ekle ve etkinliğini yönet.</p></div>
       <button onClick={onBack} disabled={saving}>Ana Menü</button></header>
@@ -105,7 +117,9 @@ export default function EventStudio({ user, initialLiveEvent, onBack, onOpenHost
           <button disabled={saving} aria-label={`Canlı Etkinlik: ${row.title}`} onClick={() => setLiveEvent(row.id)}>Canlı Etkinlik</button>
           <button disabled={saving} aria-label={`Program: ${row.title}`} onClick={() => setAgendaEvent(row.id)}>Program</button>
           <button disabled={saving} aria-label={`Kopyala: ${row.title}`} onClick={() => duplicate(row.id)}>Kopyala</button>
-          <button aria-label={`Düzenle: ${row.title}`} onClick={() => open(row.id)}>Düzenle</button></div>
+          <button aria-label={`Düzenle: ${row.title}`} onClick={() => open(row.id)}>Düzenle</button>
+          {row.can_delete && <button className="qb-events__delete" disabled={saving} onClick={() => remove(row)}
+            aria-label={`Etkinliği sil: ${row.title}`}>Sil</button>}</div>
         </article>)}</div>
         <nav aria-label="Etkinlik sayfaları" className="qb-events__actions"><button disabled={!offset} onClick={() => setOffset(offset - 20)}>Önceki</button><button disabled={!hasMore} onClick={() => setOffset(offset + 20)}>Sonraki</button></nav>
       </>}

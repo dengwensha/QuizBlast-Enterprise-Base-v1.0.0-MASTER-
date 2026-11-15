@@ -45,3 +45,8 @@
   background: var(--qb-surface);
   color: var(--qb-text-primary);
 }
+
+.qb-events__card-actions button.qb-events__delete {
+  color: var(--qb-danger);
+  border-color: currentColor;
+}

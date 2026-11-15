@@ -37,6 +37,20 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
         return dict(title=row.title, revision=row.revision,
                     steps=agenda.steps if agenda else [])
 
+    @router.delete('/{event_id}', status_code=204)
+    def delete_event(event_id: UUID, revision: int, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            row = event(db, event_id, owner_id, lock=True)
+            if db.get(Run, row.id) is not None or db.get(EventSession, row.id) is not None:
+                raise HTTPException(409, detail='event_delete_started')
+            if row.revision != revision:
+                raise HTTPException(409, detail='event_revision_conflict')
+            for model in (Deck, Agenda, Selection):
+                db.query(model).filter_by(event_id=row.id).delete(synchronize_session=False)
+            db.delete(row)
+            db.commit()
+        return Response(status_code=204)
+
     @router.get('/{event_id}/agenda')
     def get_agenda(event_id: UUID, owner_id: int = Depends(owner)):
         with session_factory() as db:
