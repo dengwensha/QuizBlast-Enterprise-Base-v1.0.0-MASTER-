@@ -254,9 +254,36 @@ class EventSessionsAcceptance(unittest.TestCase):
         self.assertEqual(self.request('PUT', path, {**data, 'steps': steps + [steps[-2]]})[0], 422)
         status, saved = self.request('PUT', path, data)
         self.assertEqual(status, 200)
-        self.assertEqual(saved['steps'], steps)
+        quiz_step = saved['steps'][-2]
+        self.assertEqual({k: v for k, v in quiz_step.items() if k != 'step_id'}, steps[-2])
+        self.assertEqual(saved['steps'][:-2] + saved['steps'][-1:], steps[:-2] + steps[-1:])
         self.assertEqual(self.request(path=path), (200, saved))
+        reordered = [dict(quiz_step, title='Quiz renamed'), *saved['steps'][:-2], saved['steps'][-1]]
+        status, resaved = self.request('PUT', path, {'revision': saved['revision'], 'steps': reordered})
+        self.assertEqual((status, resaved['steps'][0]), (200, reordered[0]))
+        foreign_path, foreign = self.event()
+        self.assertEqual(self.request('PUT', foreign_path + '/agenda', {
+            'revision': foreign['event']['revision'], 'steps': [quiz_step],
+        }), (422, {'detail': 'event_quiz_step_invalid'}))
         self.assertEqual(self.request('PUT', path, data)[0], 409)
+
+    def test_legacy_quiz_step_identity_matches_agenda_and_new_live_snapshot(self):
+        path, state = self.event()
+        with main.db_session() as db:
+            db.add(main.EventAgenda(event_id=state['event']['id'],
+                                    steps=[{'kind': 'quiz', 'title': 'Legacy quiz'}]))
+            db.commit()
+        _, first = self.request(path=path + '/agenda')
+        self.assertEqual(self.request(path=path + '/agenda'), (200, first))
+        self.assertTrue(first['steps'][0]['step_id'])
+        status, run = self.request('POST', path + '/live')
+        self.assertEqual(status, 200)
+        self.assertEqual(run['live']['steps'], first['steps'])
+        status, saved = self.request('PUT', path + '/agenda', {
+            'revision': first['revision'], 'steps': first['steps'],
+        })
+        self.assertEqual(status, 200)
+        self.assertEqual(saved['steps'], first['steps'])
 
     def test_copy_event_keeps_eligible_quiz_but_creates_independent_lobby(self):
         path, state = self.event()

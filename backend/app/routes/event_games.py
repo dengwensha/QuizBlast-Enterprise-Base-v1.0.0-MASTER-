@@ -1,7 +1,7 @@
 """One event -> one authorized quiz -> one durable room identity."""
 from base64 import b64decode
 from datetime import datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4, uuid5
 from secrets import token_urlsafe
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, UploadFile
 from sqlalchemy import update
@@ -32,10 +32,19 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
     def state(db, row):
         return describe_event_game(db, row, Selection, EventSession, builder.Room)
 
+    def identified_steps(event_id, steps):
+        # Legacy agendas have at most one quiz. Give that quiz the same
+        # event-scoped identity on every read until its next save.
+        return [
+            {**step, 'step_id': str(uuid5(UUID(event_id), 'legacy-quiz-step'))}
+            if step['kind'] == 'quiz' and not step.get('step_id') else step
+            for step in steps
+        ]
+
     def agenda_state(db, row):
         agenda = db.get(Agenda, row.id)
         return dict(title=row.title, revision=row.revision,
-                    steps=agenda.steps if agenda else [])
+                    steps=identified_steps(row.id, agenda.steps) if agenda else [])
 
     @router.delete('/{event_id}', status_code=204)
     def delete_event(event_id: UUID, revision: int, owner_id: int = Depends(owner)):
@@ -63,15 +72,24 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             if row.revision != data.revision:
                 raise HTTPException(409, detail='event_revision_conflict')
             agenda = db.get(Agenda, row.id)
+            prior_steps = identified_steps(row.id, agenda.steps) if agenda else []
+            known_ids = {UUID(step['step_id']) for step in prior_steps if step.get('step_id')}
             if agenda is None:
                 agenda = Agenda(event_id=row.id)
                 db.add(agenda)
+            steps = []
             for step in data.steps:
+                if step.step_id is not None and (step.kind != 'quiz' or step.step_id not in known_ids):
+                    raise HTTPException(422, detail='event_quiz_step_invalid')
                 if step.deck_id:
                     deck = db.get(Deck, step.deck_id.hex)
                     if step.kind != 'presentation' or not deck or deck.event_id != row.id:
                         raise HTTPException(422, detail='event_deck_invalid')
-            agenda.steps = [step.model_dump(mode='json', exclude_none=True) for step in data.steps]
+                payload = step.model_dump(mode='json', exclude_none=True)
+                if step.kind == 'quiz':
+                    payload['step_id'] = str(step.step_id or uuid4())
+                steps.append(payload)
+            agenda.steps = steps
             row.revision += 1
             row.updated_at = datetime.now(timezone.utc)
             db.flush()
@@ -145,7 +163,7 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                 agenda = db.get(Agenda, row.id)
                 if not agenda or not agenda.steps:
                     raise HTTPException(409, detail='event_agenda_required')
-                run = Run(event_id=row.id, title=row.title, steps=agenda.steps,
+                run = Run(event_id=row.id, title=row.title, steps=identified_steps(row.id, agenda.steps),
                           display_key=token_urlsafe(32))
                 db.add(run)
                 db.flush()
