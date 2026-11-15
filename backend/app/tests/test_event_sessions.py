@@ -194,6 +194,15 @@ class EventSessionsAcceptance(unittest.TestCase):
         self.assertEqual(command('complete', 4)[0], 200)
         self.assertEqual(command('open', 5)[0], 200)
         self.assertEqual(command('complete', 6)[1]['detail'], 'event_quiz_not_completed')
+        self.assertIsNone(display()['quiz_display'])
+        _, game = self.request(path=path + '/game')
+        status, created = self.request('POST', path + '/session',
+                                       {'revision': game['event']['revision']})
+        self.assertEqual(status, 200)
+        room = created['session']
+        self.assertEqual(display()['quiz_display'], {key: room[key] for key in ('pin', 'instance_id')})
+        self.assertEqual(self.request('POST', '/close-room/' + room['pin'])[0], 200)
+        self.assertIsNone(display()['quiz_display'])
 
     def test_agenda_order_ownership_and_revision(self):
         path, _ = self.event()

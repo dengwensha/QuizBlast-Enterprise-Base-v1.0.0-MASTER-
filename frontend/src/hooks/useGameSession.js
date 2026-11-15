@@ -5,6 +5,7 @@ import { normalizeQuestionImage } from "../utils/questionImage";
 import { remainingFromDeadline, localDeadlineFromMessage } from "../utils/gameClock";
 
 export function useGameSession({
+  persistSession = true,
   onQuestion,
   onQuestionResult,
   onGameOver,
@@ -112,8 +113,8 @@ export function useGameSession({
 
   const closeSession = () => {
     closeSocket();
-    sessionStorage.removeItem("quizblast_active_session");
-    localStorage.removeItem("quizblast_active_session");
+    if (persistSession) sessionStorage.removeItem("quizblast_active_session");
+    if (persistSession) localStorage.removeItem("quizblast_active_session");
     resetGame();
   };
 
@@ -183,8 +184,8 @@ export function useGameSession({
         clearTimeout(reconnectTimerRef.current);
         setReconnecting(false);
         if (data.reason !== "host_unauthorized") {
-          sessionStorage.removeItem("quizblast_active_session");
-          localStorage.removeItem("quizblast_active_session");
+          if (persistSession) sessionStorage.removeItem("quizblast_active_session");
+          if (persistSession) localStorage.removeItem("quizblast_active_session");
         }
         if (data.reason === "host_unauthorized") {
           callbacksRef.current.onHostUnauthorized?.();
@@ -230,8 +231,8 @@ export function useGameSession({
       if (data.type === "players") {
         setJoined(true);
         setPlayers(data.players);
-        sessionStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who, instanceId: connection.instanceId }));
-        localStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who, instanceId: connection.instanceId }));
+        if (persistSession) sessionStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who, instanceId: connection.instanceId }));
+        if (persistSession) localStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who, instanceId: connection.instanceId }));
 
         setTotalPlayers(
           data.players.filter(
@@ -321,8 +322,8 @@ export function useGameSession({
           connectionRef.current = null;
           clearTimeout(reconnectTimerRef.current);
           setReconnecting(false);
-          sessionStorage.removeItem("quizblast_active_session");
-          localStorage.removeItem("quizblast_active_session");
+          if (persistSession) sessionStorage.removeItem("quizblast_active_session");
+          if (persistSession) localStorage.removeItem("quizblast_active_session");
           return;
         }
         if (connectionRef.current === connection && !pageSuspendedRef.current) {

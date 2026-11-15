@@ -45,10 +45,11 @@ const isMobile = window.innerWidth < 700;
 
 export default function App() {
   const displayKey = new URLSearchParams(window.location.hash.slice(1)).get('event-display');
-  return displayKey ? <EventLiveDisplay displayKey={displayKey} /> : <QuizBlastApp />;
+  return displayKey ? <EventLiveDisplay displayKey={displayKey} renderQuiz={room => <QuizBlastApp key={room.instance_id} programRoom={room} />} /> : <QuizBlastApp />;
 }
 
-function QuizBlastApp() {
+function QuizBlastApp({ programRoom } = {}) {
+  const [returnEvent, setReturnEvent] = useState(null);
   const {
     user,
     authMode,
@@ -65,6 +66,7 @@ function QuizBlastApp() {
   const playTone=(f=600,d=120,t='sine')=>{try{const A=window.AudioContext||window.webkitAudioContext; const c=new A(); const o=c.createOscillator(); const g=c.createGain(); o.type=t; o.frequency.value=f; o.connect(g); g.connect(c.destination); g.gain.setValueAtTime(.08,c.currentTime); g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d/1000); o.start(); o.stop(c.currentTime+d/1000);}catch(e){}};
   const fireSmallConfetti=()=>confetti({particleCount:60,spread:70,origin:{y:.7}}); const fireBigConfetti=()=>{const end=Date.now()+3000; const i=setInterval(()=>{if(Date.now()>end){clearInterval(i);return;} confetti({particleCount:40,spread:120,startVelocity:40,origin:{x:Math.random(),y:Math.random()*.5}})},250)};
   const [mode,setMode]=useState(() => {
+    if (programRoom) return 'display';
     try {
       const saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
       if (saved?.instanceId) return saved.who==='HOST'?'host':saved.who==='DISPLAY'?'display':saved.who?'player':null;
@@ -73,6 +75,7 @@ function QuizBlastApp() {
     } catch { return null; }
   });
   const [restoringSession, setRestoringSession] = useState(() => {
+    if (programRoom) return false;
     try {
       const saved = JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
       return Boolean(saved?.pin && saved?.who && saved?.instanceId);
@@ -129,6 +132,7 @@ function QuizBlastApp() {
     sendAnswer,
     closeSession,
   } = useGameSession({
+    persistSession: !programRoom,
     onQuestion: () => playTone(720,140,'triangle'),
     onQuestionResult: () => {
       fireSmallConfetti();
@@ -142,7 +146,7 @@ function QuizBlastApp() {
     },
     onCountdown: () => playTone(520,80,'square'),
     onHostUnauthorized: () => clearAuth(true),
-    onRoomClosed: () => { replaceMode(null); alert('Oda kapatıldı.'); },
+    onRoomClosed: () => { if (programRoom) return; replaceMode(null); alert('Oda kapatıldı.'); },
   });
   const {
     quizzes,
@@ -189,8 +193,9 @@ function QuizBlastApp() {
   joinedRef.current = joined;
   modeRef.current = mode;
   const logout=()=>{closeSession(); clearAuth(); replaceMode(null); clearQuizState();};
-  const leaveGame=()=>{closeSession(); replaceMode(null);};
+  const leaveGame=()=>{closeSession(); replaceMode(returnEvent ? 'events' : null);};
   useEffect(() => {
+    if (programRoom) return;
     window.history.replaceState({ ...(window.history.state || {}), quizblastMode: modeRef.current }, '', window.location.href);
     // A restored session is active even before its asynchronous socket reconnect completes.
     // Arm the guard before the first popstate; otherwise Back can leave the document.
@@ -227,7 +232,7 @@ function QuizBlastApp() {
   }, []);
 
   useEffect(() => {
-    if (!joined || activeHistoryRef.current) return;
+    if (programRoom || !joined || activeHistoryRef.current) return;
     // Reconnection must not add another browser history entry.
     if (window.history.state?.quizblastActiveSession) {
       activeHistoryRef.current = true;
@@ -237,6 +242,11 @@ function QuizBlastApp() {
     activeHistoryRef.current = true;
   }, [joined]);
   useEffect(() => {
+    if (programRoom) {
+      setRoomPin(programRoom.pin);
+      connectWebsocket(programRoom.pin, 'DISPLAY', undefined, programRoom.instance_id);
+      return;
+    }
     let saved;
     try { saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session')); }
     catch { setRestoringSession(false); return; }
@@ -252,7 +262,7 @@ function QuizBlastApp() {
     } else {
       setRestoringSession(false);
     }
-  }, [user?.token]);
+  }, [user?.token, programRoom?.instance_id]);
   useEffect(() => {
     if ((mode === "admin" || mode === "host") && selectedQuizId) {
       loadSelectedQuestions(selectedQuizId);
@@ -362,7 +372,7 @@ function QuizBlastApp() {
     const result = await closeRoomRequest(roomPin, user.token);
     if (result.status === 'room_closed') {
       closeSession();
-      replaceMode(null);
+      replaceMode(returnEvent ? 'events' : null);
     } else {
       alert(result.detail || result.error || 'Oda kapatılamadı.');
     }
@@ -371,13 +381,14 @@ function QuizBlastApp() {
   // Anonymous Player and read-only Display are allowed; Host/Admin still require authentication.
   if(!user && mode !== 'player' && mode !== 'display') return <div style={styles.splash}><div style={styles.joinCard}><h1>QuizBlast 🚀</h1><h2>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</h2><input placeholder="E-posta" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={styles.input}/><input placeholder="Şifre" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={styles.input}/><button onClick={authMode==='login'?login:register} style={styles.joinButton}>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</button><button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} style={{...styles.joinButton,marginTop:10,background:'var(--qb-navy-900)'}}>{authMode==='login'?'Hesap oluştur':'Giriş ekranına dön'}</button><div style={{marginTop:20,paddingTop:16,borderTop:'1px solid var(--qb-primary-200)'}}><p style={{margin:'0 0 10px',fontSize:14,color:'var(--qb-text-secondary)'}}>Yarışmaya katılmak için üyelik gerekmiyor.</p><button type="button" onClick={()=>navigateMode('player')} style={{...styles.joinButton,background:'var(--qb-primary-600)',width:'100%'}}>🎮 PIN ile Üyeliksiz Katıl</button><button type="button" onClick={()=>navigateMode('display')} style={{...styles.joinButton,marginTop:10,background:'var(--qb-navy-900)',width:'100%'}}>📺 Üyeliksiz Display Bağlan</button></div></div></div>;
   if(!mode) return <main className="qb-home"><div className="qb-home__shell"><header className="qb-home__header"><h1 className="qb-home__brand">QuizBlast 🚀</h1><p className="qb-home__subtitle">Multiplayer Quiz Platform</p><span className="qb-home__account">{user.email}</span></header><nav className="qb-home__grid" aria-label="QuizBlast ana menü"><button className="qb-home__action" onClick={()=>navigateMode('events')}>Etkinliklerim</button><button className="qb-home__action" onClick={()=>{navigateMode('host');loadQuizzes();}}>🎤 Host Game</button><button className="qb-home__action" onClick={()=>navigateMode('player')}>🎮 Join Game</button><button className="qb-home__action" onClick={()=>navigateMode('display')}>📺 Display Screen</button><button className="qb-home__action" onClick={()=>{navigateMode('admin');loadQuizzes();}}>🧠 Admin Panel</button><button className="qb-home__action" onClick={()=>navigateMode('content')}>📚 Hazır Soru Setleri</button></nav><button className="qb-home__logout" onClick={logout}>Çıkış Yap</button></div></main>;
-  if(mode==='events') return <EventStudio key={user.email} user={user} onBack={()=>navigateMode(null)} onOpenHost={session=>{navigateMode('host');returnToRoom(session);}} onOpenDisplay={session=>{navigateMode('display');setRoomPin(session.pin);connectWebsocket(session.pin,'DISPLAY',undefined,session.instance_id);}} />;
+  if(mode==='events') return <EventStudio key={user.email} user={user} initialLiveEvent={returnEvent} onBack={()=>{setReturnEvent(null);navigateMode(null);}} onOpenHost={(session, eventId)=>{setReturnEvent(eventId || null);navigateMode('host');returnToRoom(session);}} onOpenDisplay={session=>{navigateMode('display');setRoomPin(session.pin);connectWebsocket(session.pin,'DISPLAY',undefined,session.instance_id);}} />;
   if(mode==='content') return <ContentLibrary onBack={()=>navigateMode(null)} onPlay={playPublishedSet} onCopy={copyPublishedSet} />;
   if(mode==='admin') return <AdminView styles={styles} admin={admin} {...{quizzes,selectedQuizId,setSelectedQuizId,selectedQuestions,importExcel,commitImport,importPreview,importing,importSummary,setMode:navigateMode}} />;
   if(restoringSession && !joined && hasActiveSession()) return <div style={styles.splash}><div style={styles.center}><h2>Odaya yeniden bağlanılıyor...</h2><button onClick={leaveGame} style={styles.mainButton}>Oyundan Çık</button></div></div>;
   if(reconnecting) return <div style={styles.splash}><div style={styles.center}><h2>Odaya yeniden bağlanılıyor...</h2><button onClick={leaveGame} style={styles.mainButton}>Oyundan Çık</button></div></div>;
   if(mode==='host'&&!joined) return <HostSetup {...{quizzes,selectedQuizId,setSelectedQuizId,loadSelectedQuestions,finalLimit,setFinalLimit,createRoom,selectedQuestions,setMode:navigateMode,styles,hostRooms,hostRoomsError,returnToRoom}} />;
   if(mode==='player'&&!joined) return <JoinScreen {...{roomPin,setRoomPin,name,setName,joinRoom,setMode:navigateMode}}styles={styles} />;
+  if(programRoom && !joined) return <p role="status">Quiz Display bağlanıyor…</p>;
   if(mode==='display'&&!joined) return <DisplayConnect {...{roomPin,setRoomPin,connectDisplay,setMode:navigateMode}} styles={styles}/>;
 
 return (
@@ -423,7 +434,7 @@ return (
         </button>
       )}
 
-      <button
+      {!programRoom && <button
         onClick={leaveGame}
         style={{
           ...styles.hostButton,
@@ -431,8 +442,8 @@ return (
           color: "white",
         }}
       >
-        Oyundan Çık
-      </button>
+        {returnEvent ? 'Canlı Programa Dön' : 'Oyundan Çık'}
+      </button>}
     </div>
   }>
     <div style={styles.container}>
