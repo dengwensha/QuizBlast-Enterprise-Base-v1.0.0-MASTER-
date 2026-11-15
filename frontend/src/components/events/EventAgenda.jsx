@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { getEventAgenda, saveEventAgenda } from '../../services/eventService';
+import { getEventAgenda, saveEventAgenda, uploadEventDeck } from '../../services/eventService';
+
+import SlideImage from './SlideImage';
 
 const labels = { presentation: 'Sunum', quiz: 'Quiz', break: 'Ara' };
 
@@ -8,6 +10,9 @@ export default function EventAgenda({ token, eventId, onBack }) {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [page, setPage] = useState(0);
+  const [count, setCount] = useState(0);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -28,6 +33,16 @@ export default function EventAgenda({ token, eventId, onBack }) {
     const next = [...steps];
     [next[index], next[index + direction]] = [next[index + direction], next[index]];
     edit(next);
+  };
+  const upload = async (index, file) => {
+    if (!file || busy) return;
+    setBusy(true); setError('');
+    try {
+      const deck = await uploadEventDeck(token, eventId, file);
+      edit(steps.map((item, i) => i === index ? { ...item, deck_id: deck.id } : item));
+      setPreview(deck.id); setPage(0); setCount(deck.page_count);
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
   };
   const submit = async event => {
     event.preventDefault();
@@ -55,6 +70,13 @@ export default function EventAgenda({ token, eventId, onBack }) {
           <input required maxLength={160} disabled={busy} value={step.title}
             onChange={e => edit(steps.map((item, i) => i === index ? { ...item, title: e.target.value } : item))} />
         </label>
+        {step.kind === 'presentation' && <>
+          <label>{index + 1}. adım için PDF<input type="file" accept="application/pdf,.pdf" disabled={busy}
+            onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; upload(index, file); }} /></label>
+          {step.deck_id && <button type="button" disabled={busy} onClick={() => {
+            setPreview(step.deck_id); setPage(0); setCount(0);
+          }}>PDF Önizle</button>}
+        </>}
         <div className="qb-events__actions">
           <button type="button" aria-label={`${index + 1}. adımı yukarı taşı`} disabled={busy || !index} onClick={() => move(index, -1)}>Yukarı</button>
           <button type="button" aria-label={`${index + 1}. adımı aşağı taşı`} disabled={busy || index === steps.length - 1} onClick={() => move(index, 1)}>Aşağı</button>
@@ -68,5 +90,12 @@ export default function EventAgenda({ token, eventId, onBack }) {
         <button type="submit" disabled={busy || steps.some(step => !step.title.trim())}>Programı Kaydet</button>
       </div>
     </form>}
+    {preview && <section className="qb-events__panel">
+      <h2>PDF Önizleme</h2>
+      <SlideImage key={`${preview}:${page}`} token={token} path={`/${eventId}/decks/${preview}/${page}`} onCount={setCount} />
+      <button disabled={!page} onClick={() => setPage(page - 1)}>Önceki Slayt</button>
+      <button disabled={page + 1 >= count} onClick={() => setPage(page + 1)}>Sonraki Slayt</button>
+      <button onClick={() => setPreview(null)}>Önizlemeyi Kapat</button>
+    </section>}
   </main>;
 }
