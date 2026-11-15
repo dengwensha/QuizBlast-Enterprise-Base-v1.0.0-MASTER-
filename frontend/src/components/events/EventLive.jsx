@@ -7,6 +7,10 @@ import StageViewport from '../game/StageViewport';
 
 const labels = { presentation: 'Sunum', quiz: 'Quiz', break: 'Ara' };
 
+function StepTitle({ step }) {
+  return <>{step.kind === 'break' && <span aria-hidden="true">☕{' '}</span>}{step.title}</>;
+}
+
 function Program({ live, displayKey }) {
   const step = live.steps[live.cursor];
   const showing = live.view === 'step' && step;
@@ -15,7 +19,7 @@ function Program({ live, displayKey }) {
   return <section className="qb-events__panel qb-live__program">
     <div className="qb-live__summary">
       <p className="qb-live__eyebrow">{showing ? labels[step.kind] : step ? 'Sıradaki adım' : 'Etkinlik sona erdi'}</p>
-      <h2>{step ? step.title : 'Program tamamlandı'}</h2>
+      <h2>{step ? <StepTitle step={step} /> : 'Program tamamlandı'}</h2>
       {total > 0 && <div className="qb-live__progress">
         <span>{completed} / {total} adım tamamlandı</span>
         <progress aria-label="Program ilerlemesi" value={completed} max={total} />
@@ -26,9 +30,9 @@ function Program({ live, displayKey }) {
       <SlideImage key={live.revision} token={displayKey} path={`/display/program/page/${live.revision}`} />
     </div>) : <ol className="qb-live__timeline">{live.steps.map((item, i) => {
       const status = i < live.cursor ? 'Tamamlandı' : i === live.cursor ? 'Sırada' : 'Bekliyor';
-      return <li key={i} aria-current={i === live.cursor ? 'step' : undefined} data-complete={i < live.cursor}>
+      return <li key={i} data-kind={item.kind} aria-current={i === live.cursor ? 'step' : undefined} data-complete={i < live.cursor}>
         <span className="qb-live__number" aria-hidden="true">{i + 1}</span>
-        <div><strong>{item.title}</strong><small>{labels[item.kind]}</small></div>
+        <div><strong><StepTitle step={item} /></strong><small>{labels[item.kind]}</small></div>
         <span className="qb-live__status">{status}</span>
       </li>;
     })}</ol>}
