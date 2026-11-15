@@ -113,6 +113,8 @@ test('EVENT-06 program Display follows slides, quiz and closing on one URL', asy
       body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5ZkAAAAASUVORK5CYII=', 'base64'),
     });
   });
+  await page.route('**/api/room-instance/654321', route =>
+    route.fulfill({ json: { instance_id: instance } }));
   let quizConnections = 0;
   await page.routeWebSocket('**/ws/**', ws => {
     expect(new URL(ws.url()).pathname).toBe('/ws/654321/DISPLAY');
