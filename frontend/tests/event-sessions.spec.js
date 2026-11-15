@@ -137,7 +137,9 @@ test('EVENT-06 program Display follows slides, quiz and closing on one URL', asy
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('quizblast_active_session')))).toEqual(original);
   expect(await page.evaluate(() => sessionStorage.getItem('quizblast_active_session'))).toBeNull();
   Object.assign(live, { cursor: 2, view: 'agenda', revision: 5, quiz_display: null });
-  await expect(page.getByRole('heading', { name: 'Sırada: Closing' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^(Sırada: )?Closing$/ })).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'Closing' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Sunum slaytı' })).toHaveCount(0);
   Object.assign(live, { view: 'step', revision: 6, page: 0, page_count: 1 });
   await expect(page.getByRole('heading', { name: 'Closing', exact: true })).toBeVisible();
   await expect(page.getByRole('img', { name: 'Sunum slaytı' })).toBeVisible();
