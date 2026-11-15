@@ -15,6 +15,7 @@ async function request(token, path = '', options = {}) {
       422: 'Başlık ve tarih bilgilerini kontrol edin.',
     };
     const details = {
+      event_delete_started: 'Programı başlatılmış veya oyun oturumu oluşturulmuş etkinlikler silinemez.',
       event_pdf_invalid: 'PDF açılamadı veya dosya 10 MB, 30 sayfa ya da görsel boyutu sınırını aşıyor.',
       event_deck_limit: 'Etkinlik başına en fazla 12 PDF yüklenebilir.',
       event_deck_invalid: 'Seçilen PDF bu sunum adımına bağlanamadı.',
@@ -48,6 +49,9 @@ export const createEventSession = (token, id, revision) => request(token, `/${id
 });
 
 export const getEventReport = (token, id) => request(token, `/${id}/report`);
+
+export const deleteEvent = (token, id, revision) =>
+  request(token, `/${id}?revision=${revision}`, { method: 'DELETE' });
 
 export const copyEvent = (token, id) => request(token, `/${id}/copy`, { method: 'POST' });
 

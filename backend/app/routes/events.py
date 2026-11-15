@@ -13,8 +13,10 @@ def create_events_router(session_factory, User, EventDraft, authenticate, game_f
     def serialize(db, row):
         if game_features is None:
             return serialize_event(row)
-        return describe_event_game(db, row, game_features['Selection'],
-                                   game_features['EventSession'], game_features['builder'].Room)['event']
+        game = describe_event_game(db, row, game_features['Selection'],
+                                   game_features['EventSession'], game_features['builder'].Room)
+        return dict(game['event'], can_delete=game['session'] is None and
+                    db.query(game_features['Run'].event_id).filter_by(event_id=row.id).first() is None)
 
     def owner(authorization: str | None = Header(default=None)):
         email = authenticate(authorization)
