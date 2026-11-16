@@ -68,7 +68,11 @@ class EventSessionsAcceptance(unittest.TestCase):
         with main.db_session() as db:
             ids = [e.id for e in db.query(main.EventDraft).join(main.User).filter(main.User.email == self.email)]
             links = db.query(main.EventGameSession).filter(main.EventGameSession.event_id.in_(ids)).all()
-            pins = [link.pin for link in links]
+            step_links = db.query(main.EventStepSession).filter(main.EventStepSession.event_id.in_(ids)).all()
+            pins = [link.pin for link in [*links, *step_links]]
+            db.query(main.EventStepReport).filter(main.EventStepReport.instance_id.in_(
+                [link.instance_id for link in step_links])).delete(synchronize_session=False)
+            db.query(main.EventStepSession).filter(main.EventStepSession.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventDeck).filter(main.EventDeck.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventRun).filter(main.EventRun.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventAgenda).filter(main.EventAgenda.event_id.in_(ids)).delete(synchronize_session=False)
@@ -300,6 +304,50 @@ class EventSessionsAcceptance(unittest.TestCase):
                              (409, {'detail': 'event_step_sessions_unavailable'}))
         self.assertEqual(self.request(path=path + '/live'), (200, 'null'))
         self.assertIsNone(self.request(path=path + '/game')[1]['session'])
+
+    def test_step_sessions_are_independent_and_report_by_room_instance(self):
+        path, state = self.event()
+        status, agenda = self.request('PUT', path + '/agenda', {
+            'revision': state['event']['revision'],
+            'steps': [{'kind': 'quiz', 'title': 'A', 'quiz_id': self.quiz_ids[0]},
+                      {'kind': 'quiz', 'title': 'B', 'quiz_id': self.quiz_ids[2]}],
+        })
+        self.assertEqual(status, 200)
+        first, second = [f"{path}/steps/{step['step_id']}" for step in agenda['steps']]
+        revision = agenda['revision']
+        create = lambda step, rev: self.request('POST', step + '/session', {'revision': rev})
+        self.assertEqual(self.request('POST', first + '/session', {'revision': revision}, email=self.other)[0], 404)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: create(first, revision), range(2)))
+        self.assertEqual(results[0], results[1])
+        status, a = results[0]
+        self.assertEqual(status, 200, a)
+        self.assertEqual(a['quiz_id'], self.quiz_ids[0])
+        self.assertEqual(create(second, revision)[0], 409)
+        status, b = create(second, revision + 1)
+        self.assertEqual(status, 200, b)
+        self.assertEqual(b['quiz_id'], self.quiz_ids[2])
+        self.assertNotEqual(a['pin'], b['pin'])
+        self.assertNotEqual(a['instance_id'], b['instance_id'])
+        self.assertEqual(self.request(path=path)[1]['can_delete'], False)
+        self.assertEqual(self.request('DELETE', f'{path}?revision={revision + 2}')[0], 409)
+        self.assertEqual(self.request('PUT', path + '/agenda', {
+            'revision': revision + 2, 'steps': agenda['steps'][1:],
+        }), (409, {'detail': 'event_session_locked'}))
+        for step, session, name in [(first, a, 'Ada'), (second, b, 'Bora')]:
+            self.assertEqual(self.request(path=step + '/report')[0], 404)
+            main.game_phase[session['pin']] = 'completed'
+            main.scores[session['pin']] = {name: 10}
+            main.save_game(session['pin'])
+            self.assertEqual(self.request(path=step + '/report', email=self.other)[0], 404)
+            status, report = self.request(path=step + '/report')
+            self.assertEqual(status, 200, report)
+            self.assertEqual(report['ranking'], [{'name': name, 'score': 10}])
+            self.assertEqual(datetime.fromisoformat(report['expires_at']) -
+                             datetime.fromisoformat(report['completed_at']), timedelta(days=15))
+            self.assertEqual(self.request('POST', '/start-game/' + session['pin'])[1]['detail'],
+                             'event_session_completed')
+        self.assertEqual(self.request(path=path + '/report')[0], 404)
 
     def test_legacy_quiz_step_identity_matches_agenda_and_new_live_snapshot(self):
         path, state = self.event()

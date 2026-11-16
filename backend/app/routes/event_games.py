@@ -9,11 +9,11 @@ from sqlalchemy.orm import defer
 from app.schemas.events import EventRunCommand, EventAgendaUpdate, EventQuizSelect, EventSessionCreate
 from app.services.event_pdf import MAX_PDF_BYTES, render_pdf
 from pypdfium2 import PdfiumError
-from app.services.event_store import describe_event_game, report_utc
+from app.services.event_store import describe_event_game, describe_session, report_utc
 
 
 def create_event_game_router(owner, session_factory, EventDraft, User,
-                             Selection, EventSession, builder, initialize, Report, Agenda, Run, Deck):
+                             Selection, EventSession, builder, initialize, Report, Agenda, Run, Deck, StepSession, StepReport):
     router = APIRouter()
 
     def event(db, event_id, owner_id, lock=False):
@@ -54,7 +54,8 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
     def delete_event(event_id: UUID, revision: int, owner_id: int = Depends(owner)):
         with session_factory() as db:
             row = event(db, event_id, owner_id, lock=True)
-            if db.get(Run, row.id) is not None or db.get(EventSession, row.id) is not None:
+            if (db.get(Run, row.id) is not None or db.get(EventSession, row.id) is not None or
+                    db.query(StepSession.event_id).filter_by(event_id=row.id).first() is not None):
                 raise HTTPException(409, detail='event_delete_started')
             if row.revision != revision:
                 raise HTTPException(409, detail='event_revision_conflict')
@@ -101,6 +102,10 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                 if step.kind == 'quiz':
                     payload['step_id'] = str(step.step_id or uuid4())
                 steps.append(payload)
+            selections = {s['step_id']: s.get('quiz_id') for s in steps if 'step_id' in s}
+            if any(selections.get(link.step_id) != link.quiz_id
+                   for link in db.query(StepSession).filter_by(event_id=row.id)):
+                raise HTTPException(409, detail='event_session_locked')
             if quiz_ids:
                 email = db.get(User, owner_id).email
                 for quiz_id in sorted(quiz_ids):
@@ -281,15 +286,66 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
     def get_report(event_id: UUID, owner_id: int = Depends(owner)):
         with session_factory() as db:
             row = event(db, event_id, owner_id)
-            report = db.get(Report, row.id)
-            if report is None:
-                raise HTTPException(404, detail='event_report_unavailable')
-            expires = report_utc(report.expires_at)
-            if datetime.now(timezone.utc) >= expires:
-                raise HTTPException(410, detail='event_report_expired')
-            return dict(event_title=report.event_title, quiz_title=report.quiz_title,
-                        completed_at=report_utc(report.completed_at), expires_at=expires,
-                        ranking=report.ranking)
+            return report_state(db.get(Report, row.id))
+
+    def report_state(report):
+        if report is None:
+            raise HTTPException(404, detail='event_report_unavailable')
+        expires = report_utc(report.expires_at)
+        if datetime.now(timezone.utc) >= expires:
+            raise HTTPException(410, detail='event_report_expired')
+        return dict(event_title=report.event_title, quiz_title=report.quiz_title,
+                    completed_at=report_utc(report.completed_at), expires_at=expires,
+                    ranking=report.ranking)
+
+    def step_session_state(db, link):
+        return describe_session(db, link, builder.Room)
+
+    @router.get('/{event_id}/steps/{step_id}/session')
+    def get_step_session(event_id: UUID, step_id: UUID, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            row = event(db, event_id, owner_id)
+            return step_session_state(db, db.get(StepSession, (row.id, str(step_id))))
+
+    @router.post('/{event_id}/steps/{step_id}/session')
+    def create_step_session(event_id: UUID, step_id: UUID, data: EventSessionCreate,
+                            owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            row = event(db, event_id, owner_id, lock=True)
+            key = (row.id, str(step_id))
+            email = db.get(User, owner_id).email
+            link = db.get(StepSession, key)
+            if link is None:
+                if row.revision != data.revision:
+                    raise HTTPException(409, detail='event_revision_conflict')
+                if db.get(EventSession, row.id) or db.get(Run, row.id):
+                    raise HTTPException(409, detail='event_session_locked')
+                agenda = db.get(Agenda, row.id)
+                step = next((s for s in (agenda.steps if agenda else [])
+                             if s.get('step_id') == key[1] and s['kind'] == 'quiz'), None)
+                if step is None:
+                    raise HTTPException(404, detail='event_quiz_step_invalid')
+                if not step.get('quiz_id'):
+                    raise HTTPException(409, detail='event_quiz_required')
+                builder.lock_quiz(db, step['quiz_id'], email, require_questions=True)
+                room = builder.stage(db, step['quiz_id'], email)
+                link = StepSession(event_id=row.id, step_id=key[1], quiz_id=room.quiz_id,
+                                   pin=room.pin, instance_id=room.identity.instance_id)
+                db.add(link)
+                row.revision += 1
+                row.updated_at = datetime.now(timezone.utc)
+            session = step_session_state(db, link)
+            db.commit()
+            if session['can_open'] and session['phase'] == 'lobby':
+                initialize(session['pin'], session['quiz_id'], email, session['instance_id'])
+            return session
+
+    @router.get('/{event_id}/steps/{step_id}/report')
+    def get_step_report(event_id: UUID, step_id: UUID, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            row = event(db, event_id, owner_id)
+            link = db.get(StepSession, (row.id, str(step_id)))
+            return report_state(db.get(StepReport, link.instance_id) if link else None)
 
     @router.put('/{event_id}/quiz')
     def select_quiz(event_id: UUID, data: EventQuizSelect, owner_id: int = Depends(owner)):
@@ -327,6 +383,8 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             agenda = db.get(Agenda, row.id)
             if agenda and requires_step_sessions(agenda.steps):
                 raise HTTPException(409, detail='event_step_sessions_unavailable')
+            if db.query(StepSession.event_id).filter_by(event_id=row.id).first() is not None:
+                raise HTTPException(409, detail='event_session_locked')
             selected = db.get(Selection, row.id)
             if selected is None:
                 raise HTTPException(409, detail='event_quiz_required')

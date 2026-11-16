@@ -52,13 +52,7 @@ def register_event_game_models(base):
 def describe_event_game(db, row, Selection, EventSession, Room):
     selected = db.get(Selection, row.id)
     link = db.get(EventSession, row.id)
-    session = None
-    if link is not None:
-        room = db.get(Room, link.pin)
-        valid = room and room.identity and room.identity.instance_id == link.instance_id
-        phase = room.phase if valid else 'closed'
-        session = dict(pin=link.pin, instance_id=link.instance_id, quiz_id=link.quiz_id,
-                       phase=phase, can_open=bool(valid and phase != 'closed'))
+    session = describe_session(db, link, Room)
     status = session['phase'] if session else 'ready' if selected else 'draft'
     return dict(event=serialize_event(row, status), quiz_id=selected.quiz_id if selected else None,
                 session=session)
@@ -109,3 +103,33 @@ def register_event_deck_model(base):
         page_count = Column(Integer, nullable=False)
         pages = Column(JSON, nullable=False)
     return EventDeck
+
+def describe_session(db, link, Room):
+    if link is None:
+        return None
+    room = db.get(Room, link.pin)
+    valid = bool(room and room.identity and room.identity.instance_id == link.instance_id)
+    phase = room.phase if valid else 'closed'
+    return dict(pin=link.pin, instance_id=link.instance_id, quiz_id=link.quiz_id,
+                phase=phase, can_open=valid and phase != 'closed')
+
+
+def register_event_step_game_models(base):
+    class EventStepSession(base):
+        __tablename__ = 'event_step_sessions'
+        event_id = Column(String(32), ForeignKey('event_drafts.id'), primary_key=True)
+        step_id = Column(String(36), primary_key=True)
+        pin = Column(String(6), nullable=False)
+        instance_id = Column(String(32), nullable=False, unique=True)
+        quiz_id = Column(Integer, nullable=False)
+
+    class EventStepReport(base):
+        __tablename__ = 'event_step_reports'
+        instance_id = Column(String(32), ForeignKey('event_step_sessions.instance_id'), primary_key=True)
+        event_title = Column(String(160), nullable=False)
+        quiz_title = Column(String, nullable=False)
+        completed_at = Column(DateTime(timezone=True), nullable=False)
+        expires_at = Column(DateTime(timezone=True), nullable=False)
+        ranking = Column(JSON, nullable=False)
+
+    return EventStepSession, EventStepReport
