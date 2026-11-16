@@ -41,6 +41,10 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             for step in steps
         ]
 
+    def requires_step_sessions(steps):
+        quizzes = [step for step in steps if step['kind'] == 'quiz']
+        return len(quizzes) > 1 or any(step.get('quiz_id') is not None for step in quizzes)
+
     def agenda_state(db, row):
         agenda = db.get(Agenda, row.id)
         return dict(title=row.title, revision=row.revision,
@@ -78,9 +82,17 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                 agenda = Agenda(event_id=row.id)
                 db.add(agenda)
             steps = []
+            seen_ids = set()
+            quiz_ids = set()
             for step in data.steps:
-                if step.step_id is not None and (step.kind != 'quiz' or step.step_id not in known_ids):
-                    raise HTTPException(422, detail='event_quiz_step_invalid')
+                if step.step_id is not None:
+                    if step.kind != 'quiz' or step.step_id not in known_ids or step.step_id in seen_ids:
+                        raise HTTPException(422, detail='event_quiz_step_invalid')
+                    seen_ids.add(step.step_id)
+                if step.quiz_id is not None:
+                    if step.kind != 'quiz':
+                        raise HTTPException(422, detail='event_quiz_step_invalid')
+                    quiz_ids.add(step.quiz_id)
                 if step.deck_id:
                     deck = db.get(Deck, step.deck_id.hex)
                     if step.kind != 'presentation' or not deck or deck.event_id != row.id:
@@ -89,6 +101,10 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                 if step.kind == 'quiz':
                     payload['step_id'] = str(step.step_id or uuid4())
                 steps.append(payload)
+            if quiz_ids:
+                email = db.get(User, owner_id).email
+                for quiz_id in sorted(quiz_ids):
+                    builder.lock_quiz(db, quiz_id, email, require_questions=True)
             agenda.steps = steps
             row.revision += 1
             row.updated_at = datetime.now(timezone.utc)
@@ -163,6 +179,8 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                 agenda = db.get(Agenda, row.id)
                 if not agenda or not agenda.steps:
                     raise HTTPException(409, detail='event_agenda_required')
+                if requires_step_sessions(agenda.steps):
+                    raise HTTPException(409, detail='event_step_sessions_unavailable')
                 run = Run(event_id=row.id, title=row.title, steps=identified_steps(row.id, agenda.steps),
                           display_key=token_urlsafe(32))
                 db.add(run)
@@ -306,6 +324,9 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                 return result
             if row.revision != data.revision:
                 raise HTTPException(409, detail='event_revision_conflict')
+            agenda = db.get(Agenda, row.id)
+            if agenda and requires_step_sessions(agenda.steps):
+                raise HTTPException(409, detail='event_step_sessions_unavailable')
             selected = db.get(Selection, row.id)
             if selected is None:
                 raise HTTPException(409, detail='event_quiz_required')

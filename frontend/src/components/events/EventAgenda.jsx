@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getEventAgenda, saveEventAgenda, uploadEventDeck } from '../../services/eventService';
+import { getEventAgenda, getEventGame, saveEventAgenda, uploadEventDeck } from '../../services/eventService';
 
 import SlideImage from './SlideImage';
 import './event-agenda.css';
@@ -29,6 +29,22 @@ export default function EventAgenda({ token, eventId, onBack }) {
   }, [token, eventId, reload]);
 
   const steps = agenda?.steps || [];
+  const quizSteps = steps.filter(step => step.kind === 'quiz');
+  const plannedQuizzes = quizSteps.length > 1 || quizSteps.some(step => step.quiz_id);
+  const [quizzes, setQuizzes] = useState(null);
+  const [catalogError, setCatalogError] = useState('');
+  useEffect(() => {
+    if (!plannedQuizzes) return;
+    let active = true;
+    setQuizzes(null);
+    setCatalogError('');
+    getEventGame(token, eventId).then(result => {
+      if (active) setQuizzes(result.quizzes);
+    }).catch(e => {
+      if (active) setCatalogError(e.message);
+    });
+    return () => { active = false; };
+  }, [token, eventId, plannedQuizzes, reload]);
   const edit = next => { setAgenda({ ...agenda, steps: next }); setSaved(false); };
   const move = (index, direction) => {
     const next = [...steps];
@@ -66,6 +82,8 @@ export default function EventAgenda({ token, eventId, onBack }) {
     {busy && !agenda && <p role="status">Program yükleniyor…</p>}
     {agenda && <form className="qb-events__panel" onSubmit={submit}>
       <h2>{agenda.title}</h2>
+      {plannedQuizzes && <p>Adıma özel quiz seçimleri taslak olarak kaydedilir. Bu program henüz canlı başlatılamaz.</p>}
+      {plannedQuizzes && catalogError && <p role="alert">{catalogError}</p>}
       {!steps.length && <p>Programa bir adım ekle.</p>}
       <ol className="qb-agenda__steps">{steps.map((step, index) => <li key={index} className="qb-agenda__step" data-kind={step.kind}>
         <h3><span className="qb-agenda__number">{index + 1}.</span> {labels[step.kind]}</h3>
@@ -73,6 +91,18 @@ export default function EventAgenda({ token, eventId, onBack }) {
           <input required maxLength={160} disabled={busy} value={step.title}
             onChange={e => edit(steps.map((item, i) => i === index ? { ...item, title: e.target.value } : item))} />
         </label>
+        {step.kind === 'quiz' && plannedQuizzes && <label>Bu adımın quizi
+          <select value={step.quiz_id ?? ''} disabled={busy || !quizzes}
+            onChange={e => edit(steps.map((item, i) => i === index
+              ? { ...item, quiz_id: e.target.value ? Number(e.target.value) : null } : item))}>
+            <option value="">Henüz seçilmedi</option>
+            {step.quiz_id && !quizzes?.some(quiz => quiz.id === step.quiz_id) &&
+              <option value={step.quiz_id} disabled>{quizzes ? 'Quiz artık erişilebilir değil' : 'Quizler yükleniyor…'}</option>}
+            {quizzes?.map(quiz => <option key={quiz.id} value={quiz.id} disabled={!quiz.question_count}>
+              {quiz.title} ({quiz.question_count} soru)
+            </option>)}
+          </select>
+        </label>}
         {step.kind === 'presentation' && <div className="qb-agenda__pdf">
           <label>{step.deck_id ? "PDF’yi değiştir" : "PDF yükle"}<input type="file" accept="application/pdf,.pdf" disabled={busy}
             onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; upload(index, file); }} /></label>
@@ -88,7 +118,7 @@ export default function EventAgenda({ token, eventId, onBack }) {
       </li>)}</ol>
       <div className="qb-events__actions qb-agenda__footer">
         {Object.entries(labels).map(([kind, title]) => <button key={kind} type="button"
-          disabled={busy || steps.length >= 50 || (kind === 'quiz' && steps.some(step => step.kind === kind))}
+          disabled={busy || steps.length >= 50}
           onClick={() => edit([...steps, { kind, title }])}>{title} Ekle</button>)}
         <button type="submit" disabled={busy || steps.some(step => !step.title.trim())}>Programı Kaydet</button>
       </div>
