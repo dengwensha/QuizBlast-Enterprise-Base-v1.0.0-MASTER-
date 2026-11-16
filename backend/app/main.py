@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager, suppress
 import os, random, asyncio, time, uuid
 from app.routes.events import create_events_router
-from app.services.event_store import register_event_model, register_event_game_models, register_event_report_model, register_event_agenda_model, register_event_run_model, register_event_deck_model
+from app.services.event_store import register_event_model, register_event_game_models, register_event_report_model, register_event_agenda_model, register_event_run_model, register_event_deck_model, register_event_step_game_models
 from app.services.room_creation import RoomBuilder
 from threading import RLock
 from app.services.excel_reader import read_excel_rows_from_bytes
@@ -129,6 +129,7 @@ EventReport = register_event_report_model(Base)
 EventAgenda = register_event_agenda_model(Base)
 EventRun = register_event_run_model(Base)
 EventDeck = register_event_deck_model(Base)
+EventStepSession, EventStepReport = register_event_step_game_models(Base)
 
 connected=False
 while not connected:
@@ -187,7 +188,7 @@ app.include_router(create_events_router(
     SessionLocal, User, EventDraft,
     lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
     game_features=dict(Selection=EventQuizSelection, EventSession=EventGameSession,
-                       Report=EventReport, Agenda=EventAgenda, Run=EventRun, Deck=EventDeck, builder=room_builder, initialize=lambda *args: initialize_lobby_room(*args)),
+                       Report=EventReport, Agenda=EventAgenda, Run=EventRun, Deck=EventDeck, StepSession=EventStepSession, StepReport=EventStepReport, builder=room_builder, initialize=lambda *args: initialize_lobby_room(*args)),
 ))
 
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
@@ -199,17 +200,25 @@ closed_room_cleanup_task=None
 def save_game(room_pin):
     with db_session() as db:
         if game_phase[room_pin] == 'completed':
-            link = db.query(EventGameSession).filter_by(
-                pin=room_pin, instance_id=room_instance_map.get(room_pin)
-            ).with_for_update().first()
-            if link and db.get(EventReport, link.event_id) is None:
-                completed = datetime.now(timezone.utc)
-                ranking = sorted(scores[room_pin].items(), key=lambda item: item[1], reverse=True)
-                db.add(EventReport(event_id=link.event_id,
-                    event_title=db.get(EventDraft, link.event_id).title,
-                    quiz_title=db.get(Quiz, link.quiz_id).title,
-                    completed_at=completed, expires_at=completed + timedelta(days=15),
-                    ranking=[dict(name=name, score=score) for name, score in ranking]))
+            for link_model, report_model, key in (
+                (EventGameSession, EventReport, 'event_id'),
+                (EventStepSession, EventStepReport, 'instance_id'),
+            ):
+                link = db.query(link_model).filter_by(
+                    pin=room_pin, instance_id=room_instance_map.get(room_pin)
+                ).with_for_update().first()
+                if not link:
+                    continue
+                report_id = getattr(link, key)
+                if db.get(report_model, report_id) is None:
+                    completed = datetime.now(timezone.utc)
+                    ranking = sorted(scores[room_pin].items(), key=lambda item: item[1], reverse=True)
+                    db.add(report_model(**{key: report_id},
+                        event_title=db.get(EventDraft, link.event_id).title,
+                        quiz_title=db.get(Quiz, link.quiz_id).title,
+                        completed_at=completed, expires_at=completed + timedelta(days=15),
+                        ranking=[dict(name=name, score=score) for name, score in ranking]))
+                break
         persist_game_state(
             db, room_pin, phase=game_phase[room_pin],
             index=current_question_index[room_pin], scores=scores[room_pin],
@@ -259,7 +268,9 @@ def purge_closed_room_batches():
     while True:
         with db_session() as db:
             count=purge_expired_closed_rooms(db)
-            db.query(EventReport).filter(EventReport.expires_at <= datetime.now(timezone.utc)).delete(synchronize_session=False)
+            now = datetime.now(timezone.utc)
+            for report in (EventReport, EventStepReport):
+                db.query(report).filter(report.expires_at <= now).delete(synchronize_session=False)
             db.commit()
         if count < 100:
             return
@@ -664,9 +675,8 @@ async def start_game(
 
     if game_phase[room_pin] == 'completed':
         with db_session() as db:
-            if db.query(EventGameSession.event_id).filter_by(
-                instance_id=room_instance_map[room_pin]
-            ).first():
+            if any(db.query(model.event_id).filter_by(instance_id=room_instance_map[room_pin]).first()
+                   for model in (EventGameSession, EventStepSession)):
                 raise HTTPException(409, detail='event_session_completed')
 
     old_task = game_tasks.get(room_pin)
