@@ -17,6 +17,7 @@ export default function EventStudio({ user, initialLiveEvent, onBack, onOpenHost
   const [liveEvent, setLiveEvent] = useState(initialLiveEvent || null);
   const [agendaEvent, setAgendaEvent] = useState(null);
   const [gameEvent, setGameEvent] = useState(null);
+  const [gameStep, setGameStep] = useState(null);
   const [items, setItems] = useState([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -89,9 +90,9 @@ export default function EventStudio({ user, initialLiveEvent, onBack, onOpenHost
     finally { savingRef.current = false; setSaving(false); }
   };
   if (agendaEvent) return <EventAgenda token={user.token} eventId={agendaEvent} onBack={() => { setAgendaEvent(null); load(); }} />;
-  if (gameEvent) return <EventGameSetup user={user} eventId={gameEvent} onBack={() => { setGameEvent(null); load(); }} onOpenHost={session => onOpenHost(session, liveEvent)} onOpenDisplay={onOpenDisplay} />;
+  if (gameEvent) return <EventGameSetup user={user} eventId={gameEvent} step={gameStep} onBack={() => { setGameEvent(null); setGameStep(null); load(); }} onOpenHost={session => onOpenHost(session, liveEvent)} onOpenDisplay={onOpenDisplay} />;
   if (liveEvent) return <EventLive token={user.token} eventId={liveEvent}
-    onBack={() => { setLiveEvent(null); load(); }} onQuiz={() => setGameEvent(liveEvent)} />;
+    onBack={() => { setLiveEvent(null); load(); }} onQuiz={step => { setGameStep(step?.quiz_id ? step : null); setGameEvent(liveEvent); }} />;
   return <main className="qb-events qb-events--studio">
     <header className="qb-events__hero"><div><p className="qb-events__eyebrow">QUIZBLAST EVENT STUDIO</p><h1>Etkinliklerim</h1><p>Programını hazırla, sunumlarını ekle ve etkinliğini yönet.</p></div>
       <button onClick={onBack} disabled={saving}>Ana Menü</button></header>

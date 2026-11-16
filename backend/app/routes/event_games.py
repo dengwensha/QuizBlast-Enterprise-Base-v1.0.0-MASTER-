@@ -77,6 +77,9 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             if row.revision != data.revision:
                 raise HTTPException(409, detail='event_revision_conflict')
             agenda = db.get(Agenda, row.id)
+            run = db.get(Run, row.id)
+            if run and run.cursor < len(run.steps) and requires_step_sessions(run.steps):
+                raise HTTPException(409, detail='event_program_running')
             prior_steps = identified_steps(row.id, agenda.steps) if agenda else []
             known_ids = {UUID(step['step_id']) for step in prior_steps if step.get('step_id')}
             if agenda is None:
@@ -156,15 +159,23 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             query = query.options(defer(Deck.pages))
         return query.first(), int(run.view.split(':')[1])
 
-    def live_state(run, db):
+    def live_quiz_link(db, run):
+        step = run.steps[run.cursor]
+        if step.get('quiz_id'):
+            return db.get(StepSession, (run.event_id, step['step_id']))
+        return db.get(EventSession, run.event_id)
+
+    def live_state(run, db, public=False):
         deck, page = active_deck(db, run)
         quiz_display = None
         if run.view == 'step' and run.steps[run.cursor]['kind'] == 'quiz':
-            link = db.get(EventSession, run.event_id)
+            link = live_quiz_link(db, run)
             room = db.get(builder.Room, link.pin) if link else None
             if room and room.identity and room.identity.instance_id == link.instance_id and room.phase != 'closed':
                 quiz_display = dict(pin=link.pin, instance_id=link.instance_id)
-        return dict(quiz_display=quiz_display, title=run.title, steps=[{k: v for k, v in step.items() if k != 'deck_id'} for step in run.steps],
+        hidden = {'deck_id', 'quiz_id'} if public else {'deck_id'}
+        return dict(quiz_display=quiz_display, title=run.title,
+                    steps=[{k: v for k, v in step.items() if k not in hidden} for step in run.steps],
                     cursor=run.cursor, view='step' if run.view.startswith('step') else run.view,
                     revision=run.revision, page=page, page_count=deck.page_count if deck else 0)
 
@@ -184,9 +195,17 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                 agenda = db.get(Agenda, row.id)
                 if not agenda or not agenda.steps:
                     raise HTTPException(409, detail='event_agenda_required')
-                if requires_step_sessions(agenda.steps):
-                    raise HTTPException(409, detail='event_step_sessions_unavailable')
-                run = Run(event_id=row.id, title=row.title, steps=identified_steps(row.id, agenda.steps),
+                steps = identified_steps(row.id, agenda.steps)
+                if requires_step_sessions(steps):
+                    if db.get(EventSession, row.id):
+                        raise HTTPException(409, detail='event_session_locked')
+                    quiz_ids = {step.get('quiz_id') for step in steps if step['kind'] == 'quiz'}
+                    if None in quiz_ids:
+                        raise HTTPException(409, detail='event_step_quiz_required')
+                    email = db.get(User, owner_id).email
+                    for quiz_id in sorted(quiz_ids):
+                        builder.lock_quiz(db, quiz_id, email, require_questions=True)
+                run = Run(event_id=row.id, title=row.title, steps=steps,
                           display_key=token_urlsafe(32))
                 db.add(run)
                 db.flush()
@@ -213,8 +232,12 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                 run.view = f'step:{page}'
             elif data.action == 'complete' and run.view.startswith('step'):
                 if run.steps[run.cursor]['kind'] == 'quiz':
-                    session = state(db, row)['session']
-                    report = db.get(Report, row.id)
+                    link = live_quiz_link(db, run)
+                    session = describe_session(db, link, builder.Room)
+                    if run.steps[run.cursor].get('quiz_id'):
+                        report = db.get(StepReport, link.instance_id) if link else None
+                    else:
+                        report = db.get(Report, row.id)
                     if not report and (not session or session['phase'] != 'completed'):
                         raise HTTPException(409, detail='event_quiz_not_completed')
                 run.cursor += 1
@@ -234,7 +257,7 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             if not run:
                 raise HTTPException(404, detail='event_run_not_found')
             response.headers['Cache-Control'] = 'no-store'
-            return live_state(run, db)
+            return live_state(run, db, public=True)
 
     @router.get('/display/program/page/{revision}')
     def display_page(revision: int, authorization: str = Header(default='')):
@@ -277,6 +300,10 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             row = event(db, event_id, owner_id)
             email = db.get(User, owner_id).email
             result = state(db, row)
+            agenda = db.get(Agenda, row.id)
+            run = db.get(Run, row.id)
+            result['step_quizzes_planned'] = bool(requires_step_sessions(
+                run.steps if run else agenda.steps if agenda else []))
             result['quizzes'] = [dict(id=q.id, title=q.title,
                 question_count=db.query(builder.Question.id).filter_by(quiz_id=q.id).count())
                 for q in builder.eligible(db, email).order_by(builder.Quiz.id).all()]
@@ -314,14 +341,23 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             row = event(db, event_id, owner_id, lock=True)
             key = (row.id, str(step_id))
             email = db.get(User, owner_id).email
+            run = db.get(Run, row.id)
+            if run:
+                if (run.view != 'step' or run.cursor >= len(run.steps) or
+                        run.steps[run.cursor].get('step_id') != key[1] or
+                        not run.steps[run.cursor].get('quiz_id')):
+                    raise HTTPException(409, detail='event_quiz_step_inactive')
+                steps = [run.steps[run.cursor]]
+            else:
+                agenda = db.get(Agenda, row.id)
+                steps = agenda.steps if agenda else []
             link = db.get(StepSession, key)
             if link is None:
                 if row.revision != data.revision:
                     raise HTTPException(409, detail='event_revision_conflict')
-                if db.get(EventSession, row.id) or db.get(Run, row.id):
+                if db.get(EventSession, row.id):
                     raise HTTPException(409, detail='event_session_locked')
-                agenda = db.get(Agenda, row.id)
-                step = next((s for s in (agenda.steps if agenda else [])
+                step = next((s for s in steps
                              if s.get('step_id') == key[1] and s['kind'] == 'quiz'), None)
                 if step is None:
                     raise HTTPException(404, detail='event_quiz_step_invalid')
@@ -381,7 +417,8 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             if row.revision != data.revision:
                 raise HTTPException(409, detail='event_revision_conflict')
             agenda = db.get(Agenda, row.id)
-            if agenda and requires_step_sessions(agenda.steps):
+            run = db.get(Run, row.id)
+            if requires_step_sessions(run.steps if run else agenda.steps if agenda else []):
                 raise HTTPException(409, detail='event_step_sessions_unavailable')
             if db.query(StepSession.event_id).filter_by(event_id=row.id).first() is not None:
                 raise HTTPException(409, detail='event_session_locked')

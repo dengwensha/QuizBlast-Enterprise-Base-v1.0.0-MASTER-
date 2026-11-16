@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { getEventReport } from '../../services/eventService';
 
-export default function EventReport({ token, eventId, onBack }) {
+export default function EventReport({ token, eventId, stepId, onBack }) {
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => {
     let current = true;
-    getEventReport(token, eventId).then(data => {
+    getEventReport(token, eventId, stepId).then(data => {
       if (current) setReport(data);
     }).catch(e => {
       if (current) setError(e.message);
     });
     return () => { current = false; };
-  }, [token, eventId]);
+  }, [token, eventId, stepId]);
   const format = value => new Date(value).toLocaleString('tr-TR');
   return <main className="qb-events">
     <header><h1>Etkinlik Raporu</h1><button onClick={onBack}>Oturuma Dön</button></header>
