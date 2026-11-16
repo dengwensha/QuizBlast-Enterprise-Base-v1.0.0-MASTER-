@@ -251,7 +251,6 @@ class EventSessionsAcceptance(unittest.TestCase):
         data = {'revision': initial['revision'], 'steps': steps}
         self.assertEqual(self.request('PUT', path, data, email=self.other)[0], 404)
         self.assertEqual(self.request(path=path, email=self.other)[0], 404)
-        self.assertEqual(self.request('PUT', path, {**data, 'steps': steps + [steps[-2]]})[0], 422)
         status, saved = self.request('PUT', path, data)
         self.assertEqual(status, 200)
         quiz_step = saved['steps'][-2]
@@ -266,6 +265,41 @@ class EventSessionsAcceptance(unittest.TestCase):
             'revision': foreign['event']['revision'], 'steps': [quiz_step],
         }), (422, {'detail': 'event_quiz_step_invalid'}))
         self.assertEqual(self.request('PUT', path, data)[0], 409)
+
+    def test_multiple_quiz_selections_follow_steps_and_stay_in_draft(self):
+        path, state = self.event()
+        revision = state['event']['revision']
+        endpoint = path + '/agenda'
+        first = {'kind': 'quiz', 'title': 'Quiz A', 'quiz_id': self.quiz_ids[0]}
+        second = {'kind': 'quiz', 'title': 'Quiz B', 'quiz_id': self.quiz_ids[2]}
+        pause = {'kind': 'break', 'title': 'Pause'}
+        for invalid, code in [
+            (dict(second, quiz_id=self.quiz_ids[1]), 404),
+            (dict(second, quiz_id=self.quiz_ids[4]), 409),
+            (dict(pause, quiz_id=self.quiz_ids[0]), 422),
+        ]:
+            self.assertEqual(self.request('PUT', endpoint, {
+                'revision': revision, 'steps': [first, invalid],
+            })[0], code)
+        status, agenda = self.request('PUT', endpoint, {
+            'revision': revision, 'steps': [first, pause, second],
+        })
+        self.assertEqual(status, 200, agenda)
+        first, pause, second = agenda['steps']
+        self.assertNotEqual(first['step_id'], second['step_id'])
+        self.assertEqual(self.request('PUT', endpoint, {
+            'revision': agenda['revision'], 'steps': [first, first],
+        }), (422, {'detail': 'event_quiz_step_invalid'}))
+        status, reordered = self.request('PUT', endpoint, {
+            'revision': agenda['revision'], 'steps': [second, pause, first],
+        })
+        self.assertEqual(status, 200, reordered)
+        self.assertEqual(self.request(path=endpoint)[1]['steps'], [second, pause, first])
+        for suffix, payload in [('/live', None), ('/session', {'revision': reordered['revision']})]:
+            self.assertEqual(self.request('POST', path + suffix, payload),
+                             (409, {'detail': 'event_step_sessions_unavailable'}))
+        self.assertEqual(self.request(path=path + '/live'), (200, 'null'))
+        self.assertIsNone(self.request(path=path + '/game')[1]['session'])
 
     def test_legacy_quiz_step_identity_matches_agenda_and_new_live_snapshot(self):
         path, state = self.event()

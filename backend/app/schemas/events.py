@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class EventFields(BaseModel):
@@ -58,6 +58,7 @@ class AgendaStep(BaseModel):
     kind: Literal['presentation', 'quiz', 'break']
     deck_id: UUID | None = None
     step_id: UUID | None = None
+    quiz_id: int | None = Field(default=None, gt=0, strict=True)
     title: str = Field(min_length=1, max_length=160)
 
 
@@ -65,12 +66,6 @@ class EventAgendaUpdate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     revision: int = Field(ge=1, strict=True)
     steps: list[AgendaStep] = Field(max_length=50)
-
-    @model_validator(mode='after')
-    def single_quiz(self):
-        if sum(step.kind == 'quiz' for step in self.steps) > 1:
-            raise ValueError('only one quiz step is supported')
-        return self
 
 
 class EventRunCommand(BaseModel):
