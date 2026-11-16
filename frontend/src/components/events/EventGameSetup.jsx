@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createEventSession, getEventGame, selectEventQuiz } from '../../services/eventService';
+import { createEventSession, createEventStepSession, getEventGame, getEventStepSession, selectEventQuiz } from '../../services/eventService';
 import EventReport from './EventReport';
 import InvitationShare from '../game/InvitationShare';
 import JoinQrPopup from '../game/JoinQrPopup';
@@ -7,7 +7,7 @@ import { APP_URL } from '../../services/api';
 
 const phases = { lobby: 'Oyuncular bekleniyor', question: 'Oyun sürüyor', result: 'Soru sonucu', leaderboard: 'Sıralama', completed: 'Tamamlandı', closed: 'Oda kapalı' };
 
-export default function EventGameSetup({ user, eventId, onBack, onOpenHost, onOpenDisplay }) {
+export default function EventGameSetup({ user, eventId, step, onBack, onOpenHost, onOpenDisplay }) {
   const [showReport, setShowReport] = useState(false);
   const [state, setState] = useState(null);
   const [choice, setChoice] = useState('');
@@ -19,11 +19,15 @@ export default function EventGameSetup({ user, eventId, onBack, onOpenHost, onOp
     busyRef.current = true; setBusy(true); setError('');
     try {
       const result = await getEventGame(user.token, eventId);
+      if (step) {
+        result.session = await getEventStepSession(user.token, eventId, step.step_id);
+        result.quiz_id = step.quiz_id;
+      }
       if (mounted.current) { setState(result); setChoice(String(result.quiz_id || '')); }
     } catch (e) { if (mounted.current) setError(e.message); }
     finally { busyRef.current = false; if (mounted.current) setBusy(false); }
   };
-  useEffect(() => { mounted.current = true; load(); return () => { mounted.current = false; }; }, [user.token, eventId]);
+  useEffect(() => { mounted.current = true; load(); return () => { mounted.current = false; }; }, [user.token, eventId, step?.step_id]);
   const perform = async action => {
     if (busyRef.current) return;
     busyRef.current = true; setBusy(true); setError('');
@@ -35,15 +39,22 @@ export default function EventGameSetup({ user, eventId, onBack, onOpenHost, onOp
   };
   const session = state?.session;
   const joinUrl = session ? `${APP_URL}?pin=${session.pin}` : null;
-  if (showReport) return <EventReport token={user.token} eventId={eventId} onBack={() => setShowReport(false)} />;
+  if (showReport) return <EventReport token={user.token} eventId={eventId} stepId={step?.step_id} onBack={() => setShowReport(false)} />;
   return <main className="qb-events">
     <header><h1>Quiz ve Oturum</h1><button disabled={busy} onClick={onBack}>Etkinliklere Dön</button></header>
     {error && <p role="alert">{error}</p>}
     {busy && <p role="status">İşlem sürüyor…</p>}
     <button disabled={busy} onClick={load}>Güncel Durumu Yenile</button>
     {state && <section className="qb-events__panel">
-      <h2>{state.event.title}</h2>
-      {!session ? <>
+      <h2>{step?.title || state.event.title}</h2>
+      {!session ? step ? <>
+        <p>Quiz: {state.quizzes.find(q => q.id === step.quiz_id)?.title || step.title}</p>
+        <button disabled={busy} onClick={() => perform(async () => ({
+          quiz_id: step.quiz_id,
+          session: await createEventStepSession(user.token, eventId, step.step_id, state.event.revision)
+        }))}>Oturum Oluştur</button>
+        <p>Oturum oluşturmak oyunu başlatmaz.</p>
+      </> : state.step_quizzes_planned ? <p>Adıma özel quiz oturumunu Canlı Etkinlik ekranından aç.</p> : <>
         <label>Etkinlik quizi<select value={choice} disabled={busy} onChange={e => setChoice(e.target.value)}>
           <option value="">Quiz seç</option>
           {state.quizzes.map(q => <option key={q.id} value={String(q.id)} disabled={!q.question_count}>{q.title} ({q.question_count} soru)</option>)}

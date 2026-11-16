@@ -82,7 +82,7 @@ export default function EventAgenda({ token, eventId, onBack }) {
     {busy && !agenda && <p role="status">Program yükleniyor…</p>}
     {agenda && <form className="qb-events__panel" onSubmit={submit}>
       <h2>{agenda.title}</h2>
-      {plannedQuizzes && <p>Adıma özel quiz seçimleri taslak olarak kaydedilir. Bu program henüz canlı başlatılamaz.</p>}
+      {plannedQuizzes && <p>Canlı başlatmadan önce her quiz adımı için bir quiz seç.</p>}
       {plannedQuizzes && catalogError && <p role="alert">{catalogError}</p>}
       {!steps.length && <p>Programa bir adım ekle.</p>}
       <ol className="qb-agenda__steps">{steps.map((step, index) => <li key={index} className="qb-agenda__step" data-kind={step.kind}>

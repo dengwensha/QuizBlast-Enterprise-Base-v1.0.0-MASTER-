@@ -299,11 +299,87 @@ class EventSessionsAcceptance(unittest.TestCase):
         })
         self.assertEqual(status, 200, reordered)
         self.assertEqual(self.request(path=endpoint)[1]['steps'], [second, pause, first])
-        for suffix, payload in [('/live', None), ('/session', {'revision': reordered['revision']})]:
-            self.assertEqual(self.request('POST', path + suffix, payload),
-                             (409, {'detail': 'event_step_sessions_unavailable'}))
+        self.assertEqual(self.request('POST', path + '/session', {'revision': reordered['revision']}),
+                         (409, {'detail': 'event_step_sessions_unavailable'}))
+        second.pop('quiz_id')
+        status, incomplete = self.request('PUT', endpoint, {
+            'revision': reordered['revision'], 'steps': [second, pause, first],
+        })
+        self.assertEqual(status, 200)
+        self.assertEqual(self.request('POST', path + '/live'),
+                         (409, {'detail': 'event_step_quiz_required'}))
         self.assertEqual(self.request(path=path + '/live'), (200, 'null'))
         self.assertIsNone(self.request(path=path + '/game')[1]['session'])
+
+    def test_live_multi_quiz_display_follows_active_step_and_requires_its_result(self):
+        path, state = self.event()
+        status, agenda = self.request('PUT', path + '/agenda', {
+            'revision': state['event']['revision'],
+            'steps': [{'kind': 'presentation', 'title': 'Opening'},
+                      {'kind': 'quiz', 'title': 'A', 'quiz_id': self.quiz_ids[0]},
+                      {'kind': 'break', 'title': 'Pause'},
+                      {'kind': 'quiz', 'title': 'B', 'quiz_id': self.quiz_ids[2]}],
+        })
+        self.assertEqual(status, 200)
+        first, second = [f"{path}/steps/{agenda['steps'][i]['step_id']}" for i in (1, 3)]
+        status, live = self.request('POST', path + '/live')
+        self.assertEqual(status, 200, live)
+        revision = live['live']['revision']
+        event_revision = agenda['revision']
+
+        def advance(action, expected=200):
+            nonlocal revision
+            status, result = self.request('PUT', path + '/live', {'action': action, 'revision': revision})
+            self.assertEqual(status, expected, result)
+            if status == 200:
+                revision = result['live']['revision']
+            return result
+
+        def display():
+            request = Request(self.address + '/events/display/program/state',
+                              headers={'Authorization': 'Bearer ' + live['display_key']})
+            with urlopen(request, timeout=10) as response:
+                return json.load(response)
+
+        def create(endpoint, expected):
+            nonlocal event_revision
+            status, result = self.request('POST', endpoint + '/session', {'revision': event_revision})
+            self.assertEqual(status, expected, result)
+            if status == 200:
+                event_revision += 1
+            return result
+
+        advance('open')
+        self.assertEqual(display()['cursor'], 0)
+        self.assertEqual(create(first, 409)['detail'], 'event_quiz_step_inactive')
+        advance('complete')
+        advance('open')
+        self.assertIsNone(display()['quiz_display'])
+        self.assertEqual(create(second, 409)['detail'], 'event_quiz_step_inactive')
+        a_session = None
+        for endpoint, cursor, player in [(first, 1, 'Ada'), (second, 3, 'Bora')]:
+            self.assertEqual(advance('complete', 409)['detail'], 'event_quiz_not_completed')
+            session = create(endpoint, 200)
+            state = display()
+            self.assertEqual(state['cursor'], cursor)
+            self.assertEqual(state['quiz_display'], {key: session[key] for key in ('pin', 'instance_id')})
+            self.assertNotIn('quiz_id', state['steps'][cursor])
+            if a_session:
+                self.assertNotEqual(session['pin'], a_session['pin'])
+            main.game_phase[session['pin']] = 'completed'
+            main.scores[session['pin']] = {player: 10}
+            main.save_game(session['pin'])
+            self.assertEqual(self.request(path=endpoint + '/report')[1]['ranking'],
+                             [{'name': player, 'score': 10}])
+            advance('complete')
+            self.assertIsNone(display()['quiz_display'])
+            if cursor == 1:
+                a_session = session
+                advance('open')
+                self.assertEqual(display()['steps'][2]['kind'], 'break')
+                advance('complete')
+                advance('open')
+        self.assertEqual((display()['view'], display()['cursor']), ('agenda', 4))
 
     def test_step_sessions_are_independent_and_report_by_room_instance(self):
         path, state = self.event()

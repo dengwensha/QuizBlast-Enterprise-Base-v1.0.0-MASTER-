@@ -16,7 +16,10 @@ async function request(token, path = '', options = {}) {
     };
     const details = {
       event_delete_started: 'Programı başlatılmış veya oyun oturumu oluşturulmuş etkinlikler silinemez.',
-      event_step_sessions_unavailable: 'Adıma özel quizler şimdilik yalnızca taslak olarak kaydedilebilir.',
+      event_step_sessions_unavailable: 'Adıma özel quiz oturumunu Canlı Etkinlik ekranından aç.',
+      event_step_quiz_required: 'Programı başlatmadan önce her quiz adımı için quiz seç.',
+      event_quiz_step_inactive: 'Oturum yalnızca etkin olan quiz adımı için açılabilir.',
+      event_program_running: 'Çoklu quiz programı çalışırken program düzenlenemez.',
       event_quiz_step_invalid: 'Quiz adımı bu programa ait değil. Güncel programı yeniden aç.',
       event_pdf_invalid: 'PDF açılamadı veya dosya 10 MB, 30 sayfa ya da görsel boyutu sınırını aşıyor.',
       event_deck_limit: 'Etkinlik başına en fazla 12 PDF yüklenebilir.',
@@ -50,7 +53,11 @@ export const createEventSession = (token, id, revision) => request(token, `/${id
   method: 'POST', body: JSON.stringify({ revision }),
 });
 
-export const getEventReport = (token, id) => request(token, `/${id}/report`);
+export const getEventReport = (token, id, stepId) =>
+  request(token, stepId ? `/${id}/steps/${stepId}/report` : `/${id}/report`);
+export const getEventStepSession = (token, id, stepId) => request(token, `/${id}/steps/${stepId}/session`);
+export const createEventStepSession = (token, id, stepId, revision) =>
+  request(token, `/${id}/steps/${stepId}/session`, { method: 'POST', body: JSON.stringify({ revision }) });
 
 export const deleteEvent = (token, id, revision) =>
   request(token, `/${id}?revision=${revision}`, { method: 'DELETE' });
