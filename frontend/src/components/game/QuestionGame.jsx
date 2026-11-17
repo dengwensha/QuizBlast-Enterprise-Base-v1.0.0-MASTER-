@@ -24,6 +24,17 @@ export default function QuestionGame({ question, questionImage, questionImageAlt
       <div style={styles.progressOuter}><div style={{ ...styles.progressInner, width: `${(timeLeft / 15) * 100}%` }} /></div>
       <h3>Cevaplayan: {answerCount} / {totalPlayers}</h3>
     </div>
+    {gameStage === "question" && !questionResult && (
+      <section aria-label="Cevap seçenekleri" style={styles.liveOptionsGrid}>
+        {safeOptions.map((option, index) => (
+          <div key={index} style={{ ...styles.liveOptionCard,
+            background: optionColors[index] || "var(--qb-primary-600)" }}>
+            <div style={styles.liveOptionLetter}>{String.fromCharCode(65 + index)}</div>
+            <div style={styles.liveOptionText}>{option}</div>
+          </div>
+        ))}
+      </section>
+    )}
     {gameStage === "result" && questionResult && <ResultReveal questionResult={questionResult} options={safeOptions} optionColors={optionColors} styles={styles} />}
     {gameStage === "leaderboard" && <LeaderboardBoard visibleLeaderboard={visibleLeaderboard} styles={styles} />}
   </>;

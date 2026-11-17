@@ -42,6 +42,12 @@ for (const who of ["HOST", "DISPLAY", "Ada"]) {
         await expect(badge).toHaveCount(0);
         send(question(0));
         await expect(badge).toHaveText("Soru 1 / 3");
+        if (who === "DISPLAY") {
+          const choices = page.getByRole("region", { name: "Cevap seçenekleri" });
+          await expect(choices).toBeVisible();
+          await expect(choices.getByText("D", { exact: true })).toHaveCount(2);
+          await expect(choices.getByRole("button")).toHaveCount(0);
+        }
         await expect(notice).toContainText("1 / 3");
         await expect(notice).toHaveCSS("pointer-events", "none");
         if (who === "Ada") {
