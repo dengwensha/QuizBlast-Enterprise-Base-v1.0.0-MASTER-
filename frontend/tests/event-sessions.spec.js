@@ -58,7 +58,8 @@ for (const role of ['Host', 'Display']) for (const width of [1366, 390]) {
     await expect(page.getByRole('link', { name: 'Katılım bağlantısı', exact: true })).toHaveAttribute('href', /pin=654321/);
     await page.getByRole('button', { name: 'Kapat', exact: true }).click();
     await page.reload();
-    await openSetup();
+    await expect(page.getByRole('heading', { name: 'Etkinliklerim', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Quiz ve Oturum: Company event', exact: true }).click();
     await expect(page.getByText('Oyuncular bekleniyor', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: `${role} Ekranını Aç` }).click();
     if (role === 'Host') await expect(page.getByRole('button', { name: 'Oyunu Başlat' })).toBeVisible();

@@ -5,7 +5,7 @@ import EventAgenda from './EventAgenda';
 import EventGameSetup from './EventGameSetup';
 import './event-studio.css';
 
-const statusLabels = { draft: 'Taslak', ready: 'Hazır', lobby: 'Oyuncular bekleniyor', question: 'Oyun sürüyor', result: 'Soru sonucu', leaderboard: 'Sıralama', completed: 'Tamamlandı', closed: 'Oda kapalı' };
+const statusLabels = { running: 'Etkinlik sürüyor', draft: 'Taslak', ready: 'Hazır', lobby: 'Oyuncular bekleniyor', question: 'Oyun sürüyor', result: 'Soru sonucu', leaderboard: 'Sıralama', completed: 'Tamamlandı', closed: 'Oda kapalı' };
 const blank = () => ({ title: '', organization: '', scheduled_at: '' });
 const localInput = value => {
   if (!value) return '';
@@ -14,7 +14,17 @@ const localInput = value => {
 };
 
 export default function EventStudio({ user, initialLiveEvent, onBack, onOpenHost, onOpenDisplay }) {
-  const [liveEvent, setLiveEvent] = useState(initialLiveEvent || null);
+  const [liveEvent, setLiveEvent] = useState(() => {
+    if (initialLiveEvent) return initialLiveEvent;
+    const saved = window.history.state?.quizblastLiveEvent;
+    return saved?.owner === user.email && /^[a-f0-9]{32}$/i.test(saved.id || '') ? saved.id : null;
+  });
+  useEffect(() => {
+    const state = { ...(window.history.state || {}) };
+    if (liveEvent) state.quizblastLiveEvent = { owner: user.email, id: liveEvent };
+    else delete state.quizblastLiveEvent;
+    window.history.replaceState(state, '', window.location.href);
+  }, [liveEvent, user.email]);
   const [agendaEvent, setAgendaEvent] = useState(null);
   const [gameEvent, setGameEvent] = useState(null);
   const [gameStep, setGameStep] = useState(null);

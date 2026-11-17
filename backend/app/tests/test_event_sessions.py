@@ -324,6 +324,9 @@ class EventSessionsAcceptance(unittest.TestCase):
         first, second = [f"{path}/steps/{agenda['steps'][i]['step_id']}" for i in (1, 3)]
         status, live = self.request('POST', path + '/live')
         self.assertEqual(status, 200, live)
+        self.assertEqual(self.request(path=path)[1]['status'], 'running')
+        self.assertEqual(next(row for row in self.request()[1]['items']
+                              if row['id'] == path.split('/')[-1])['status'], 'running')
         revision = live['live']['revision']
         event_revision = agenda['revision']
 
@@ -380,6 +383,9 @@ class EventSessionsAcceptance(unittest.TestCase):
                 advance('complete')
                 advance('open')
         self.assertEqual((display()['view'], display()['cursor']), ('agenda', 4))
+        self.assertEqual(self.request(path=path)[1]['status'], 'completed')
+        self.assertEqual(next(row for row in self.request()[1]['items']
+                              if row['id'] == path.split('/')[-1])['status'], 'completed')
 
     def test_step_sessions_are_independent_and_report_by_room_instance(self):
         path, state = self.event()
