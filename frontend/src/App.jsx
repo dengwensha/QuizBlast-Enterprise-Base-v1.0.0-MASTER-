@@ -70,6 +70,11 @@ function QuizBlastApp({ programRoom } = {}) {
     try {
       const saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
       if (saved?.instanceId) return saved.who==='HOST'?'host':saved.who==='DISPLAY'?'display':saved.who?'player':null;
+      const liveEvent = window.history.state?.quizblastLiveEvent;
+      if (window.history.state?.quizblastMode === 'events' &&
+          liveEvent?.owner === user?.email && /^[a-f0-9]{32}$/i.test(liveEvent.id || '')) {
+        return 'events';
+      }
       // QR room links open Player join directly without an account; Host/Admin still require authentication.
       return new URLSearchParams(window.location.search).get('pin') ? 'player' : null;
     } catch { return null; }
