@@ -70,11 +70,9 @@ function QuizBlastApp({ programRoom } = {}) {
     try {
       const saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
       if (saved?.instanceId) return saved.who==='HOST'?'host':saved.who==='DISPLAY'?'display':saved.who?'player':null;
-      const liveEvent = window.history.state?.quizblastLiveEvent;
-      if (window.history.state?.quizblastMode === 'events' &&
-          liveEvent?.owner === user?.email && /^[a-f0-9]{32}$/i.test(liveEvent.id || '')) {
-        return 'events';
-      }
+      // Restore both the event list and its live subpage. EventStudio separately
+      // validates the saved live event against the signed-in account.
+      if (user && window.history.state?.quizblastMode === 'events') return 'events';
       // QR room links open Player join directly without an account; Host/Admin still require authentication.
       return new URLSearchParams(window.location.search).get('pin') ? 'player' : null;
     } catch { return null; }
