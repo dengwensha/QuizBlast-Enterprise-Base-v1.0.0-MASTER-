@@ -43,7 +43,7 @@ test('EVENT-01 draft create, refresh, edit, conflict and navigation', async ({ p
   await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Şirket Buluşması' })).toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: 'Etkinliklerim', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Etkinliklerim', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Düzenle: Şirket Buluşması' }).click();
   await page.getByLabel('Etkinlik başlığı').fill('Yeni Başlık');
   conflict = true;
