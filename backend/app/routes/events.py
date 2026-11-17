@@ -15,8 +15,11 @@ def create_events_router(session_factory, User, EventDraft, authenticate, game_f
             return serialize_event(row)
         game = describe_event_game(db, row, game_features['Selection'],
                                    game_features['EventSession'], game_features['builder'].Room)
-        return dict(game['event'], can_delete=game['session'] is None and
-                    db.query(game_features['Run'].event_id).filter_by(event_id=row.id).first() is None and
+        run = db.get(game_features['Run'], row.id)
+        result = game['event']
+        if run is not None:
+            result = dict(result, status='completed' if run.cursor >= len(run.steps) else 'running')
+        return dict(result, can_delete=game['session'] is None and run is None and
                     db.query(game_features['StepSession'].event_id).filter_by(event_id=row.id).first() is None)
 
     def owner(authorization: str | None = Header(default=None)):

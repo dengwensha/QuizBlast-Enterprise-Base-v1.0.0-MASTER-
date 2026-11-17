@@ -68,3 +68,34 @@ test('EVENT-01 anonymous entry remains protected', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Etkinliklerim', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'PIN ile Üyeliksiz Katıl' })).toBeVisible();
 });
+
+test('EVENT live page survives reload and explicit return clears it', async ({ page }) => {
+  const id = 'c'.repeat(32);
+  await page.addInitScript(() => {
+    const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 }));
+    localStorage.setItem('quizblast_user', JSON.stringify({ email: 'owner@test', token: `test.${payload}.test` }));
+  });
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/events') return route.fulfill({ json: {
+      items: [{ id, title: 'Live reload', status: 'running' }], has_more: false,
+    } });
+    if (path.endsWith('/live')) return route.fulfill({ json: {
+      display_key: 'k'.repeat(43),
+      live: { title: 'Live reload', steps: [{ kind: 'break', title: 'Coffee' }],
+        cursor: 0, view: 'step', revision: 1, page_count: 0 },
+    } });
+    return route.fulfill({ json: [] });
+  });
+  await page.goto('http://localhost:5173');
+  await page.getByRole('button', { name: 'Etkinliklerim', exact: true }).click();
+  await expect(page.getByText('Etkinlik sürüyor', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Canlı Etkinlik: Live reload' }).click();
+  await expect(page.getByRole('heading', { name: 'Coffee' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Coffee' })).toBeVisible();
+  await page.getByRole('button', { name: 'Etkinliklere Dön' }).click();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Etkinliklerim' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Coffee' })).toHaveCount(0);
+});
