@@ -65,6 +65,8 @@ function useAdminState({
     const result = await deleteQuizRequestState();
     if (result?.detail === "quiz_has_game_rooms") {
       alert("Bu quiz bir oyun odasında kullanılıyor. Oda açıkken veya tekrar oynatılabilirken silinemez.");
+    } else if (result?.detail === "quiz_used_in_event") {
+      alert("Bu quiz bir etkinlikte kullanılıyor. Silmek için önce etkinlikteki kullanımı kaldırın veya canlı programı tamamlayın.");
     } else if (result?.detail || result?.error) {
       alert(result.detail || result.error);
     }
