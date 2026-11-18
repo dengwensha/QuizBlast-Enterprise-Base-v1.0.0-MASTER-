@@ -431,6 +431,40 @@ class EventSessionsAcceptance(unittest.TestCase):
                              'event_session_completed')
         self.assertEqual(self.request(path=path + '/report')[0], 404)
 
+        # Operator extension targets exactly one event/step's durable report.
+        original_a = self.request(path=first + '/report')[1]
+        original_b = self.request(path=second + '/report')[1]
+        extended = datetime.fromisoformat(original_a['expires_at']) + timedelta(days=15)
+        command = ['extend_event_report', state['event']['id'], extended.isoformat(),
+                   '--step-id', agenda['steps'][0]['step_id']]
+        with patch('sys.argv', command):
+            extend_report()
+        updated = self.request(path=first + '/report')[1]
+        self.assertEqual(datetime.fromisoformat(updated['expires_at']), extended)
+        self.assertEqual(updated['ranking'], original_a['ranking'])
+        self.assertEqual(updated['completed_at'], original_a['completed_at'])
+        self.assertEqual(self.request(path=second + '/report')[1], original_b)
+
+        def reject(argv):
+            with patch('sys.argv', argv), self.assertRaises(SystemExit) as failure:
+                extend_report()
+            self.assertEqual(failure.exception.code, 2)
+
+        reject(command)  # Equal expiry does not extend the report.
+        reject([*command[:2], original_a['expires_at'], *command[3:]])
+        reject([*command[:2], '2027-01-01T12:00:00', *command[3:]])
+        reject([*command[:4], str(uuid4())])
+        _, other_state = self.event()
+        reject([command[0], other_state['event']['id'], *command[2:]])
+        self.assertEqual(self.request(path=first + '/report')[1], updated)
+        self.assertEqual(self.request(path=second + '/report')[1], original_b)
+        with main.db_session() as db:
+            db.get(main.EventStepReport, a['instance_id']).expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+            db.commit()
+        reject([*command[:2], (extended + timedelta(days=1)).isoformat(), *command[3:]])
+        self.assertEqual(self.request(path=first + '/report')[0], 410)
+        self.assertEqual(self.request(path=second + '/report')[1], original_b)
+
     def test_legacy_quiz_step_identity_matches_agenda_and_new_live_snapshot(self):
         path, state = self.event()
         with main.db_session() as db:
