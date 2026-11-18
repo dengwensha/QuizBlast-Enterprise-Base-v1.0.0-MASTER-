@@ -241,6 +241,11 @@ class EventSessionsAcceptance(unittest.TestCase):
         self.assertEqual(status, 200)
         room = created['session']
         self.assertEqual(display()['quiz_display'], {key: room[key] for key in ('pin', 'instance_id')})
+        self.assertEqual(self.request('POST', '/close-room/' + room['pin']),
+                         (409, {'detail': 'event_quiz_not_completed'}))
+        self.assertEqual(main.game_phase[room['pin']], 'lobby')
+        main.game_phase[room['pin']] = 'completed'
+        main.save_game(room['pin'])
         self.assertEqual(self.request('POST', '/close-room/' + room['pin'])[0], 200)
         self.assertIsNone(display()['quiz_display'])
 
@@ -369,11 +374,15 @@ class EventSessionsAcceptance(unittest.TestCase):
             self.assertNotIn('quiz_id', state['steps'][cursor])
             if a_session:
                 self.assertNotEqual(session['pin'], a_session['pin'])
+            self.assertEqual(self.request('POST', '/close-room/' + session['pin']),
+                             (409, {'detail': 'event_quiz_not_completed'}))
+            self.assertEqual(main.game_phase[session['pin']], 'lobby')
             main.game_phase[session['pin']] = 'completed'
             main.scores[session['pin']] = {player: 10}
             main.save_game(session['pin'])
             self.assertEqual(self.request(path=endpoint + '/report')[1]['ranking'],
                              [{'name': player, 'score': 10}])
+            self.assertEqual(self.request('POST', '/close-room/' + session['pin'])[0], 200)
             advance('complete')
             self.assertIsNone(display()['quiz_display'])
             if cursor == 1:
@@ -558,6 +567,8 @@ class EventSessionsAcceptance(unittest.TestCase):
         path, state = self.event(2)
         _, state = self.request('POST', path + '/session', {'revision': state['event']['revision']})
         original = state['session']
+        main.game_phase[original['pin']] = 'completed'
+        main.save_game(original['pin'])
         self.assertEqual(self.request('POST', '/close-room/' + original['pin'], {})[0], 200)
         with main.db_session() as db:
             room = db.get(main.GameRoom, original['pin'])
@@ -576,7 +587,9 @@ class EventSessionsAcceptance(unittest.TestCase):
         _, state = self.request('PUT', path + '/quiz', {'quiz_id': self.quiz_ids[0], 'revision': 1})
         _, state = self.request('POST', path + '/session', {'revision': state['event']['revision']})
         original = state['session']
-        self.request('POST', '/close-room/' + original['pin'], {})
+        main.game_phase[original['pin']] = 'completed'
+        main.save_game(original['pin'])
+        self.assertEqual(self.request('POST', '/close-room/' + original['pin'], {})[0], 200)
         with main.db_session() as db:
             db.delete(db.get(main.GameRoom, original['pin']))
             db.commit()
@@ -586,6 +599,7 @@ class EventSessionsAcceptance(unittest.TestCase):
         self.assertEqual(state['session']['instance_id'], original['instance_id'])
         self.assertFalse(state['session']['can_open'])
         self.assertNotEqual(main.room_instance_map[original['pin']], original['instance_id'])
+        self.assertEqual(self.request('POST', '/close-room/' + original['pin'])[0], 200)
 
     def test_startup_restores_same_event_room(self):
         path, state = self.event()

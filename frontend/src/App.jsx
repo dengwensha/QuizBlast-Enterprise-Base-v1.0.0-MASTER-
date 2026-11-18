@@ -377,7 +377,9 @@ function QuizBlastApp({ programRoom } = {}) {
       closeSession();
       replaceMode(returnEvent ? 'events' : null);
     } else {
-      alert(result.detail || result.error || 'Oda kapatılamadı.');
+      alert(result.detail === 'event_quiz_not_completed'
+        ? 'Bu oda etkinlik programına bağlı. Odayı kapatmadan önce quizi tamamlayın.'
+        : result.detail || result.error || 'Oda kapatılamadı.');
     }
   };
 
