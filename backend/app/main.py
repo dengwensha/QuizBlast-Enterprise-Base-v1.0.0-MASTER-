@@ -2,21 +2,29 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import create_engine, Column, Integer, Boolean, String, ForeignKey, DateTime, inspect, text, or_, and_
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from passlib.context import CryptContext
 from jose import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager, suppress
 import os, random, asyncio, time, uuid
+from app.routes.events import create_events_router
+from app.services.event_store import register_event_model, register_event_game_models, register_event_report_model, register_event_agenda_model, register_event_run_model, register_event_deck_model, register_event_step_game_models
+from app.services.room_creation import RoomBuilder
+from threading import RLock
 from app.services.excel_reader import read_excel_rows_from_bytes
 from app.services.import_pipeline import run_qbds_import_pipeline, build_pipeline_user_message
+from app.services.content_catalog import serialize_set, serialize_preview_question
+from app.services.question_image_policy import validate_question_image
+from app.services.content_copy import copy_published_set
+from app.services.content_deploy import publish_if_requested
 from app.services.host_authorization import (
     require_authenticated_email,
     require_room_host,
 )
 from app.services.answer_acceptance import valid_answer, answer_is_open
-from app.services.game_progression import next_question_index
+from app.services.game_progression import next_question_index, next_stage
 from app.services.room_connections import remove_connection, send_to_room
 from app.services.game_recovery import (
     GamePlayer, GameRoom, RoomIdentity, ClosedRoomRetention, RecoveryBase,
@@ -64,6 +72,8 @@ class Question(Base):
     quiz_id=Column(Integer, ForeignKey('quizzes.id'))
     question=Column(String, nullable=False)
     image_url=Column(String, nullable=True)
+    image_alt_text=Column(String, nullable=True)
+    explanation=Column(String, nullable=True)
     option1=Column(String, nullable=False)
     option2=Column(String, nullable=False)
     option3=Column(String, nullable=False)
@@ -71,6 +81,24 @@ class Question(Base):
     correct=Column(Integer, nullable=False)
     time=Column(Integer, default=15)
     quiz=relationship('Quiz', back_populates='questions')
+
+
+class PublishedQuizSet(Base):
+    __tablename__ = 'published_quiz_sets'
+    id = Column(Integer, primary_key=True)
+    quiz_id = Column(Integer, ForeignKey('quizzes.id'), nullable=False, unique=True)
+    slug = Column(String, unique=True, nullable=False)
+    description = Column(String, nullable=True)
+    topic = Column(String, nullable=False)
+    audience = Column(String, nullable=False)
+    difficulty = Column(String, nullable=False)
+    collection = Column(String, nullable=True)
+    stage = Column(String, nullable=True)
+    grade = Column(Integer, nullable=True)
+    subject = Column(String, nullable=True)
+    school_topic = Column(String, nullable=True)
+    version = Column(Integer, nullable=False, default=1)
+    is_published = Column(Boolean, nullable=False, default=False)
 
 
 class ImportHistory(Base):
@@ -95,11 +123,48 @@ class User(Base):
     email=Column(String, unique=True, nullable=False)
     password_hash=Column(String, nullable=False)
 
+EventDraft = register_event_model(Base)
+EventQuizSelection, EventGameSession = register_event_game_models(Base)
+EventReport = register_event_report_model(Base)
+EventAgenda = register_event_agenda_model(Base)
+EventRun = register_event_run_model(Base)
+EventDeck = register_event_deck_model(Base)
+EventStepSession, EventStepReport = register_event_step_game_models(Base)
+
 connected=False
 while not connected:
     try:
         Base.metadata.create_all(bind=engine)
         RecoveryBase.metadata.create_all(bind=engine)
+        # Additive columns only; older published sets remain general/event via serializer fallback.
+        catalog_columns={column['name'] for column in inspect(engine).get_columns('published_quiz_sets')}
+        catalog_additions={
+            'collection': 'VARCHAR',
+            'stage': 'VARCHAR',
+            'grade': 'INTEGER',
+            'subject': 'VARCHAR',
+            'school_topic': 'VARCHAR',
+        }
+        missing_catalog_columns={name: sql_type for name, sql_type in catalog_additions.items()
+                                 if name not in catalog_columns}
+        if missing_catalog_columns:
+            with engine.begin() as connection:
+                for name, sql_type in missing_catalog_columns.items():
+                    connection.execute(text(
+                        f'ALTER TABLE published_quiz_sets ADD COLUMN {name} {sql_type} NULL'
+                    ))
+        question_columns={column['name'] for column in inspect(engine).get_columns('questions')}
+        missing_question_columns = {
+            column: sql_type for column, sql_type in {
+                'explanation': 'VARCHAR', 'image_alt_text': 'VARCHAR',
+            }.items() if column not in question_columns
+        }
+        if missing_question_columns:
+            with engine.begin() as connection:
+                for column, sql_type in missing_question_columns.items():
+                    connection.execute(text(
+                        f'ALTER TABLE questions ADD COLUMN {column} {sql_type} NULL'
+                    ))
         connected=True
         print('PostgreSQL connected.')
     except Exception as e:
@@ -115,6 +180,17 @@ app.add_middleware(
     allow_headers=list(CORS_HEADERS),
 )
 
+room_builder = RoomBuilder(Quiz, Question, PublishedQuizSet, GameRoom, RoomIdentity,
+                           lambda: generate_pin(), lambda pin: pin in rooms)
+room_initialization_lock = RLock()
+
+app.include_router(create_events_router(
+    SessionLocal, User, EventDraft,
+    lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
+    game_features=dict(Selection=EventQuizSelection, EventSession=EventGameSession,
+                       Report=EventReport, Agenda=EventAgenda, Run=EventRun, Deck=EventDeck, StepSession=EventStepSession, StepReport=EventStepReport, builder=room_builder, initialize=lambda *args: initialize_lobby_room(*args)),
+))
+
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
 game_phase={}; remaining_seconds={}; question_deadline={}
 room_instance_map={}
@@ -123,6 +199,26 @@ closed_room_cleanup_task=None
 
 def save_game(room_pin):
     with db_session() as db:
+        if game_phase[room_pin] == 'completed':
+            for link_model, report_model, key in (
+                (EventGameSession, EventReport, 'event_id'),
+                (EventStepSession, EventStepReport, 'instance_id'),
+            ):
+                link = db.query(link_model).filter_by(
+                    pin=room_pin, instance_id=room_instance_map.get(room_pin)
+                ).with_for_update().first()
+                if not link:
+                    continue
+                report_id = getattr(link, key)
+                if db.get(report_model, report_id) is None:
+                    completed = datetime.now(timezone.utc)
+                    ranking = sorted(scores[room_pin].items(), key=lambda item: item[1], reverse=True)
+                    db.add(report_model(**{key: report_id},
+                        event_title=db.get(EventDraft, link.event_id).title,
+                        quiz_title=db.get(Quiz, link.quiz_id).title,
+                        completed_at=completed, expires_at=completed + timedelta(days=15),
+                        ranking=[dict(name=name, score=score) for name, score in ranking]))
+                break
         persist_game_state(
             db, room_pin, phase=game_phase[room_pin],
             index=current_question_index[room_pin], scores=scores[room_pin],
@@ -137,6 +233,11 @@ async def restore_active_rooms():
     global closed_room_cleanup_task
     with db_session() as db:
         snapshots=[]
+        publish_status = publish_if_requested(
+            db, Quiz, Question, PublishedQuizSet
+        )
+        if publish_status != "disabled":
+            print("Initial catalog:", publish_status)
         backfill_closed_room_retention(db)
         backfill_room_identities(db)
         for record in db.query(GameRoom).filter(GameRoom.phase != 'closed').all():
@@ -156,7 +257,7 @@ async def restore_active_rooms():
         game_phase[pin]=state['phase']
         remaining_seconds[pin]=state['remaining']
         question_deadline[pin]=None
-        waiting_next_question[pin]=state['phase']=='result'
+        waiting_next_question[pin]=state['phase'] in {'result', 'leaderboard'}
         question_start_time[pin]=None
         if state['phase'] in {'question','result'}:
             game_tasks[pin]=asyncio.create_task(game_loop(pin))
@@ -167,6 +268,9 @@ def purge_closed_room_batches():
     while True:
         with db_session() as db:
             count=purge_expired_closed_rooms(db)
+            now = datetime.now(timezone.utc)
+            for report in (EventReport, EventStepReport):
+                db.query(report).filter(report.expires_at <= now).delete(synchronize_session=False)
             db.commit()
         if count < 100:
             return
@@ -195,6 +299,8 @@ class QuestionCreate(BaseModel):
     correct: int
     time: int = 15
     image_url: str | None = None
+    image_alt_text: str | None = None
+    explanation: str | None = None
 class UserRegister(BaseModel): email: str; password: str
 class UserLogin(BaseModel): email: str; password: str
 
@@ -238,13 +344,13 @@ def get_current_email(authorization: str | None):
         return None
 
 def serialize_question(q):
-    return {'id':q.id,'question':q.question,'image_url':q.image_url,'options':[q.option1,q.option2,q.option3,q.option4],'correct':q.correct,'time':q.time}
+    return {'id':q.id,'question':q.question,'image_url':q.image_url,'image_alt_text':q.image_alt_text,'explanation':q.explanation,'options':[q.option1,q.option2,q.option3,q.option4],'correct':q.correct,'time':q.time}
 
 def get_room_questions(room_pin):
     quiz_id=room_quiz_map.get(room_pin)
     if not quiz_id: return []
     with db_session() as db:
-        qs=db.query(Question).filter(Question.quiz_id==quiz_id).all()
+        qs=db.query(Question).filter(Question.quiz_id==quiz_id).order_by(Question.id).all()
         return [serialize_question(q) for q in qs]
 
 def lock_editable_quiz(db, quiz_id, email):
@@ -276,7 +382,10 @@ def list_host_rooms(authorization: str | None = Header(default=None)):
             GameRoom.host_email == email, GameRoom.phase != 'closed'
         ).order_by(GameRoom.pin).all()
         return [{'pin': room.pin, 'instance_id': room.identity.instance_id,
-                 'quiz_id': room.quiz_id, 'phase': room.phase} for room in records]
+                 'quiz_id': room.quiz_id, 'phase': room.phase,
+                 'status': ('paused' if room.phase == 'question' and room.deadline_epoch is None
+                            and room.remaining_seconds is not None else room.phase)}
+                for room in records]
 
 @app.get('/')
 def root(): return {'status':'running'}
@@ -309,6 +418,69 @@ def login_user(data: UserLogin, request: Request):
         token=create_access_token({'sub':user.email,'user_id':user.id})
         return {'access_token':token,'token_type':'bearer','email':user.email}
 
+def _published_catalog_query(db):
+    return db.query(PublishedQuizSet, Quiz).join(
+        Quiz, Quiz.id == PublishedQuizSet.quiz_id
+    ).filter(
+        PublishedQuizSet.is_published.is_(True),
+        Quiz.owner_email.is_(None),
+    )
+
+
+def _catalog_response(db, record, quiz):
+    questions = db.query(Question).filter(
+        Question.quiz_id == quiz.id
+    ).order_by(Question.id).all()
+    return serialize_set(record, quiz, questions), questions
+
+
+@app.get('/content/sets')
+def list_published_content_sets():
+    with db_session() as db:
+        rows = _published_catalog_query(db).order_by(
+            PublishedQuizSet.id
+        ).all()
+        return [_catalog_response(db, record, quiz)[0] for record, quiz in rows]
+
+
+@app.get('/content/sets/{set_id}')
+def get_published_content_set(set_id: int):
+    with db_session() as db:
+        row = _published_catalog_query(db).filter(
+            PublishedQuizSet.id == set_id
+        ).first()
+        if row is None:
+            raise HTTPException(status_code=404, detail='content_set_not_found')
+        record, quiz = row
+        metadata, _ = _catalog_response(db, record, quiz)
+        return metadata
+
+
+@app.get('/content/sets/{set_id}/preview')
+def preview_published_content_set(set_id: int):
+    with db_session() as db:
+        row = _published_catalog_query(db).filter(
+            PublishedQuizSet.id == set_id
+        ).first()
+        if row is None:
+            raise HTTPException(status_code=404, detail='content_set_not_found')
+        record, quiz = row
+        metadata, questions = _catalog_response(db, record, quiz)
+        return {
+            **metadata,
+            'questions': [serialize_preview_question(q) for q in questions],
+        }
+
+
+@app.post('/content/sets/{set_id}/copy')
+def copy_content_set(set_id: int, authorization: str | None = Header(default=None)):
+    email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
+    with db_session() as db:
+        result = copy_published_set(db, set_id, email, Quiz, Question, PublishedQuizSet)
+        db.commit()
+        return result
+
+
 @app.get('/quizzes')
 def get_quizzes(authorization: str | None = Header(default=None)):
     email=get_current_email(authorization)
@@ -331,10 +503,14 @@ def add_question(quiz_id:int, data: QuestionCreate, authorization: str | None = 
     if len(data.options)!=4: return {'error':'4_options_required'}
     email=get_current_email(authorization)
     if not email: return {'error':'unauthorized'}
+    try:
+        image_url, image_alt_text = validate_question_image(data.image_url, data.image_alt_text)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     with db_session() as db:
         quiz=lock_editable_quiz(db, quiz_id, email)
         if not quiz: return {'error':'quiz_not_found'}
-        q=Question(quiz_id=quiz_id,question=data.question,image_url=data.image_url,option1=data.options[0],option2=data.options[1],option3=data.options[2],option4=data.options[3],correct=data.correct,time=data.time)
+        q=Question(quiz_id=quiz_id,question=data.question,image_url=image_url,image_alt_text=image_alt_text,explanation=data.explanation,option1=data.options[0],option2=data.options[1],option3=data.options[2],option4=data.options[3],correct=data.correct,time=data.time)
         db.add(q); db.commit()
         return {'status':'question_added'}
 
@@ -345,7 +521,7 @@ def get_questions(quiz_id:int, authorization: str | None = Header(default=None))
     with db_session() as db:
         quiz=db.query(Quiz).filter(Quiz.id==quiz_id, Quiz.owner_email==email).first()
         if not quiz: return []
-        qs=db.query(Question).filter(Question.quiz_id==quiz_id).all()
+        qs=db.query(Question).filter(Question.quiz_id==quiz_id).order_by(Question.id).all()
         return [serialize_question(q) for q in qs]
 
 @app.delete('/quizzes/{quiz_id}')
@@ -379,6 +555,10 @@ def update_question(question_id:int, data: QuestionCreate, authorization: str | 
     if len(data.options)!=4: return {'error':'4_options_required'}
     email=get_current_email(authorization)
     if not email: return {'error':'unauthorized'}
+    try:
+        image_url, image_alt_text = validate_question_image(data.image_url, data.image_alt_text)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     with db_session() as db:
         quiz_id=db.query(Question.quiz_id).filter(Question.id==question_id).scalar()
         if quiz_id is None or not lock_editable_quiz(db, quiz_id, email):
@@ -386,7 +566,9 @@ def update_question(question_id:int, data: QuestionCreate, authorization: str | 
         q=db.get(Question, question_id)
         if not q: return {'error':'question_not_found'}
         q.question=data.question
-        q.image_url=data.image_url
+        q.image_url=image_url
+        q.image_alt_text=image_alt_text
+        q.explanation=data.explanation
         q.option1=data.options[0]
         q.option2=data.options[1]
         q.option3=data.options[2]
@@ -408,41 +590,36 @@ def create_room(
     )
 
     with db_session() as db:
-        quiz = db.query(Quiz).filter(
-            Quiz.id == quiz_id,
-            Quiz.owner_email == email,
-        ).with_for_update().first()
-
-        if not quiz:
-            raise HTTPException(status_code=404, detail='quiz_not_found')
-
-        pin = generate_pin()
-        while pin in rooms or db.get(GameRoom, pin) is not None:
-            pin = generate_pin()
-
-        instance_id=uuid.uuid4().hex
-        db.add(GameRoom(pin=pin, quiz_id=quiz_id, host_email=email,
-                        phase='lobby', question_index=0, answer_stats=[0,0,0,0],
-                        identity=RoomIdentity(instance_id=instance_id)))
+        room_builder.lock_quiz(db, quiz_id, email)
+        room = room_builder.stage(db, quiz_id, email)
+        pin, instance_id = room.pin, room.identity.instance_id
         db.commit()
-    rooms[pin] = []
-    room_instance_map[pin]=instance_id
-    scores[pin] = {}
-    current_question_index[pin] = 0
-    answered_players[pin] = set()
-    room_quiz_map[pin] = quiz_id
-    room_host_map[pin] = email
-    answer_stats_map[pin] = [0, 0, 0, 0]
-    waiting_next_question[pin] = False
-    question_start_time[pin] = None
-    game_phase[pin] = 'lobby'
-    remaining_seconds[pin] = None
-    question_deadline[pin] = None
+    initialize_lobby_room(pin, quiz_id, email, instance_id)
+    return {'room_pin': pin, 'quiz_id': quiz_id}
 
-    return {
-        'room_pin': pin,
-        'quiz_id': quiz_id,
-    }
+
+def initialize_lobby_room(pin, quiz_id, email, instance_id):
+    with room_initialization_lock:
+        if room_instance_map.get(pin) == instance_id:
+            return
+        with db_session() as db:
+            record = db.get(GameRoom, pin)
+            if (record is None or record.phase != 'lobby' or
+                    record.identity.instance_id != instance_id):
+                return
+        rooms[pin] = []
+        scores[pin] = {}
+        current_question_index[pin] = 0
+        answered_players[pin] = set()
+        room_quiz_map[pin] = quiz_id
+        room_host_map[pin] = email
+        answer_stats_map[pin] = [0, 0, 0, 0]
+        waiting_next_question[pin] = False
+        question_start_time[pin] = None
+        game_phase[pin] = 'lobby'
+        remaining_seconds[pin] = None
+        question_deadline[pin] = None
+        room_instance_map[pin] = instance_id
 
 
 @app.post('/close-room/{room_pin}')
@@ -496,6 +673,12 @@ async def start_game(
         room_host_map,
     )
 
+    if game_phase[room_pin] == 'completed':
+        with db_session() as db:
+            if any(db.query(model.event_id).filter_by(instance_id=room_instance_map[room_pin]).first()
+                   for model in (EventGameSession, EventStepSession)):
+                raise HTTPException(409, detail='event_session_completed')
+
     old_task = game_tasks.get(room_pin)
     if game_phase[room_pin] in {'question', 'result'} or (old_task and not old_task.done()):
         raise HTTPException(status_code=409, detail='game_already_running')
@@ -528,9 +711,115 @@ async def start_game(
     return {'status': 'started'}
 
 
+
+@app.post('/pause-game/{room_pin}')
+async def pause_game(
+    room_pin: str,
+    authorization: str | None = Header(default=None),
+):
+    email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
+    require_room_host(room_pin, email, rooms, room_host_map)
+    if game_phase.get(room_pin) != 'question' or question_deadline.get(room_pin) is None:
+        raise HTTPException(status_code=409, detail='game_not_running')
+
+    with db_session() as db:
+        record = db.get(GameRoom, room_pin)
+        pause_question(record)
+        remaining_seconds[room_pin] = record.remaining_seconds
+        question_deadline[room_pin] = None
+        db.commit()
+    question_start_time[room_pin] = None
+    await safe_broadcast_json(room_pin, {
+        'type': 'game_paused',
+        'remaining': remaining_seconds[room_pin],
+    })
+    return {'status': 'paused', 'remaining': remaining_seconds[room_pin]}
+
+
+@app.post('/resume-game/{room_pin}')
+async def resume_game(
+    room_pin: str,
+    authorization: str | None = Header(default=None),
+):
+    email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
+    require_room_host(room_pin, email, rooms, room_host_map)
+    if game_phase.get(room_pin) != 'question' or question_deadline.get(room_pin) is not None:
+        raise HTTPException(status_code=409, detail='game_not_paused')
+    if remaining_seconds.get(room_pin) is None:
+        raise HTTPException(status_code=409, detail='game_not_paused')
+
+    with db_session() as db:
+        record = db.get(GameRoom, room_pin)
+        resume_question(record)
+        remaining_seconds[room_pin] = record.remaining_seconds
+        question_deadline[room_pin] = record.deadline_epoch
+        db.commit()
+    questions = get_room_questions(room_pin)
+    q = questions[current_question_index[room_pin]]
+    question_start_time[room_pin] = time.time() - (
+        int(q['time'] or 15) - remaining_seconds[room_pin]
+    )
+    for participant in tuple(rooms.get(room_pin, [])):
+        await send_current_state(participant['socket'], room_pin, participant['name'])
+    return {'status': 'resumed'}
+
+
+
+@app.post('/end-game/{room_pin}')
+async def end_game(
+    room_pin: str,
+    authorization: str | None = Header(default=None),
+):
+    email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
+    require_room_host(room_pin, email, rooms, room_host_map)
+    if game_phase.get(room_pin) not in {'question', 'result', 'leaderboard'}:
+        raise HTTPException(status_code=409, detail='game_not_running')
+
+    game_phase[room_pin] = 'completed'
+    waiting_next_question[room_pin] = False
+    question_start_time[room_pin] = None
+    remaining_seconds[room_pin] = None
+    question_deadline[room_pin] = None
+    task = game_tasks.pop(room_pin, None)
+    if task and not task.done():
+        task.cancel()
+    save_game(room_pin)
+    await safe_broadcast_json(room_pin, {
+        'type': 'leaderboard',
+        'scores': sorted(scores[room_pin].items(), key=lambda x: x[1], reverse=True),
+    })
+    await safe_broadcast_json(room_pin, {'type': 'game_over'})
+    return {'status': 'completed'}
+
+
+@app.post('/reveal-leaderboard/{room_pin}')
+async def reveal_leaderboard(
+    room_pin: str,
+    expected_index: int | None = None,
+    authorization: str | None = Header(default=None),
+):
+    email = require_authenticated_email(authorization, SECRET_KEY, ALGORITHM)
+    require_room_host(room_pin, email, rooms, room_host_map)
+    index = current_question_index[room_pin]
+    if expected_index is not None and expected_index != index:
+        raise HTTPException(status_code=409, detail='stale_question_transition')
+    if game_phase.get(room_pin) == 'leaderboard':
+        return {'status': 'leaderboard', 'question_index': index, 'already_revealed': True}
+    if next_stage(game_phase.get(room_pin), 'reveal_leaderboard') is None:
+        raise HTTPException(status_code=409, detail='question_result_not_ready')
+    game_phase[room_pin] = 'leaderboard'
+    save_game(room_pin)
+    await safe_broadcast_json(room_pin, {
+        'type': 'game_stage', 'phase': 'leaderboard',
+        'index': current_question_index[room_pin],
+    })
+    return {'status': 'leaderboard', 'question_index': current_question_index[room_pin]}
+
+
 @app.post('/next-question/{room_pin}')
 async def next_question(
     room_pin: str,
+    expected_index: int | None = None,
     authorization: str | None = Header(default=None),
 ):
     email = require_authenticated_email(
@@ -546,6 +835,13 @@ async def next_question(
         room_host_map,
     )
 
+    index = current_question_index.get(room_pin, 0)
+    if expected_index is not None and index == expected_index + 1 and game_phase.get(room_pin) == 'question':
+        return {'status': 'ok', 'question_index': index, 'already_advanced': True}
+    if expected_index is not None and expected_index != index:
+        raise HTTPException(status_code=409, detail='stale_question_transition')
+    if game_phase.get(room_pin) != 'leaderboard':
+        raise HTTPException(status_code=409, detail='leaderboard_not_revealed')
     questions = get_room_questions(room_pin)
     next_index = next_question_index(
         current_question_index.get(room_pin, 0),
@@ -734,6 +1030,8 @@ async def commit_quiz_import(
                     quiz_id=quiz_id,
                     question=item['question'],
                     image_url=item.get('image_url'),
+                    image_alt_text=item.get('image_alt_text'),
+                    explanation=item.get('explanation'),
                     option1=item['options'][0],
                     option2=item['options'][1],
                     option3=item['options'][2],
@@ -859,7 +1157,17 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
     normalized_name=clean_name.casefold()
     existing={p['name'].strip().casefold() for p in rooms.get(room_pin,[])}
     if normalized_name in existing and normalized_name=='display':
-        await websocket.send_json({'type':'join_error','reason':'duplicate_name'}); await websocket.close(); return
+        # A Display may refresh before its previous socket has disconnected.
+        # Replace only the previous read-only Display connection; never touch Host.
+        old_displays=[p['socket'] for p in rooms[room_pin]
+                      if p['name'].strip().casefold()=='display']
+        rooms[room_pin]=[p for p in rooms[room_pin]
+                        if p['name'].strip().casefold()!='display']
+        for old_socket in old_displays:
+            try:
+                await old_socket.close(code=4001, reason='display_replaced')
+            except Exception:
+                pass
     player_token=None
     returning_player=False
     if not is_host and normalized_name != 'display':
@@ -967,32 +1275,35 @@ async def send_current_state(websocket,room_pin,player_name):
     phase=game_phase.get(room_pin)
     idx=current_question_index[room_pin]
     questions=get_room_questions(room_pin)
-    if phase in {'question','result'} and idx<len(questions):
+    if phase in {'question','result','leaderboard'} and idx<len(questions):
         q=questions[idx]
         deadline=question_deadline.get(room_pin)
         time_left=max(0,deadline-time.time()) if deadline is not None else remaining_seconds.get(room_pin)
         if time_left is not None:
-            await websocket.send_json({'type':'question','question':q['question'],
-                'image_url':q.get('image_url'),'options':q['options'],'index':idx,
+            await websocket.send_json({'type':'question','is_snapshot':True,'question':q['question'],
+                'image_url':q.get('image_url'),'image_alt_text':q.get('image_alt_text'),'options':q['options'],'index':idx,
                 'question_count':len(questions),
                 'time':time_left if phase=='question' else 0,
+                'deadline_epoch':deadline if phase=='question' else None,
+                'server_time_epoch':time.time(),
                 'paused':phase=='question' and deadline is None,
                 'answered':player_name in answered_players[room_pin]})
         await websocket.send_json({'type':'answer_count',
             'count':len(answered_players[room_pin]),'total':visible_player_count(room_pin)})
-        if phase=='result':
+        if phase in {'result', 'leaderboard'}:
             await websocket.send_json({'type':'question_result','correct':q['correct'],
-                'stats':answer_stats_map[room_pin]})
+                'stats':answer_stats_map[room_pin],'explanation':q.get('explanation')})
         await websocket.send_json({'type':'leaderboard',
             'scores':sorted(scores[room_pin].items(),key=lambda x:x[1],reverse=True)})
+        await websocket.send_json({'type':'game_stage', 'phase': phase, 'index': idx})
     elif phase=='completed':
         await websocket.send_json({'type':'leaderboard',
             'scores':sorted(scores[room_pin].items(),key=lambda x:x[1],reverse=True)})
         await websocket.send_json({'type':'game_over'})
 
 async def game_loop(room_pin):
-    while game_phase.get(room_pin) in {'question','result'}:
-        if game_phase[room_pin]=='result':
+    while game_phase.get(room_pin) in {'question','result','leaderboard'}:
+        if game_phase[room_pin] in {'result','leaderboard'}:
             await asyncio.sleep(0.1)
             continue
         questions=get_room_questions(room_pin); idx=current_question_index[room_pin]
@@ -1021,9 +1332,10 @@ async def game_loop(room_pin):
         waiting_next_question[room_pin]=True
         save_game(room_pin)
         q=questions[idx]
-        await safe_broadcast_json(room_pin, {'type':'question_result','correct':q['correct'],'stats':answer_stats_map[room_pin]})
+        await safe_broadcast_json(room_pin, {'type':'question_result','correct':q['correct'],'stats':answer_stats_map[room_pin],'explanation':q.get('explanation')})
         leaderboard=sorted(scores[room_pin].items(), key=lambda x:x[1], reverse=True)
         await safe_broadcast_json(room_pin, {'type':'leaderboard','scores':leaderboard})
+        await safe_broadcast_json(room_pin, {'type':'game_stage', 'phase':'result', 'index':idx})
 
 async def send_question(room_pin):
     questions=get_room_questions(room_pin); idx=current_question_index.get(room_pin,0)
@@ -1035,7 +1347,7 @@ async def send_question(room_pin):
     remaining_seconds[room_pin]=question_time
     question_deadline[room_pin]=question_start_time[room_pin]+question_time
     save_game(room_pin)
-    await safe_broadcast_json(room_pin, {'type':'question','question':q['question'],'image_url':q.get('image_url'),'options':q['options'],'index':idx,'question_count':len(questions),'time':q['time']})
+    await safe_broadcast_json(room_pin, {'type':'question','question':q['question'],'image_url':q.get('image_url'),'image_alt_text':q.get('image_alt_text'),'options':q['options'],'index':idx,'question_count':len(questions),'time':q['time'],'deadline_epoch':question_deadline[room_pin],'server_time_epoch':time.time()})
 
 async def safe_broadcast_json(room_pin, payload):
     await send_to_room(rooms, room_pin, payload)

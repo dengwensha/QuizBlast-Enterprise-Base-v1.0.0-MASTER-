@@ -1,4 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
+
+import { Button, Card, Input } from "../ui";
+import "./join-screen.css";
 
 export default function JoinScreen({
   roomPin,
@@ -7,48 +10,67 @@ export default function JoinScreen({
   setName,
   joinRoom,
   setMode,
-  styles,
 }) {
+  const [submitting, setSubmitting] = useState(false);
+  const handleJoin = async (event) => {
+    event.preventDefault();
+    if (submitting || !roomPin.trim() || !name.trim()) return;
+    setSubmitting(true);
+    try { await joinRoom(); } finally { setSubmitting(false); }
+  };
   return (
-    <div style={styles.splash}>
-      <div style={styles.joinCard}>
-        <h1>Join Game</h1>
+    <main className="qb-player-join">
+      <Card className="qb-player-join__card">
+        <div className="qb-player-join__brand">QuizBlast</div>
+        <h1 className="qb-player-join__title">Join Game</h1>
+        <p className="qb-player-join__intro">
+          Enter the game PIN and the name you want other players to see.
+        </p>
 
-        <input
-          placeholder="Room PIN"
-          value={roomPin}
-          onChange={(e) => setRoomPin(e.target.value)}
-          style={styles.input}
-        />
+        <form className="qb-player-join__form" onSubmit={handleJoin}>
+          <Input
+            id="game-pin"
+            label="Game PIN"
+            placeholder="Room PIN"
+            inputMode="numeric"
+            enterKeyHint="next"
+            required
+            autoComplete="off"
+            value={roomPin}
+            onChange={(event) => setRoomPin(event.target.value)}
+          />
 
-        <input
-          placeholder="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={styles.input}
-        />
+          {roomPin && (
+            <p className="qb-player-join__hint" role="status">
+              PIN hazır. QR bağlantısı kullandıysan otomatik doldurulmuş olabilir.
+            </p>
+          )}
 
-        {roomPin && (
-          <p style={{ color: "green" }}>
-            QR ile PIN otomatik dolduruldu
-          </p>
-        )}
+          <Input
+            id="player-name"
+            label="Nickname"
+            placeholder="Name"
+            autoComplete="nickname"
+            enterKeyHint="go"
+            required
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
 
-        <button onClick={joinRoom} style={styles.joinButton}>
-          Join
-        </button>
+          <Button type="submit" size="lg" fullWidth disabled={submitting || !roomPin.trim() || !name.trim()}>
+            Join
+          </Button>
 
-        <button
-          onClick={() => setMode(null)}
-          style={{
-            ...styles.joinButton,
-            marginTop: 10,
-            background: "#333",
-          }}
-        >
-          Ana Menü
-        </button>
-      </div>
-    </div>
+          <Button
+            type="button"
+            variant="ghost"
+            fullWidth
+            onClick={() => setMode(null)}
+          >
+            Ana Menü
+          </Button>
+        </form>
+      </Card>
+    </main>
   );
 }

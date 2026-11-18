@@ -13,6 +13,8 @@ function useAdminState({
   const [newQuizTitle, setNewQuizTitle] = useState("");
   const [newQuestion, setNewQuestion] = useState("");
   const [newImageUrl, setNewImageUrl] = useState("");
+  const [newImageAltText, setNewImageAltText] = useState("");
+  const [newExplanation, setNewExplanation] = useState("");
   const [newOptions, setNewOptions] = useState(["", "", "", ""]);
   const [newCorrect, setNewCorrect] = useState(0);
   const [newTime, setNewTime] = useState(15);
@@ -29,6 +31,8 @@ function useAdminState({
     setNewQuizTitle("");
     setNewQuestion("");
     setNewImageUrl("");
+    setNewImageAltText("");
+    setNewExplanation("");
     setNewOptions(["", "", "", ""]);
     setNewCorrect(0);
     setNewTime(15);
@@ -65,7 +69,7 @@ function useAdminState({
       alert(result.detail || result.error);
     }
   };
-  const addQuestion = async (q = newQuestion, img = newImageUrl, opts = newOptions, c = Number(newCorrect), tm = Number(newTime)) => {
+  const addQuestion = async (q = newQuestion, img = newImageUrl, opts = newOptions, c = Number(newCorrect), tm = Number(newTime), explanation = newExplanation) => {
     if (!selectedQuizId) return alert("Quiz seç");
     if (!q.trim()) return alert("Soru gir.");
     if (opts.some((o) => !String(o).trim()))
@@ -73,6 +77,8 @@ function useAdminState({
     const d = await addQuestionRequestState({
       question: q,
       image_url: img,
+      image_alt_text: img === newImageUrl ? newImageAltText : "",
+      explanation: explanation || '',
       options: opts,
       correct: c,
       time: tm
@@ -82,6 +88,8 @@ function useAdminState({
       : d.error);
     setNewQuestion("");
     setNewImageUrl("");
+    setNewImageAltText("");
+    setNewExplanation("");
     setNewOptions(["", "", "", ""]);
     setNewCorrect(0);
     setNewTime(15);
@@ -118,6 +126,8 @@ function useAdminState({
           const d = await addQuestionRequestState({
             question: q.question,
             image_url: q.image_url || "",
+            image_alt_text: q.image_alt_text || "",
+            explanation: q.explanation || "",
             options: q.options,
             correct: q.correct,
             time: q.time
@@ -201,9 +211,16 @@ function useAdminState({
     );
     const time = Number(prompt("Süre:", q.time || 15));
     const image_url = prompt("Görsel URL opsiyonel:", q.image_url || "");
+    if (image_url === null) return;
+    const image_alt_text = prompt("Görsel alt metni (opsiyonel):", q.image_alt_text || "");
+    if (image_alt_text === null) return;
+    const explanation = prompt("Sonuç açıklaması opsiyonel:", q.explanation || "");
+    if (explanation === null) return;
     const payload = {
       question,
       image_url: image_url || "",
+      image_alt_text: image_url ? image_alt_text || "" : "",
+      explanation: explanation || "",
       options,
       correct: Number.isNaN(correct) ? q.correct : Math.min(Math.max(correct, 0), 3),
       time: Number.isNaN(time) ? q.time || 15 : time
@@ -220,6 +237,10 @@ function useAdminState({
     setNewQuestion,
     newImageUrl,
     setNewImageUrl,
+    newImageAltText,
+    setNewImageAltText,
+    newExplanation,
+    setNewExplanation,
     newOptions,
     setNewOptions,
     newCorrect,

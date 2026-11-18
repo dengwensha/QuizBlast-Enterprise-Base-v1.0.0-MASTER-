@@ -52,6 +52,34 @@ jobs:
       - name: Build production images
         run: docker compose build --pull backend frontend
 
+      - name: Verify optional remote frontend image and proxy template
+        shell: bash
+        run: |
+          docker build -f frontend/Dockerfile.remote \
+            -t quizblast-remote-ci frontend
+          # No Railway account or public deployment required for this check.
+          docker run --rm -e QB_BACKEND_UPSTREAM=127.0.0.1:8000 \
+            quizblast-remote-ci nginx -t
+          docker run --rm -e QB_BACKEND_UPSTREAM=127.0.0.1:8000 \
+            quizblast-remote-ci nginx -T 2>&1 \
+            | grep -F 'proxy_pass http://127.0.0.1:8000/;'
+          docker run --rm -e QB_BACKEND_UPSTREAM=127.0.0.1:8000 \
+            quizblast-remote-ci nginx -T 2>&1 \
+            | grep -F 'proxy_set_header Host $host;'
+
+      - name: Verify Render single-service build and proxy
+        shell: bash
+        run: |
+          docker build -f Dockerfile.render -t quizblast-render-ci .
+          docker run --rm -e PORT=10000 quizblast-render-ci \
+            python /app/render_start.py --check
+          docker run --rm -e PORT=10000 quizblast-render-ci \
+            sh -c 'python /app/render_start.py --check && nginx -T 2>&1' \
+            | grep -F 'proxy_pass http://127.0.0.1:8000/;'
+          docker run --rm -e PORT=10000 quizblast-render-ci \
+            sh -c 'python /app/render_start.py --check && nginx -T 2>&1' \
+            | grep -F 'listen 10000;'
+
       - name: Start infrastructure
         run: docker compose up -d postgres redis
 
@@ -89,6 +117,8 @@ jobs:
         shell: bash
         run: |
           modules=(
+            app.tests.test_event_sessions
+            app.tests.test_events
             app.tests.test_answer_acceptance
             app.tests.test_game_progression
             app.tests.test_game_recovery
@@ -104,6 +134,11 @@ jobs:
             app.tests.test_import_report_manual
             app.tests.test_qbds_mapper_manual
             app.tests.test_validation_engine_manual
+            app.tests.test_content_catalog_manual
+            app.tests.test_content_copy_manual
+            app.tests.test_content_play_manual
+            app.tests.test_content_seed_manual
+            app.tests.test_content_deploy_manual
           )
 
           for module in "${modules[@]}"; do
@@ -162,15 +197,83 @@ jobs:
           docker compose exec -T backend \
             python -m app.tests.test_game_restart_manual
 
+      - name: Verify authoritative timer arithmetic
+        working-directory: frontend
+        run: node --test tests/gameClock.test.mjs
+
       - name: Install browser test dependencies
         working-directory: frontend
         run: |
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
 
-      - name: Verify browser game recovery
+      - name: Verify UI-LIVE presentation
+        # The popup suite uses controlled transport and requires no auth limiter reset.
+        # Keep it separate from the real backend regression scenarios below.
         working-directory: frontend
-        run: npx playwright test tests/recovery.spec.js --reporter=line
+        run: npx playwright test tests/live-qr.spec.js tests/stage-viewport.spec.js tests/question-progress.spec.js tests/invitation-share.spec.js tests/events.spec.js tests/event-sessions.spec.js --workers=1 --reporter=line
+
+      - name: Verify existing browser game recovery (isolated scenarios)
+        working-directory: frontend
+        shell: bash
+        run: |
+          # One scenario per process. Reset only the CI backend's in-memory
+          # registration limiter between scenarios; production limits stay intact.
+          scenarios=(
+            "UI-08F-B06 saved player session"
+            "host recovers an open room"
+            "host, player and display recover"
+            "UI-09A result and leaderboard remain synchronized"
+            "QB-GAME-TRANSITION-01 guards repeated and stale Host actions"
+            "active host session remains"
+            "active player session remains"
+            "QB-AUTH-GUEST-01 anonymous PIN join"
+            "QB-AUTH-DISPLAY-01 anonymous Display"
+            "QB-AUTH-DISPLAY-02 F5 handles overlapping Display sockets"
+            "UI-06A player Join Game"
+            "UI-08F-B05 QR link"
+            "UI-07B QR link"
+            "UI-07D mobile QR"
+          )
+          for scenario in "${scenarios[@]}"; do
+            echo "::group::Browser scenario: ${scenario}"
+            docker compose restart backend
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent http://localhost:8001/ | grep -q '"status":"running"'; then
+                break
+              fi
+              if [[ "$attempt" == 30 ]]; then
+                docker compose logs --tail=100 backend
+                exit 1
+              fi
+              sleep 2
+            done
+            npx playwright test tests/recovery.spec.js --grep "${scenario}" --workers=1 --reporter=line
+            echo "::endgroup::"
+          done
+
+      - name: Install Microsoft Edge for browser regression
+        working-directory: frontend
+        run: npx playwright install msedge
+
+      - name: Reset process-local CI auth limiter before Edge regression
+        # Limiter lives in backend process memory, not Redis. CI only.
+        run: |
+          docker compose restart backend
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://localhost:8001/ \
+              --output /tmp/quizblast-edge-ready.json && \
+              grep -q '"status":"running"' /tmp/quizblast-edge-ready.json; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs backend
+          exit 1
+
+      - name: Verify repeated Back in Microsoft Edge
+        working-directory: frontend
+        run: npx playwright test tests/recovery.spec.js --config=playwright.edge.config.js --grep "UI-06A player Join Game" --reporter=line
 
       - name: Show backend logs on browser test failure
         if: failure()

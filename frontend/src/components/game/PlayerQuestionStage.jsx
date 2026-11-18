@@ -1,0 +1,31 @@
+import QuestionImage from "../common/QuestionImage";
+import React from "react";
+
+import { Alert, Button, Card } from "../ui";
+import PlayerResultReveal from "./PlayerResultReveal";
+import PlayerLeaderboard from "./PlayerLeaderboard";
+import "./player-question-stage.css";
+
+export default function PlayerQuestionStage({ question, questionImage, questionImageAlt, timeLeft, answerCount, totalPlayers, options, sendAnswer, answered, paused, questionResult, gameStage, optionColors, visibleLeaderboard, currentQuestionIndex, totalQuestions, styles }) {
+  const disabled = answered || paused || timeLeft <= 0;
+  const progress = Math.max(0, Math.min(100, (timeLeft / 15) * 100));
+
+  if (gameStage === "leaderboard") return <PlayerLeaderboard visibleLeaderboard={visibleLeaderboard} />;
+
+  return <section className="qb-player-question" aria-label="Quiz question">
+    {paused && <div role="status" className="qb-player-question__pause-status">Host bekleniyor; oyun duraklatıldı.</div>}
+    <Card className="qb-player-question__card">
+      <div className="qb-player-question__meta"><span>Cevaplayan: {answerCount} / {totalPlayers}</span></div>
+      <h1 className="qb-player-question__title">{question}</h1>
+      <QuestionImage className="qb-player-question__image" src={questionImage} alt={questionImageAlt} />
+      <div className="qb-player-question__timer" data-testid="game-timer" aria-label={`Kalan süre ${timeLeft} saniye`}>{timeLeft}</div>
+      <div className="qb-player-question__progress" aria-hidden="true"><div className="qb-player-question__progress-value" style={{ width: `${progress}%` }} /></div>
+    </Card>
+    <div className="qb-player-question__answers" aria-label="Cevap seçenekleri">
+      {options.map((option, index) => <Button key={index} type="button" className={`qb-answer qb-answer--${index + 1}`} disabled={disabled} onClick={() => sendAnswer(index)} style={{ "--qb-answer-fallback": optionColors[index] }}>{option}</Button>)}
+    </div>
+    {answered && !questionResult && <Alert variant="success" role="note" title="✅ Cevabın alındı">Diğer oyuncular bekleniyor.</Alert>}
+    {questionResult && <PlayerResultReveal questionResult={questionResult} options={options} optionColors={optionColors} />}
+
+  </section>;
+}

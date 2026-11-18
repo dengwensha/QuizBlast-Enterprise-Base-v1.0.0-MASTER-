@@ -1,42 +1,43 @@
+import QuestionImage from "../common/QuestionImage";
 import React from "react";
 
 import ResultReveal from "./ResultReveal";
 
 import LeaderboardBoard from "./LeaderboardBoard";
+import "./host-live-stage.css";
 
 export default function HostLiveStage({
   question,
   questionImage,
+  questionImageAlt,
   timeLeft,
   answerCount,
   totalPlayers,
   options,
   optionColors,
   questionResult,
+  gameStage,
   visibleLeaderboard,
   nextQuestion,
+  revealLeaderboard,
   currentQuestionIndex,
   totalQuestions,
   styles,
 }) {
+  if (gameStage === "leaderboard") return <div style={styles.liveStage}><LeaderboardBoard visibleLeaderboard={visibleLeaderboard} live styles={styles} /><div style={{ textAlign: "center", marginTop: 20 }}><button onClick={nextQuestion} className="qb-host-live__next-action" style={styles.nextQuestionButton}>{currentQuestionIndex + 1 >= totalQuestions ? "🏁 Sonuçları Göster" : "➜ Sonraki Soru"}</button></div></div>;
+
   return (
     <div style={styles.liveStage}>
       <div style={styles.liveQuestionCard}>
         <div style={styles.liveQuestionText}>{question}</div>
 
-        {questionImage && (
-          <img
-            src={questionImage}
-            alt="Soru görseli"
-            style={styles.liveQuestionImage}
-          />
-        )}
+        <QuestionImage src={questionImage} alt={questionImageAlt} style={styles.liveQuestionImage} />
 
         <div
           data-testid="game-timer"
           style={{
             ...styles.liveTimer,
-            background: timeLeft <= 5 ? "#e21b3c" : "#46178f",
+            background: timeLeft <= 5 ? "var(--qb-danger)" : "var(--qb-primary-600)",
             animation:
               timeLeft <= 5 ? "timerUrgent 0.8s infinite" : undefined,
           }}
@@ -65,7 +66,7 @@ export default function HostLiveStage({
               key={i}
               style={{
                 ...styles.liveOptionCard,
-                background: optionColors[i] || "#46178f",
+                background: optionColors[i] || "var(--qb-primary-600)",
                 animationDelay: `${i * 0.35}s`,
               }}
             >
@@ -91,22 +92,17 @@ export default function HostLiveStage({
 
           <div style={{ textAlign: "center", marginTop: 20 }}>
             <button
-              onClick={nextQuestion}
+              onClick={revealLeaderboard}
+              className="qb-host-live__next-action"
               style={styles.nextQuestionButton}
             >
-              {currentQuestionIndex + 1 >= totalQuestions
-                ? "🏁 Sonuçları Göster"
-                : "➜ Sonraki Soru"}
+              🏆 Sıralamayı Göster
             </button>
           </div>
         </>
       )}
 
-      <LeaderboardBoard
-        visibleLeaderboard={visibleLeaderboard}
-        live
-        styles={styles}
-      />
+
     </div>
   );
 }

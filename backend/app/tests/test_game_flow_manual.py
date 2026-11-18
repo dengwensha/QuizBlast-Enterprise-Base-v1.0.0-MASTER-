@@ -30,6 +30,18 @@ def post(path, payload=None, token=None):
         return error.code, json.load(error)
 
 
+def get(path, token=None):
+    headers = {}
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    request = Request(BASE_URL + path, headers=headers, method='GET')
+    try:
+        with urlopen(request, timeout=5) as response:
+            return response.status, json.load(response)
+    except HTTPError as error:
+        return error.code, json.load(error)
+
+
 async def receive_until(socket, event_type):
     observed = []
     while True:
@@ -57,7 +69,7 @@ async def run_game_flow():
     status, added = await asyncio.to_thread(
         post,
         f'/quizzes/{quiz_id}/questions',
-        {'question': 'Two plus two?', 'options': ['4', '3', '2', '1'], 'correct': 0, 'time': 1},
+        {'question': 'Two plus two?', 'options': ['4', '3', '2', '1'], 'correct': 0, 'time': 1, 'explanation': 'Two pairs make four.'},
         token,
     )
     assert status == 200 and added['status'] == 'question_added'
@@ -94,6 +106,8 @@ async def run_game_flow():
                 for socket in (host, player, display):
                     question, events = await receive_until(socket, 'question')
                     assert question['question'] == 'Two plus two?'
+                    assert question.get('is_snapshot', False) is False
+                    assert 'explanation' not in question
                     assert any(
                         event.get('type') == 'players'
                         and set(event['players']) == {'HOST', 'Ada', 'DISPLAY'}
@@ -108,12 +122,13 @@ async def run_game_flow():
                 status, rejected = await asyncio.to_thread(
                     post, f'/next-question/{pin}', None, token
                 )
-                assert status == 409 and rejected['detail'] == 'question_result_not_ready'
+                assert status == 409 and rejected['detail'] == 'leaderboard_not_revealed'
 
                 await player.send(json.dumps({'type': 'answer', 'answer': 0}))
                 for socket in (host, player, display):
                     result, events = await receive_until(socket, 'question_result')
                     assert result['correct'] == 0 and result['stats'] == [1, 0, 0, 0]
+                    assert result['explanation'] == 'Two pairs make four.'
                     assert any(
                         event.get('type') == 'answer_count' and event['count'] == 1
                         for event in events
@@ -123,6 +138,28 @@ async def run_game_flow():
                         and event['scores'][0][1] > 0
                         for event in events
                     )
+
+                status, rejected = await asyncio.to_thread(
+                    post, f'/next-question/{pin}', None, token
+                )
+                assert status == 409 and rejected['detail'] == 'leaderboard_not_revealed'
+
+                status, revealed = await asyncio.to_thread(
+                    post, f'/reveal-leaderboard/{pin}', None, token
+                )
+                assert status == 200 and revealed['status'] == 'leaderboard'
+                for socket in (host, player, display):
+                    while True:
+                        stage, _ = await receive_until(socket, 'game_stage')
+                        if stage['phase'] == 'leaderboard':
+                            break
+                        assert stage['phase'] == 'result'
+
+                status, rejected = await asyncio.to_thread(
+                    post, f'/reveal-leaderboard/{pin}', None, token
+                )
+                assert status == 200 and rejected['status'] == 'leaderboard'
+                assert rejected['already_revealed'] is True
 
                 status, advanced = await asyncio.to_thread(
                     post, f'/next-question/{pin}', None, token
@@ -134,7 +171,7 @@ async def run_game_flow():
                 status, rejected = await asyncio.to_thread(
                     post, f'/next-question/{pin}', None, token
                 )
-                assert status == 409 and rejected['detail'] == 'question_result_not_ready'
+                assert status == 409 and rejected['detail'] == 'leaderboard_not_revealed'
 
                 for attempt in range(20):
                     status, replay = await asyncio.to_thread(
@@ -149,11 +186,14 @@ async def run_game_flow():
                 for socket in (host, player, display):
                     question, _ = await receive_until(socket, 'question')
                     assert question['index'] == 0
+                    assert question.get('is_snapshot', False) is False
+                    assert 'explanation' not in question
 
                 await player.send(json.dumps({'type': 'answer', 'answer': 1}))
                 for socket in (host, player, display):
                     result, events = await receive_until(socket, 'question_result')
                     assert result['stats'] == [0, 1, 0, 0]
+                    assert result['explanation'] == 'Two pairs make four.'
                     assert any(
                         event.get('type') == 'leaderboard'
                         and event['scores'] == [['Ada', 0]]
@@ -183,6 +223,28 @@ async def run_game_flow():
 
             status, started = await asyncio.to_thread(post, f'/start-game/{pin}', None, token)
             assert status == 200 and started['status'] == 'started'
+            for socket in (host, ada, bora):
+                await receive_until(socket, 'question')
+
+            status, ended = await asyncio.to_thread(post, f'/end-game/{pin}', None, token)
+            assert status == 200 and ended['status'] == 'completed'
+            for socket in (host, ada, bora):
+                await receive_until(socket, 'game_over')
+
+            status, rooms = await asyncio.to_thread(get, '/host/rooms', token)
+            assert status == 200
+            assert any(
+                room['pin'] == pin
+                and room['phase'] == 'completed'
+                and room['status'] == 'completed'
+                for room in rooms
+            )
+
+            status, rejected = await asyncio.to_thread(post, f'/end-game/{pin}', None, token)
+            assert status == 409 and rejected['detail'] == 'game_not_running'
+
+            status, restarted = await asyncio.to_thread(post, f'/start-game/{pin}', None, token)
+            assert status == 200 and restarted['status'] == 'started'
             for socket in (host, ada, bora):
                 await receive_until(socket, 'question')
 

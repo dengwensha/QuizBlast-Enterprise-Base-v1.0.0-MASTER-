@@ -16,7 +16,7 @@ export default function ResultReveal({
       <div
         style={{
           ...(live ? styles.liveCorrectAnswer : styles.correctAnswer),
-          background: optionColors[correctIndex] || "#46178f",
+          background: optionColors[correctIndex] || "var(--qb-primary-600)",
         }}
       >
         {correctText}
@@ -24,6 +24,7 @@ export default function ResultReveal({
 
       <h3>Cevap Dağılımı</h3>
 
+      {questionResult.explanation && <p style={{marginTop:16,lineHeight:1.6}}><b>Açıklama:</b> {questionResult.explanation}</p>}
       {questionResult.stats?.map((count, i) => {
         const maxCount = Math.max(...questionResult.stats, 1);
         const width = `${(count / maxCount) * 100}%`;
@@ -39,7 +40,7 @@ export default function ResultReveal({
                 style={{
                   ...styles.resultBarInner,
                   width,
-                  background: optionColors[i] || "#46178f",
+                  background: optionColors[i] || "var(--qb-primary-600)",
                 }}
               >
                 {count}

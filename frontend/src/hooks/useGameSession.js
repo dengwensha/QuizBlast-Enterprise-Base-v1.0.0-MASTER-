@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
 import { API, WS } from "../services/api";
+import { normalizeQuestionImage } from "../utils/questionImage";
+import { remainingFromDeadline, localDeadlineFromMessage } from "../utils/gameClock";
 
 export function useGameSession({
+  persistSession = true,
   onQuestion,
   onQuestionResult,
   onGameOver,
@@ -38,17 +41,25 @@ export function useGameSession({
   const socketRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const connectionRef = useRef(null);
+  const resumeConnectionRef = useRef(null);
+  const pageSuspendedRef = useRef(false);
   const [reconnecting, setReconnecting] = useState(false);
 
   const [players, setPlayers] = useState([]);
   const [question, setQuestion] = useState(null);
   const [questionImage, setQuestionImage] = useState("");
+  const [questionImageAlt, setQuestionImageAlt] = useState("");
+
   const [options, setOptions] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
+  const [questionIsSnapshot, setQuestionIsSnapshot] = useState(false);
   const [questionResult, setQuestionResult] = useState(null);
+  const [gameStage, setGameStage] = useState("lobby");
   const [timeLeft, setTimeLeft] = useState(0);
+  const questionDeadlineRef = useRef(null);
+  const countdownPreviousRef = useRef(null);
   const [answered, setAnswered] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -63,10 +74,14 @@ export function useGameSession({
     setPlayers([]);
     setQuestion(null);
     setQuestionImage("");
+    setQuestionImageAlt("");
     setOptions([]);
     setLeaderboard([]);
     setQuestionResult(null);
+    setGameStage("lobby");
     setTimeLeft(0);
+    questionDeadlineRef.current = null;
+    countdownPreviousRef.current = null;
     setAnswered(false);
     setGameOver(false);
     setPaused(false);
@@ -74,10 +89,12 @@ export function useGameSession({
     setTotalPlayers(0);
     setCurrentQuestionIndex(0);
     setTotalQuestions(0);
+    setQuestionIsSnapshot(false);
   };
 
   const closeSocket = () => {
     connectionRef.current = null;
+    resumeConnectionRef.current = null;
     clearTimeout(reconnectTimerRef.current);
     setReconnecting(false);
     const activeSocket = socketRef.current;
@@ -96,8 +113,8 @@ export function useGameSession({
 
   const closeSession = () => {
     closeSocket();
-    sessionStorage.removeItem("quizblast_active_session");
-    localStorage.removeItem("quizblast_active_session");
+    if (persistSession) sessionStorage.removeItem("quizblast_active_session");
+    if (persistSession) localStorage.removeItem("quizblast_active_session");
     resetGame();
   };
 
@@ -109,6 +126,7 @@ export function useGameSession({
     setPlayerName(who);
 
     const open = async () => {
+    if (pageSuspendedRef.current || connectionRef.current !== connection) return;
     if (!connection.instanceId) {
       try {
         const response = await fetch(`${API}/room-instance/${pin}`);
@@ -140,7 +158,7 @@ export function useGameSession({
         return;
       }
     }
-    if (connectionRef.current !== connection) return;
+    if (pageSuspendedRef.current || connectionRef.current !== connection) return;
     const playerKey = `quizblast_player_${connection.instanceId}_${who}`;
     let playerToken = localStorage.getItem(playerKey);
 
@@ -166,8 +184,8 @@ export function useGameSession({
         clearTimeout(reconnectTimerRef.current);
         setReconnecting(false);
         if (data.reason !== "host_unauthorized") {
-          sessionStorage.removeItem("quizblast_active_session");
-          localStorage.removeItem("quizblast_active_session");
+          if (persistSession) sessionStorage.removeItem("quizblast_active_session");
+          if (persistSession) localStorage.removeItem("quizblast_active_session");
         }
         if (data.reason === "host_unauthorized") {
           callbacksRef.current.onHostUnauthorized?.();
@@ -213,8 +231,8 @@ export function useGameSession({
       if (data.type === "players") {
         setJoined(true);
         setPlayers(data.players);
-        sessionStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who, instanceId: connection.instanceId }));
-        localStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who, instanceId: connection.instanceId }));
+        if (persistSession) sessionStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who, instanceId: connection.instanceId }));
+        if (persistSession) localStorage.setItem("quizblast_active_session", JSON.stringify({ pin, who, instanceId: connection.instanceId }));
 
         setTotalPlayers(
           data.players.filter(
@@ -229,12 +247,25 @@ export function useGameSession({
         callbacksRef.current.onQuestion?.();
 
         setQuestionResult(null);
+        setGameStage("question");
         setQuestion(data.question);
-        setQuestionImage(data.image_url || "");
+        setQuestionImage(normalizeQuestionImage(data.image_url));
+        setQuestionImageAlt(data.image_alt_text || "");
         setOptions(data.options);
         setCurrentQuestionIndex(data.index || 0);
         setTotalQuestions(data.question_count || 0);
-        setTimeLeft(Math.ceil(data.time));
+        setQuestionIsSnapshot(data.is_snapshot === true);
+        // A monotonic local deadline anchored to the server's absolute deadline
+        // prevents browser timer callbacks from accumulating drift.
+        const localDeadline = !data.paused
+          ? localDeadlineFromMessage(data.deadline_epoch, data.server_time_epoch, performance.now(), data.time)
+          : null;
+        questionDeadlineRef.current = localDeadline;
+        const initialSeconds = localDeadline !== null
+          ? remainingFromDeadline(localDeadline, performance.now())
+          : Math.ceil(data.time);
+        countdownPreviousRef.current = initialSeconds;
+        setTimeLeft(initialSeconds);
         setPaused(Boolean(data.paused));
         setAnswered(Boolean(data.answered));
         setGameOver(false);
@@ -246,16 +277,25 @@ export function useGameSession({
       }
 
       if (data.type === "game_paused") {
+        questionDeadlineRef.current = null;
+        countdownPreviousRef.current = null;
         setPaused(true);
         setTimeLeft(Math.ceil(data.remaining));
       }
 
       if (data.type === "question_result") {
+        questionDeadlineRef.current = null;
+        countdownPreviousRef.current = null;
+        setTimeLeft(0);
         callbacksRef.current.onQuestionResult?.();
         setQuestionResult(data);
+        setGameStage("result");
       }
 
+      if (data.type === "game_stage") setGameStage(data.phase);
+
       if (data.type === "leaderboard") {
+        // Ranking updates do not change the current presentation stage.
         setLeaderboard(data.scores);
       }
 
@@ -264,18 +304,29 @@ export function useGameSession({
 
         setQuestion(null);
         setQuestionImage("");
+    setQuestionImageAlt("");
         setOptions([]);
         setGameOver(true);
+        setGameStage("completed");
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (socketRef.current === ws) {
         socketRef.current = null;
         setSocket(null);
         setJoined(false);
         setTimeLeft(0);
-        if (connectionRef.current === connection) {
+        if (event.code === 4001 && who === "DISPLAY") {
+          // Another Display has taken over this PIN. Do not reconnect in a loop.
+          connectionRef.current = null;
+          clearTimeout(reconnectTimerRef.current);
+          setReconnecting(false);
+          if (persistSession) sessionStorage.removeItem("quizblast_active_session");
+          if (persistSession) localStorage.removeItem("quizblast_active_session");
+          return;
+        }
+        if (connectionRef.current === connection && !pageSuspendedRef.current) {
           setReconnecting(true);
           const delay = Math.min(1000 * 2 ** connection.attempt, 5000);
           connection.attempt += 1;
@@ -291,6 +342,7 @@ export function useGameSession({
     socketRef.current = ws;
     setSocket(ws);
     };
+    resumeConnectionRef.current = open;
     open();
   };
 
@@ -319,28 +371,44 @@ export function useGameSession({
   };
 
   useEffect(() => {
-    if (!joined || paused || timeLeft <= 0) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setTimeLeft((previousTime) => {
-        if (
-          previousTime <= 6 &&
-          previousTime > 1
-        ) {
-          callbacksRef.current.onCountdown?.();
-        }
-
-        return previousTime - 1;
-      });
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [joined, paused, timeLeft]);
+    if (!joined || paused || gameStage !== "question") return;
+    const tick = () => {
+      const deadline = questionDeadlineRef.current;
+      if (deadline === null) return;
+      const next = remainingFromDeadline(deadline, performance.now());
+      const previous = countdownPreviousRef.current;
+      if (previous !== null && next < previous && next >= 1 && next <= 5) {
+        callbacksRef.current.onCountdown?.();
+      }
+      countdownPreviousRef.current = next;
+      setTimeLeft(current => current === next ? current : next);
+    };
+    tick();
+    const timer = setInterval(tick, 150);
+    return () => clearInterval(timer);
+  }, [joined, paused, gameStage]);
 
   useEffect(() => {
+    const onPageHide = () => {
+      pageSuspendedRef.current = true;
+      clearTimeout(reconnectTimerRef.current);
+      const ws = socketRef.current;
+      socketRef.current = null;
+      if (ws) ws.close();
+    };
+    const onPageShow = (event) => {
+      if (!pageSuspendedRef.current) return;
+      pageSuspendedRef.current = false;
+      if (connectionRef.current && resumeConnectionRef.current) {
+        setReconnecting(true);
+        resumeConnectionRef.current();
+      }
+    };
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('pageshow', onPageShow);
     return () => {
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('pageshow', onPageShow);
       connectionRef.current = null;
       clearTimeout(reconnectTimerRef.current);
       const activeSocket = socketRef.current;
@@ -369,11 +437,14 @@ export function useGameSession({
     players,
     question,
     questionImage,
+    questionImageAlt,
     options,
     leaderboard,
     currentQuestionIndex,
     totalQuestions,
+    questionIsSnapshot,
     questionResult,
+    gameStage,
     timeLeft,
     answered,
     gameOver,

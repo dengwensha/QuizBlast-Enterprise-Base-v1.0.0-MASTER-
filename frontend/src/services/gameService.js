@@ -38,9 +38,17 @@ export async function startGameRequest(roomPin, token) {
   return response.json();
 }
 
-export async function nextQuestionRequest(roomPin, token) {
+export async function revealLeaderboardRequest(roomPin, token, expectedIndex) {
+  const response = await fetch(`${API}/reveal-leaderboard/${roomPin}?expected_index=${expectedIndex}`, {
+    method: "POST",
+    headers: createAuthorizationHeaders(token),
+  });
+  return response.json();
+}
+
+export async function nextQuestionRequest(roomPin, token, expectedIndex) {
   const response = await fetch(
-    `${API}/next-question/${roomPin}`,
+    `${API}/next-question/${roomPin}?expected_index=${expectedIndex}`,
     {
       method: "POST",
       headers: createAuthorizationHeaders(token),
@@ -52,6 +60,31 @@ export async function nextQuestionRequest(roomPin, token) {
 
 export async function closeRoomRequest(roomPin, token) {
   const response = await fetch(`${API}/close-room/${roomPin}`, {
+    method: "POST",
+    headers: createAuthorizationHeaders(token),
+  });
+  return response.json();
+}
+
+
+export async function pauseGameRequest(roomPin, token) {
+  const response = await fetch(`${API}/pause-game/${roomPin}`, {
+    method: "POST",
+    headers: createAuthorizationHeaders(token),
+  });
+  return response.json();
+}
+
+export async function resumeGameRequest(roomPin, token) {
+  const response = await fetch(`${API}/resume-game/${roomPin}`, {
+    method: "POST",
+    headers: createAuthorizationHeaders(token),
+  });
+  return response.json();
+}
+
+export async function endGameRequest(roomPin, token) {
+  const response = await fetch(`${API}/end-game/${roomPin}`, {
     method: "POST",
     headers: createAuthorizationHeaders(token),
   });

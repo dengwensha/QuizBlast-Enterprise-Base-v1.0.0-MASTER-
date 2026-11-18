@@ -17,7 +17,8 @@ row = {
     "Time": "20",
     "Difficulty": "Orta",
     "QuestionType": "Çoktan Seçmeli",
-    "Tags": "tarih,savaş,ww2"
+    "Tags": "tarih,savaş,ww2",
+    "Explanation": "Savaş 1939 yılında başladı."
 }
 
 dto = map_excel_row_to_qbds(row, row_no=2)
@@ -26,10 +27,12 @@ ok = validate_qbds_question(dto, 2, report)
 
 assert ok is True
 assert dto.correct == "B"
+assert dto.explanation == "Savaş 1939 yılında başladı."
 
 legacy = qbds_to_legacy_payload(dto)
 
 assert legacy["correct"] == 1
 assert legacy["options"][1] == "1939"
+assert legacy["explanation"] == "Savaş 1939 yılında başladı."
 
 print("QBDS Mapper manual test passed.")

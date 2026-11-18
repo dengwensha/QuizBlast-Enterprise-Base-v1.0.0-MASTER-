@@ -1,13 +1,22 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { QRCodeCanvas } from "qrcode.react";
+import { EventLiveDisplay } from './components/events/EventLive';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import JoinQrPopup from "./components/game/JoinQrPopup";
+import StageViewport from "./components/game/StageViewport";
+import QuestionProgress from "./components/game/QuestionProgress";
 import confetti from "canvas-confetti";
 
+import EventStudio from "./components/events/EventStudio";
 import AdminView from "./components/admin/AdminView.jsx";
 import GameOver from "./components/game/GameOver";
+import PlayerGameOver from "./components/game/PlayerGameOver";
 import DisplayConnect from "./components/game/DisplayConnect";
 import JoinScreen from "./components/game/JoinScreen";
 import HostSetup from "./components/game/HostSetup";
+import ContentLibrary from "./components/content/ContentLibrary";
+import { copyContentSet } from "./services/contentService";
 import QuestionGame from "./components/game/QuestionGame";
+import PlayerLobbyStage from "./components/game/PlayerLobbyStage";
+import "./components/layout/home-screen.css";
 
 import { APP_URL } from "./services/api";
 
@@ -18,6 +27,10 @@ import {
   createRoomRequest,
   startGameRequest,
   nextQuestionRequest,
+  revealLeaderboardRequest,
+  pauseGameRequest,
+  resumeGameRequest,
+  endGameRequest,
   closeRoomRequest,
   listHostRoomsRequest,
 } from "./services/gameService";
@@ -31,6 +44,12 @@ import { useImportState } from "./hooks/useImportState";
 const isMobile = window.innerWidth < 700;
 
 export default function App() {
+  const displayKey = new URLSearchParams(window.location.hash.slice(1)).get('event-display');
+  return displayKey ? <EventLiveDisplay displayKey={displayKey} renderQuiz={room => <QuizBlastApp key={room.instance_id} programRoom={room} />} /> : <QuizBlastApp />;
+}
+
+function QuizBlastApp({ programRoom } = {}) {
+  const [returnEvent, setReturnEvent] = useState(null);
   const {
     user,
     authMode,
@@ -47,12 +66,45 @@ export default function App() {
   const playTone=(f=600,d=120,t='sine')=>{try{const A=window.AudioContext||window.webkitAudioContext; const c=new A(); const o=c.createOscillator(); const g=c.createGain(); o.type=t; o.frequency.value=f; o.connect(g); g.connect(c.destination); g.gain.setValueAtTime(.08,c.currentTime); g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d/1000); o.start(); o.stop(c.currentTime+d/1000);}catch(e){}};
   const fireSmallConfetti=()=>confetti({particleCount:60,spread:70,origin:{y:.7}}); const fireBigConfetti=()=>{const end=Date.now()+3000; const i=setInterval(()=>{if(Date.now()>end){clearInterval(i);return;} confetti({particleCount:40,spread:120,startVelocity:40,origin:{x:Math.random(),y:Math.random()*.5}})},250)};
   const [mode,setMode]=useState(() => {
+    if (programRoom) return 'display';
     try {
       const saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
-      return !saved?.instanceId ? null : saved.who==='HOST'?'host':saved.who==='DISPLAY'?'display':saved.who?'player':null;
+      if (saved?.instanceId) return saved.who==='HOST'?'host':saved.who==='DISPLAY'?'display':saved.who?'player':null;
+      // Restore both the event list and its live subpage. EventStudio separately
+      // validates the saved live event against the signed-in account.
+      if (user && window.history.state?.quizblastMode === 'events') return 'events';
+      // QR room links open Player join directly without an account; Host/Admin still require authentication.
+      return new URLSearchParams(window.location.search).get('pin') ? 'player' : null;
     } catch { return null; }
   });
+  const [restoringSession, setRestoringSession] = useState(() => {
+    if (programRoom) return false;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
+      return Boolean(saved?.pin && saved?.who && saved?.instanceId);
+    } catch { return false; }
+  });
   const [hostRooms, setHostRooms] = useState([]);
+  const joinedRef = useRef(false);
+  const modeRef = useRef(mode);
+  const activeHistoryRef = useRef(false);
+  const pendingPlayerJoinRef = useRef(false);
+  const hasActiveSession = () => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session'));
+      return Boolean(saved?.pin && saved?.who && saved?.instanceId);
+    } catch { return false; }
+  };
+  const navigateMode = (nextMode) => {
+    window.history.pushState({ quizblastMode: nextMode }, '', window.location.href);
+    setMode(nextMode);
+  };
+  const replaceMode = (nextMode) => {
+    pendingPlayerJoinRef.current = false;
+    window.history.replaceState({ ...(window.history.state || {}), quizblastMode: nextMode, quizblastActiveSession: false }, '', window.location.href);
+    activeHistoryRef.current = false;
+    setMode(nextMode);
+  };
   const [hostRoomsError, setHostRoomsError] = useState(false);
   const {
     roomPin,
@@ -65,11 +117,14 @@ export default function App() {
     players,
     question,
     questionImage,
+    questionImageAlt,
     options,
     leaderboard,
     currentQuestionIndex,
     totalQuestions,
+    questionIsSnapshot,
     questionResult,
+    gameStage,
     timeLeft,
     answered,
     gameOver,
@@ -80,6 +135,7 @@ export default function App() {
     sendAnswer,
     closeSession,
   } = useGameSession({
+    persistSession: !programRoom,
     onQuestion: () => playTone(720,140,'triangle'),
     onQuestionResult: () => {
       fireSmallConfetti();
@@ -93,7 +149,7 @@ export default function App() {
     },
     onCountdown: () => playTone(520,80,'square'),
     onHostUnauthorized: () => clearAuth(true),
-    onRoomClosed: () => { setMode(null); alert('Oda kapatıldı.'); },
+    onRoomClosed: () => { if (programRoom) return; replaceMode(null); alert('Oda kapatıldı.'); },
   });
   const {
     quizzes,
@@ -135,24 +191,81 @@ export default function App() {
     loadSelectedQuestions
   });
   const [finalLimit,setFinalLimit]=useState(3);
-  const optionColors=['#e21b3c','#1368ce','#d89e00','#26890c'];
+  const optionColors=['var(--qb-answer-a)','var(--qb-answer-b)','var(--qb-answer-c)','var(--qb-answer-d)'];
   const visiblePlayers=players.filter(p=>p!=='HOST'&&p!=='DISPLAY'); const visibleLeaderboard=leaderboard.filter(p=>p[0]!=='HOST'&&p[0]!=='DISPLAY'); const podium=useMemo(()=>visibleLeaderboard.slice(0,3),[visibleLeaderboard]);
-  const logout=()=>{closeSession(); clearAuth(); setMode(null); clearQuizState();};
-  const leaveGame=()=>{closeSession(); setMode(null);};
+  joinedRef.current = joined;
+  modeRef.current = mode;
+  const logout=()=>{closeSession(); clearAuth(); replaceMode(null); clearQuizState();};
+  const leaveGame=()=>{closeSession(); replaceMode(returnEvent ? 'events' : null);};
   useEffect(() => {
+    if (programRoom) return;
+    window.history.replaceState({ ...(window.history.state || {}), quizblastMode: modeRef.current }, '', window.location.href);
+    // A restored session is active even before its asynchronous socket reconnect completes.
+    // Arm the guard before the first popstate; otherwise Back can leave the document.
+    if (hasActiveSession() && !window.history.state?.quizblastActiveSession) {
+      window.history.pushState({ quizblastMode: modeRef.current, quizblastActiveSession: true }, '', window.location.href);
+      activeHistoryRef.current = true;
+    }
+    const handlePopState = (event) => {
+      if (joinedRef.current || hasActiveSession()) {
+        pendingPlayerJoinRef.current = false;
+        // Keep the existing active-session history entry instead of creating
+        // another synthetic entry on every Back. Repeated pushState entries
+        // can be skipped by browser history intervention on real toolbar Back.
+        if (!event.state?.quizblastActiveSession) {
+          window.history.forward();
+        }
+        activeHistoryRef.current = true;
+        return;
+      }
+      activeHistoryRef.current = false;
+      // A Back press during the initial Player handshake stays inside QuizBlast.
+      // The pending guard is consumed, so a failed join cannot trap navigation.
+      if (pendingPlayerJoinRef.current) {
+        pendingPlayerJoinRef.current = false;
+        setMode('player');
+        return;
+      }
+      const nextMode = event.state?.quizblastMode ?? null;
+      setMode(nextMode);
+      if (nextMode === 'host' || nextMode === 'admin') loadQuizzes();
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (programRoom || !joined || activeHistoryRef.current) return;
+    // Reconnection must not add another browser history entry.
+    if (window.history.state?.quizblastActiveSession) {
+      activeHistoryRef.current = true;
+      return;
+    }
+    window.history.pushState({ quizblastMode: modeRef.current, quizblastActiveSession: true }, '', window.location.href);
+    activeHistoryRef.current = true;
+  }, [joined]);
+  useEffect(() => {
+    if (programRoom) {
+      setRoomPin(programRoom.pin);
+      connectWebsocket(programRoom.pin, 'DISPLAY', undefined, programRoom.instance_id);
+      return;
+    }
     let saved;
     try { saved=JSON.parse(sessionStorage.getItem('quizblast_active_session') || localStorage.getItem('quizblast_active_session')); }
-    catch { return; }
+    catch { setRestoringSession(false); return; }
     if (saved?.pin && saved?.who && !saved?.instanceId) {
       sessionStorage.removeItem('quizblast_active_session');
       localStorage.removeItem('quizblast_active_session');
+      setRestoringSession(false);
       return;
     }
-    if (saved?.pin && saved?.who && saved?.instanceId && user?.token && (saved.who !== 'HOST' || !tokenExpired(user.token))) {
+    if (saved?.pin && saved?.who && saved?.instanceId && (saved.who !== 'HOST' || (user?.token && !tokenExpired(user.token)))) {
       setRoomPin(saved.pin);
       connectWebsocket(saved.pin,saved.who,saved.who==='HOST'?user.token:undefined,saved.instanceId);
+    } else {
+      setRestoringSession(false);
     }
-  }, [user?.token]);
+  }, [user?.token, programRoom?.instance_id]);
   useEffect(() => {
     if ((mode === "admin" || mode === "host") && selectedQuizId) {
       loadSelectedQuestions(selectedQuizId);
@@ -180,11 +293,36 @@ export default function App() {
   setRoomPin(d.room_pin);
   connectWebsocket(d.room_pin, "HOST", user.token);
 };
+  const playPublishedSet = async (set) => {
+    if (!user?.token) throw new Error("Oyun başlatmak için giriş yapmalısın.");
+    if (!set.play_quiz_id) throw new Error("Setin oynatma bilgisi bulunamadı.");
+    const result = await createRoomRequest(set.play_quiz_id, user.token);
+    if (!result.room_pin) throw new Error(result.detail || result.error || "Oda oluşturulamadı.");
+    setRoomPin(result.room_pin);
+    navigateMode("host");
+    connectWebsocket(result.room_pin, "HOST", user.token);
+  };
+  const copyPublishedSet = async (set) => {
+    const created = await copyContentSet(user, set.id);
+    if (!created.id) throw new Error("Kopya oluşturulamadı.");
+    setSelectedQuizId(String(created.id));
+    await loadQuizzes();
+    await loadSelectedQuestions(String(created.id));
+    navigateMode("admin");
+  };
   const returnToRoom = (room) => {
     setRoomPin(room.pin);
     connectWebsocket(room.pin, 'HOST', user.token, room.instance_id);
   };
-  const joinRoom=()=>{if(!roomPin.trim())return alert('PIN gir'); if(!name.trim())return alert('İsim gir'); connectWebsocket(roomPin,name);}; const connectDisplay=()=>{if(!roomPin.trim())return alert('PIN gir'); connectWebsocket(roomPin,'DISPLAY');};
+  const joinRoom=()=>{if(!roomPin.trim())return alert('PIN gir'); if(!name.trim())return alert('İsim gir');
+    // Guard the asynchronous handshake before the server sends its first players event.
+    pendingPlayerJoinRef.current = true;
+    if (!window.history.state?.quizblastActiveSession) {
+      window.history.pushState({ quizblastMode: 'player', quizblastActiveSession: true }, '', window.location.href);
+      activeHistoryRef.current = true;
+    }
+    connectWebsocket(roomPin,name);
+  }; const connectDisplay=()=>{if(!roomPin.trim())return alert('PIN gir'); connectWebsocket(roomPin,'DISPLAY');};
   const startGame = async () => {
     playTone(700, 100, 'triangle');
 
@@ -197,77 +335,126 @@ export default function App() {
       alert(result.error);
     }
   };
-  const nextQuestion = async () => {
-  const result = await nextQuestionRequest(
-    roomPin,
-    user.token
-  );
-
-  if (result.error) {
-    alert(result.error);
-  }
-};
+  // Keep a successful action locked until the server broadcasts a new stage.
+  // This guards double clicks even before React can rerender the Host controls.
+  const transitionLockRef = useRef(null);
+  const performHostTransition = async (action, request) => {
+    const key = `${roomPin}:${currentQuestionIndex}:${gameStage}:${action}`;
+    if (transitionLockRef.current === key) return;
+    transitionLockRef.current = key;
+    try {
+      const result = await request(roomPin, user.token, currentQuestionIndex);
+      if (result.error || result.detail) {
+        transitionLockRef.current = null;
+        alert(result.detail || result.error);
+      }
+    } catch (error) {
+      transitionLockRef.current = null;
+      alert("Geçiş isteği tamamlanamadı; tekrar deneyebilirsiniz.");
+    }
+  };
+  const revealLeaderboard = () =>
+    performHostTransition("reveal", revealLeaderboardRequest);
+  const nextQuestion = () =>
+    performHostTransition("next", nextQuestionRequest);
+  const pauseGame = async () => {
+    const result = await pauseGameRequest(roomPin, user.token);
+    if (result.error || result.detail) alert(result.detail || result.error);
+  };
+  const resumeGame = async () => {
+    const result = await resumeGameRequest(roomPin, user.token);
+    if (result.error || result.detail) alert(result.detail || result.error);
+  };
+  const endGame = async () => {
+    if (!confirm('Oyun sonlandırılsın mı? Mevcut skorlar final sonuç olarak korunacak.')) return;
+    const result = await endGameRequest(roomPin, user.token);
+    if (result.error || result.detail) alert(result.detail || result.error);
+  };
   const closeRoom = async () => {
     if (!confirm('Oda kapatılsın mı? Oyuncular ayrılacak ve bu PIN ile yeniden oynanamayacak.')) return;
     const result = await closeRoomRequest(roomPin, user.token);
     if (result.status === 'room_closed') {
       closeSession();
-      setMode(null);
+      replaceMode(returnEvent ? 'events' : null);
     } else {
       alert(result.detail || result.error || 'Oda kapatılamadı.');
     }
   };
 
-  if(!user) return <div style={styles.splash}><div style={styles.joinCard}><h1>QuizBlast 🚀</h1><h2>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</h2><input placeholder="E-posta" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={styles.input}/><input placeholder="Şifre" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={styles.input}/><button onClick={authMode==='login'?login:register} style={styles.joinButton}>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</button><button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} style={{...styles.joinButton,marginTop:10,background:'#333'}}>{authMode==='login'?'Hesap oluştur':'Giriş ekranına dön'}</button></div></div>;
-  if(!mode) return <div style={styles.splash}><div style={styles.center}><h1 style={styles.logo}>QuizBlast 🚀</h1><p style={styles.subtitle}>Multiplayer Quiz Platform</p><p>{user.email}</p><button onClick={()=>{setMode('host');loadQuizzes();}} style={styles.mainButton}>🎤 Host Game</button><button onClick={()=>setMode('player')} style={styles.mainButton}>🎮 Join Game</button><button onClick={()=>setMode('display')} style={styles.mainButton}>📺 Display Screen</button><button onClick={()=>{setMode('admin');loadQuizzes();}} style={styles.mainButton}>🧠 Admin Panel</button><button onClick={logout} style={{...styles.mainButton,background:'#e21b3c',color:'white'}}>Çıkış Yap</button></div></div>;
-  if(mode==='admin') return <AdminView styles={styles} admin={admin} {...{quizzes,selectedQuizId,setSelectedQuizId,selectedQuestions,importExcel,commitImport,importPreview,importing,importSummary,setMode}} />;
+  // Anonymous Player and read-only Display are allowed; Host/Admin still require authentication.
+  if(!user && mode !== 'player' && mode !== 'display') return <div style={styles.splash}><div style={styles.joinCard}><h1>QuizBlast 🚀</h1><h2>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</h2><input placeholder="E-posta" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={styles.input}/><input placeholder="Şifre" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={styles.input}/><button onClick={authMode==='login'?login:register} style={styles.joinButton}>{authMode==='login'?'Giriş Yap':'Kayıt Ol'}</button><button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} style={{...styles.joinButton,marginTop:10,background:'var(--qb-navy-900)'}}>{authMode==='login'?'Hesap oluştur':'Giriş ekranına dön'}</button><div style={{marginTop:20,paddingTop:16,borderTop:'1px solid var(--qb-primary-200)'}}><p style={{margin:'0 0 10px',fontSize:14,color:'var(--qb-text-secondary)'}}>Yarışmaya katılmak için üyelik gerekmiyor.</p><button type="button" onClick={()=>navigateMode('player')} style={{...styles.joinButton,background:'var(--qb-primary-600)',width:'100%'}}>🎮 PIN ile Üyeliksiz Katıl</button><button type="button" onClick={()=>navigateMode('display')} style={{...styles.joinButton,marginTop:10,background:'var(--qb-navy-900)',width:'100%'}}>📺 Üyeliksiz Display Bağlan</button></div></div></div>;
+  if(!mode) return <main className="qb-home"><div className="qb-home__shell"><header className="qb-home__header"><h1 className="qb-home__brand">QuizBlast 🚀</h1><p className="qb-home__subtitle">Multiplayer Quiz Platform</p><span className="qb-home__account">{user.email}</span></header><nav className="qb-home__grid" aria-label="QuizBlast ana menü"><button className="qb-home__action" onClick={()=>navigateMode('events')}>Etkinliklerim</button><button className="qb-home__action" onClick={()=>{navigateMode('host');loadQuizzes();}}>🎤 Host Game</button><button className="qb-home__action" onClick={()=>navigateMode('player')}>🎮 Join Game</button><button className="qb-home__action" onClick={()=>navigateMode('display')}>📺 Display Screen</button><button className="qb-home__action" onClick={()=>{navigateMode('admin');loadQuizzes();}}>🧠 Admin Panel</button><button className="qb-home__action" onClick={()=>navigateMode('content')}>📚 Hazır Soru Setleri</button></nav><button className="qb-home__logout" onClick={logout}>Çıkış Yap</button></div></main>;
+  if(mode==='events') return <EventStudio key={user.email} user={user} initialLiveEvent={returnEvent} onBack={()=>{setReturnEvent(null);navigateMode(null);}} onOpenHost={(session, eventId)=>{setReturnEvent(eventId || null);navigateMode('host');returnToRoom(session);}} onOpenDisplay={session=>{navigateMode('display');setRoomPin(session.pin);connectWebsocket(session.pin,'DISPLAY',undefined,session.instance_id);}} />;
+  if(mode==='content') return <ContentLibrary onBack={()=>navigateMode(null)} onPlay={playPublishedSet} onCopy={copyPublishedSet} />;
+  if(mode==='admin') return <AdminView styles={styles} admin={admin} {...{quizzes,selectedQuizId,setSelectedQuizId,selectedQuestions,importExcel,commitImport,importPreview,importing,importSummary,setMode:navigateMode}} />;
+  if(restoringSession && !joined && hasActiveSession()) return <div style={styles.splash}><div style={styles.center}><h2>Odaya yeniden bağlanılıyor...</h2><button onClick={leaveGame} style={styles.mainButton}>Oyundan Çık</button></div></div>;
   if(reconnecting) return <div style={styles.splash}><div style={styles.center}><h2>Odaya yeniden bağlanılıyor...</h2><button onClick={leaveGame} style={styles.mainButton}>Oyundan Çık</button></div></div>;
-  if(mode==='host'&&!joined) return <HostSetup {...{quizzes,selectedQuizId,setSelectedQuizId,loadSelectedQuestions,finalLimit,setFinalLimit,createRoom,selectedQuestions,setMode,styles,hostRooms,hostRoomsError,returnToRoom}} />;
-  if(mode==='player'&&!joined) return <JoinScreen {...{roomPin,setRoomPin,name,setName,joinRoom,setMode}}styles={styles} />;
-  if(mode==='display'&&!joined) return <DisplayConnect {...{roomPin,setRoomPin,connectDisplay,setMode}} styles={styles}/>;
+  if(mode==='host'&&!joined) return <HostSetup {...{quizzes,selectedQuizId,setSelectedQuizId,loadSelectedQuestions,finalLimit,setFinalLimit,createRoom,selectedQuestions,setMode:navigateMode,styles,hostRooms,hostRoomsError,returnToRoom}} />;
+  if(mode==='player'&&!joined) return <JoinScreen {...{roomPin,setRoomPin,name,setName,joinRoom,setMode:navigateMode}}styles={styles} />;
+  if(programRoom && !joined) return <p role="status">Quiz Display bağlanıyor…</p>;
+  if(mode==='display'&&!joined) return <DisplayConnect {...{roomPin,setRoomPin,connectDisplay,setMode:navigateMode}} styles={styles}/>;
 
 return (
-  <div style={styles.app}>
-    <div style={styles.topbar}>
+  <div className="qb-game-shell" style={styles.app}>
+  <StageViewport enabled={mode === "host" || mode === "display"} header={
+    <div className="qb-stage__game-header" style={styles.topbar}>
       <h1>{mode === "display" ? "📺 QuizBlast Display" : "QuizBlast 🚀"}</h1>
       <h2>PIN: {roomPin}</h2>
+      <QuestionProgress active={Boolean(question) && !gameOver} index={currentQuestionIndex}
+        total={totalQuestions} isSnapshot={questionIsSnapshot} />
 
       {roomPin && (mode === "host" || mode === "display") && (
-        <div style={styles.qrBox}>
-          <QRCodeCanvas
-            value={`${APP_URL}?pin=${roomPin}`}
-            size={160}
-            includeMargin
-          />
-        </div>
+        <JoinQrPopup roomPin={roomPin} joinUrl={`${APP_URL}?pin=${roomPin}`} players={visiblePlayers} />
       )}
 
-      {mode === "host" && (
+      {mode === "host" && !question && !gameOver && (
         <button onClick={startGame} style={styles.hostButton}>
           ▶ Oyunu Başlat
         </button>
       )}
 
+      {mode === "host" && question && !questionResult && !paused && (
+        <button onClick={pauseGame} style={styles.hostButton}>
+          ⏸ Oyunu Duraklat
+        </button>
+      )}
+
+      {mode === "host" && question && !questionResult && paused && (
+        <button onClick={resumeGame} style={styles.hostButton}>
+          ▶ Devam Et
+        </button>
+      )}
+
+      {mode === "host" && joined && !gameOver && (question || questionResult) && (
+        <button onClick={endGame} style={{...styles.hostButton, background:'var(--qb-danger)', color:'white'}}>
+          🏁 Oyunu Sonlandır
+        </button>
+      )}
+
       {mode === "host" && joined && (
-        <button onClick={closeRoom} style={{...styles.hostButton, background:'#e21b3c', color:'white'}}>
+        <button onClick={closeRoom} style={{...styles.hostButton, background:'var(--qb-danger)', color:'white'}}>
           Odayı Kapat
         </button>
       )}
 
-      <button
+      {!programRoom && <button
         onClick={leaveGame}
         style={{
           ...styles.hostButton,
-          background: "#e21b3c",
+          background: "var(--qb-danger)",
           color: "white",
         }}
       >
-        Oyundan Çık
-      </button>
+        {returnEvent ? 'Canlı Programa Dön' : 'Oyundan Çık'}
+      </button>}
     </div>
-
+  }>
     <div style={styles.container}>
-      {!question && !gameOver && (
+      {!question && !gameOver && mode === "player" && (
+        <PlayerLobbyStage roomPin={roomPin} playerName={playerName} players={visiblePlayers} />
+      )}
+
+      {!question && !gameOver && mode !== "player" && (
         <div style={styles.waiting}>
           <h1>Oyuncular Bekleniyor...</h1>
           {visiblePlayers.map((p, i) => (
@@ -278,7 +465,15 @@ return (
         </div>
       )}
 
-      {gameOver && (
+      {gameOver && mode === "player" && (
+        <PlayerGameOver
+          podium={podium}
+          visibleLeaderboard={visibleLeaderboard}
+          finalLimit={finalLimit}
+        />
+      )}
+
+      {gameOver && mode !== "player" && (
         <GameOver
           podium={podium}
           visibleLeaderboard={visibleLeaderboard}
@@ -291,6 +486,7 @@ return (
         <QuestionGame
           question={question}
           questionImage={questionImage}
+          questionImageAlt={questionImageAlt}
           timeLeft={timeLeft}
           answerCount={answerCount}
           totalPlayers={totalPlayers}
@@ -301,21 +497,24 @@ return (
           answered={answered}
           paused={paused}
           questionResult={questionResult}
+          gameStage={gameStage}
           optionColors={optionColors}
           visibleLeaderboard={visibleLeaderboard}
           nextQuestion={nextQuestion}
+          revealLeaderboard={revealLeaderboard}
           currentQuestionIndex={currentQuestionIndex}
           totalQuestions={totalQuestions || selectedQuestions.length}
           styles={styles}
         />
       )}
     </div>
+  </StageViewport>
   </div>
 );
 }
 
 
-const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#46178f,#6c2bd9)',display:'flex',justifyContent:'center',alignItems:'center',color:'white',fontFamily:'Arial',padding:16},center:{textAlign:'center'},logo:{fontSize:isMobile?42:64,marginBottom:10},subtitle:{fontSize:isMobile?18:22,marginBottom:30},mainButton:{display:'block',width:isMobile?'100%':320,padding:18,margin:'15px auto',fontSize:isMobile?18:22,borderRadius:18,border:'none',cursor:'pointer',fontWeight:'bold'},app:{minHeight:'100vh',background:'#f2f2f2',fontFamily:'Arial'},topbar:{background:'#46178f',color:'white',padding:16,textAlign:'center',display:'flex',flexWrap:'wrap',justifyContent:'center',alignItems:'center',gap:12},container:{maxWidth:1200,margin:'0 auto',padding:isMobile?12:20},card:{background:'white',color:'black',padding:isMobile?16:25,borderRadius:18,marginBottom:20,boxShadow:'0 4px 12px rgba(0,0,0,0.12)'},input:{width:'100%',padding:14,marginBottom:12,fontSize:17,boxSizing:'border-box'},purpleButton:{padding:14,background:'#46178f',color:'white',border:'none',borderRadius:12,fontSize:18,cursor:'pointer'},deleteButton:{padding:'8px 12px',background:'#e21b3c',color:'white',border:'none',borderRadius:8,cursor:'pointer'},questionDetailCard:{display:'flex',flexDirection:isMobile?'column':'row',justifyContent:'space-between',alignItems:'flex-start',padding:16,borderBottom:'1px solid #ddd',gap:20},joinCard:{background:'white',color:'black',padding:isMobile?24:40,borderRadius:20,width:isMobile?'100%':350,textAlign:'center'},joinButton:{width:'100%',padding:15,background:'#46178f',color:'white',border:'none',fontSize:18,borderRadius:10},hostButton:{padding:'12px 24px',border:'none',borderRadius:12,background:'white',color:'#46178f',fontWeight:'bold',cursor:'pointer'},qrBox:{background:'white',padding:14,borderRadius:16,margin:10},waiting:{textAlign:'center',marginTop:isMobile?40:80},player:{fontSize:isMobile?22:28,margin:10},questionCard:{background:'white',borderRadius:20,padding:isMobile?18:30,textAlign:'center',marginBottom:20,boxShadow:'0 4px 12px rgba(0,0,0,0.15)'},questionImage:{maxWidth:'100%',maxHeight:isMobile?220:360,objectFit:'contain',borderRadius:18,margin:'20px auto',display:'block',boxShadow:'0 4px 14px rgba(0,0,0,0.18)'},previewImage:{maxWidth:260,maxHeight:160,objectFit:'contain',borderRadius:12,margin:'10px 0',display:'block',border:'1px solid #ddd'},timerCircle:{width:isMobile?90:120,height:isMobile?90:120,borderRadius:'50%',background:'#46178f',color:'white',fontSize:isMobile?36:48,display:'flex',justifyContent:'center',alignItems:'center',margin:'20px auto'},progressOuter:{height:20,background:'#ddd',borderRadius:20,overflow:'hidden'},progressInner:{height:'100%',background:'#46178f',transition:'1s linear'},answers:{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16},answerButton:{color:'white',border:'none',padding:isMobile?24:40,fontSize:isMobile?20:28,borderRadius:20,minHeight:isMobile?110:180,cursor:'pointer',fontWeight:'bold'},answered:{marginTop:20,textAlign:'center',fontSize:24,color:'green',fontWeight:'bold'},board:{background:'white',borderRadius:20,padding:20,marginTop:30},boardRow:{display:'flex',justifyContent:'space-between',padding:10,fontSize:isMobile?18:22,borderBottom:'1px solid #ddd'},gameOver:{textAlign:'center',marginTop:60},gameOverTitle:{fontSize:isMobile?42:64,color:'#46178f'},podium:{display:'flex',flexDirection:isMobile?'column':'row',justifyContent:'center',alignItems:'center',gap:20,marginTop:40},podiumItem:{width:isMobile?'100%':220,borderRadius:20,color:'black',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',fontWeight:'bold',boxShadow:'0 4px 12px rgba(0,0,0,0.2)'},finalBoard:{background:'white',borderRadius:20,padding:20,marginTop:40},finalRow:{display:'flex',justifyContent:'space-between',padding:15,fontSize:isMobile?18:24,borderBottom:'1px solid #ddd'},
+const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,var(--qb-primary-700),var(--qb-primary-500))',display:'flex',justifyContent:'center',alignItems:'center',color:'white',fontFamily:'inherit',padding:16},center:{textAlign:'center'},logo:{fontSize:isMobile?42:64,marginBottom:10},subtitle:{fontSize:isMobile?18:22,marginBottom:30},mainButton:{display:'block',width:isMobile?'100%':320,padding:18,margin:'15px auto',fontSize:isMobile?18:22,borderRadius:18,border:'none',cursor:'pointer',fontWeight:'bold'},app:{minHeight:'100vh',background:'var(--qb-background)',fontFamily:'inherit'},topbar:{background:'var(--qb-primary-600)',color:'white',padding:16,textAlign:'center',display:'flex',flexWrap:'wrap',justifyContent:'center',alignItems:'center',gap:12},container:{maxWidth:1200,margin:'0 auto',padding:isMobile?12:20},card:{background:'var(--qb-surface)',color:'var(--qb-text-primary)',padding:isMobile?16:25,borderRadius:18,marginBottom:20,boxShadow:'var(--qb-shadow-2)'},input:{width:'100%',padding:14,marginBottom:12,fontSize:17,boxSizing:'border-box'},purpleButton:{padding:14,background:'var(--qb-primary-600)',color:'white',border:'none',borderRadius:12,fontSize:18,cursor:'pointer'},deleteButton:{padding:'8px 12px',background:'var(--qb-danger)',color:'white',border:'none',borderRadius:8,cursor:'pointer'},questionDetailCard:{display:'flex',flexDirection:isMobile?'column':'row',justifyContent:'space-between',alignItems:'flex-start',padding:16,borderBottom:'1px solid var(--qb-border)',gap:20},joinCard:{background:'var(--qb-surface)',color:'var(--qb-text-primary)',padding:isMobile?24:40,borderRadius:20,width:isMobile?'100%':350,textAlign:'center'},joinButton:{width:'100%',padding:15,background:'var(--qb-primary-600)',color:'white',border:'none',fontSize:18,borderRadius:10},hostButton:{padding:'12px 24px',border:'none',borderRadius:12,background:'var(--qb-surface)',color:'var(--qb-primary-700)',fontWeight:'bold',cursor:'pointer'},qrBox:{background:'var(--qb-surface)',padding:14,borderRadius:16,margin:10},waiting:{textAlign:'center',marginTop:isMobile?40:80},player:{fontSize:isMobile?22:28,margin:10},questionCard:{background:'var(--qb-surface)',borderRadius:20,padding:isMobile?18:30,textAlign:'center',marginBottom:20,boxShadow:'0 4px 12px rgba(0,0,0,0.15)'},questionImage:{maxWidth:'100%',maxHeight:isMobile?220:360,objectFit:'contain',borderRadius:18,margin:'20px auto',display:'block',boxShadow:'0 4px 14px rgba(0,0,0,0.18)'},previewImage:{maxWidth:260,maxHeight:160,objectFit:'contain',borderRadius:12,margin:'10px 0',display:'block',border:'1px solid var(--qb-border)'},timerCircle:{width:isMobile?90:120,height:isMobile?90:120,borderRadius:'50%',background:'var(--qb-primary-600)',color:'white',fontSize:isMobile?36:48,display:'flex',justifyContent:'center',alignItems:'center',margin:'20px auto'},progressOuter:{height:20,background:'var(--qb-border)',borderRadius:20,overflow:'hidden'},progressInner:{height:'100%',background:'var(--qb-primary-600)',transition:'1s linear'},answers:{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16},answerButton:{color:'white',border:'none',padding:isMobile?24:40,fontSize:isMobile?20:28,borderRadius:20,minHeight:isMobile?110:180,cursor:'pointer',fontWeight:'bold'},answered:{marginTop:20,textAlign:'center',fontSize:24,color:'var(--qb-success)',fontWeight:'bold'},board:{background:'var(--qb-surface)',borderRadius:20,padding:20,marginTop:30},boardRow:{display:'flex',justifyContent:'space-between',padding:10,fontSize:isMobile?18:22,borderBottom:'1px solid var(--qb-border)'},gameOver:{textAlign:'center',marginTop:60},gameOverTitle:{fontSize:isMobile?42:64,color:'var(--qb-primary-700)'},podium:{display:'flex',flexDirection:isMobile?'column':'row',justifyContent:'center',alignItems:'center',gap:20,marginTop:40},podiumItem:{width:isMobile?'100%':220,borderRadius:20,color:'var(--qb-text-primary)',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',fontWeight:'bold',boxShadow:'0 4px 12px rgba(0,0,0,0.2)'},finalBoard:{background:'var(--qb-surface)',borderRadius:20,padding:20,marginTop:40},finalRow:{display:'flex',justifyContent:'space-between',padding:15,fontSize:isMobile?18:24,borderBottom:'1px solid var(--qb-border)'},
   liveStage: {
     width: "100%",
     maxWidth: 1600,
@@ -337,7 +536,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
     fontSize: isMobile ? 38 : 72,
     fontWeight: "900",
     lineHeight: 1.18,
-    color: "#111",
+    color: "var(--qb-text-primary)",
     marginBottom: 20
   },
 
@@ -355,7 +554,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
     width: isMobile ? 110 : 150,
     height: isMobile ? 110 : 150,
     borderRadius: "50%",
-    background: "#46178f",
+    background: "var(--qb-primary-600)",
     color: "white",
     fontSize: isMobile ? 46 : 70,
     display: "flex",
@@ -368,7 +567,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
 
   liveProgressOuter: {
     height: 24,
-    background: "#ddd",
+    background: "var(--qb-border)",
     borderRadius: 24,
     overflow: "hidden",
     marginTop: 12
@@ -376,7 +575,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
 
   liveProgressInner: {
     height: "100%",
-    background: "#46178f",
+    background: "var(--qb-primary-600)",
     transition: "1s linear"
   },
 
@@ -438,7 +637,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
 
   liveResultTitle: {
     fontSize: isMobile ? 30 : 46,
-    color: "#46178f",
+    color: "var(--qb-primary-700)",
     textAlign: "center"
   },
 
@@ -482,7 +681,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
   resultBarOuter: {
     width: "100%",
     height: 36,
-    background: "#eee",
+    background: "var(--qb-surface-subtle)",
     borderRadius: 18,
     overflow: "hidden"
   },
@@ -511,7 +710,7 @@ const styles={splash:{minHeight:'100vh',background:'linear-gradient(135deg,#4617
     justifyContent: "space-between",
     padding: isMobile ? 12 : 16,
     fontSize: isMobile ? 20 : 28,
-    borderBottom: "1px solid #ddd",
+    borderBottom: "1px solid var(--qb-border)",
     fontWeight: "800"
   },
 
