@@ -10,4 +10,12 @@ python -m app.services.extend_event_report EVENT_UUID 2026-12-15T18:00:00+03:00
 
 Komut, backend ortamında yetkili kabuk erişimi gerektirir. Yeni tarih mevcut bitişten sonra olmalıdır.
 
+Çoklu quiz programında yalnızca seçilen quiz adımının raporunu uzatmak için:
+
+```sh
+python -m app.services.extend_event_report EVENT_UUID 2026-12-15T18:00:00+03:00 --step-id STEP_UUID
+```
+
+`STEP_UUID`, aynı etkinliğin programındaki quiz adımı kimliğidir. Komut bu etkinlik/adım eşleşmesinin oda örneğine ait raporu günceller; diğer quiz raporları değişmez. PIN kullanılmaz. Adım verilmezse eski tek oturum raporu davranışı korunur. Eksik veya süresi dolmuş rapor, saat dilimsiz tarih ve mevcut bitişi uzatmayan tarih reddedilir. Bu bir kullanıcı API'si değildir; güvenilir operatör erişimi gerektirir.
+
 Yerel kabul: Yeni etkinlik oturumunu tamamla ve final sıralamasını raporla karşılaştır. Odayı kapatıp uygulamayı yeniden başlat; aynı raporu etkinlik sahibiyle aç. Başka hesapla erişimin reddedildiğini, uzatma sonrası yeni tarihin göründüğünü ve süresi dolan raporun açılmadığını doğrula.
