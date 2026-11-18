@@ -759,27 +759,27 @@ test("QB-AUTH-DISPLAY-02 F5 handles overlapping Display sockets without takeover
     expect(await started.json()).toEqual({ status: "started" });
     await expect(original.getByText("Display handover still shows this question?")).toBeVisible();
 
-    // Recreate the F5 race: the old Display socket is still connected when
-    // a new Display socket connects with the same PIN.
-    const replacement = await browser.newContext({ baseURL: frontendUrl });
+    // A different browser cannot replace this projection. Its UI must explain why.
+    const secondContext = await browser.newContext({ baseURL: frontendUrl });
     try {
-      const next = await replacement.newPage();
-      await next.goto("/");
-      await next.getByRole("button", { name: "📺 Üyeliksiz Display Bağlan" }).click();
-      await next.getByPlaceholder("Room PIN").fill(pin);
-      await next.getByRole("button", { name: "Connect Display" }).click();
-      await expect(next.getByText("Display handover still shows this question?")).toBeVisible({ timeout: 10_000 });
-      await expect(original.getByRole("button", { name: "Connect Display" })).toBeVisible({ timeout: 10_000 });
-      await expect(next.getByText("Display handover still shows this question?")).toBeVisible();
-
-      // The actual browser reload must restore without registration too.
-      await next.reload();
-      await expect(next.getByText("Display handover still shows this question?")).toBeVisible({ timeout: 10_000 });
-      expect(await next.evaluate(() => localStorage.getItem("quizblast_user"))).toBeNull();
-      await expect(next.getByRole("button", { name: "▶ Oyunu Başlat" })).toHaveCount(0);
-      await expect(next.getByRole("button", { name: "Odayı Kapat" })).toHaveCount(0);
+      const second = await secondContext.newPage();
+      await second.goto("/");
+      await second.getByRole("button", { name: "📺 Üyeliksiz Display Bağlan" }).click();
+      await second.getByPlaceholder("Room PIN").fill(pin);
+      const rejection = second.waitForEvent("dialog").then(async dialog => {
+        const message = dialog.message();
+        await dialog.accept();
+        return message;
+      });
+      await second.getByRole("button", { name: "Connect Display" }).click();
+      expect(await rejection).toContain("zaten bir Display");
+      await expect(original.getByText("Display handover still shows this question?")).toBeVisible();
+      await original.reload();
+      await expect(original.getByText("Display handover still shows this question?")).toBeVisible({ timeout: 10_000 });
+      expect(await original.evaluate(() => localStorage.getItem("quizblast_user"))).toBeNull();
+      await expect(original.getByRole("button", { name: "Odayı Kapat" })).toHaveCount(0);
     } finally {
-      await replacement.close();
+      await secondContext.close();
     }
   } finally {
     await displayContext.close();

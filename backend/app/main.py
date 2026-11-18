@@ -12,6 +12,7 @@ import os, random, asyncio, time, uuid
 from app.routes.events import create_events_router
 from app.services.event_store import register_event_model, register_event_game_models, register_event_report_model, register_event_agenda_model, register_event_run_model, register_event_deck_model, register_event_step_game_models
 from app.services.room_creation import RoomBuilder
+from secrets import compare_digest
 from threading import RLock
 from app.services.excel_reader import read_excel_rows_from_bytes
 from app.services.import_pipeline import run_qbds_import_pipeline, build_pipeline_user_message
@@ -1149,6 +1150,8 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
     protocols=[part.strip() for part in websocket.headers.get('sec-websocket-protocol','').split(',')]
     negotiated_protocol = (
         'quizblast-host' if is_host and len(protocols)==2 and protocols[0]=='quizblast-host'
+        else protocols[0] if clean_name.casefold()=='display' and len(protocols)==2
+            and protocols[0] in {'quizblast-display','quizblast-program'}
         else 'quizblast-player' if not is_host and clean_name.casefold()!='display'
             and len(protocols)==2 and protocols[0]=='quizblast-player'
         else None
@@ -1176,18 +1179,35 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
         clean_name='DISPLAY'
     normalized_name=clean_name.casefold()
     existing={p['name'].strip().casefold() for p in rooms.get(room_pin,[])}
-    if normalized_name in existing and normalized_name=='display':
-        # A Display may refresh before its previous socket has disconnected.
-        # Replace only the previous read-only Display connection; never touch Host.
-        old_displays=[p['socket'] for p in rooms[room_pin]
-                      if p['name'].strip().casefold()=='display']
-        rooms[room_pin]=[p for p in rooms[room_pin]
-                        if p['name'].strip().casefold()!='display']
-        for old_socket in old_displays:
-            try:
-                await old_socket.close(code=4001, reason='display_replaced')
-            except Exception:
-                pass
+    old_display = None
+    display_digest = None
+    if normalized_name == 'display':
+        protocol, credential = protocols if len(protocols) == 2 else ('', '')
+        program = protocol == 'quizblast-program'
+        if program:
+            # The program key grants Display access only to the current quiz instance.
+            with db_session() as db:
+                run = db.query(EventRun).filter_by(display_key=credential).first() if len(credential) == 43 else None
+                step = run.steps[run.cursor] if run and run.view == 'step' and 0 <= run.cursor < len(run.steps) else {}
+                link = None
+                if step.get('kind') == 'quiz':
+                    link = (db.get(EventStepSession, (run.event_id, step['step_id'])) if step.get('quiz_id')
+                            else db.get(EventGameSession, run.event_id))
+                allowed = link and link.pin == room_pin and link.instance_id == room_instance_map[room_pin]
+            if not allowed:
+                await websocket.send_json({'type':'join_error','reason':'display_unauthorized'})
+                await websocket.close()
+                return
+        elif protocol == 'quizblast-display' and len(credential) == 64:
+            display_digest = token_digest(credential)
+        previous = next((p for p in rooms[room_pin] if p['name'] == 'DISPLAY'), None)
+        if previous:
+            if not program and not (display_digest and compare_digest(previous.get('display_digest') or '', display_digest)):
+                await websocket.send_json({'type':'join_error','reason':'display_in_use'})
+                await websocket.close()
+                return
+            old_display = previous['socket']
+            rooms[room_pin] = remove_connection(rooms[room_pin], old_display)
     player_token=None
     returning_player=False
     if not is_host and normalized_name != 'display':
@@ -1226,11 +1246,14 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
         rooms[room_pin]=[p for p in rooms[room_pin] if p['name']!='HOST']
         for old_socket in old_connections:
             await old_socket.close()
-    rooms[room_pin].append({'name':clean_name,'socket':websocket})
+    rooms[room_pin].append({'name':clean_name,'socket':websocket, 'display_digest':display_digest})
     if room_pin not in scores: scores[room_pin]={}
     if clean_name not in {'HOST','DISPLAY'} and clean_name not in scores[room_pin]:
         scores[room_pin][clean_name]=0
     try:
+        if old_display is not None:
+            with suppress(Exception):
+                await old_display.close(code=4001, reason='display_replaced')
         if player_token:
             await websocket.send_json({'type':'player_session','token':player_token})
         await broadcast_players(room_pin)

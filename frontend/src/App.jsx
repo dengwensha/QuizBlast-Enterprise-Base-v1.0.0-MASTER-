@@ -45,10 +45,10 @@ const isMobile = window.innerWidth < 700;
 
 export default function App() {
   const displayKey = new URLSearchParams(window.location.hash.slice(1)).get('event-display');
-  return displayKey ? <EventLiveDisplay displayKey={displayKey} renderQuiz={room => <QuizBlastApp key={room.instance_id} programRoom={room} />} /> : <QuizBlastApp />;
+  return displayKey ? <EventLiveDisplay displayKey={displayKey} renderQuiz={room => <QuizBlastApp key={room.instance_id} programRoom={room} programDisplayKey={displayKey} />} /> : <QuizBlastApp />;
 }
 
-function QuizBlastApp({ programRoom } = {}) {
+function QuizBlastApp({ programRoom, programDisplayKey } = {}) {
   const [returnEvent, setReturnEvent] = useState(null);
   const {
     user,
@@ -247,7 +247,7 @@ function QuizBlastApp({ programRoom } = {}) {
   useEffect(() => {
     if (programRoom) {
       setRoomPin(programRoom.pin);
-      connectWebsocket(programRoom.pin, 'DISPLAY', undefined, programRoom.instance_id);
+      connectWebsocket(programRoom.pin, 'DISPLAY', undefined, programRoom.instance_id, programDisplayKey);
       return;
     }
     let saved;
@@ -315,6 +315,7 @@ function QuizBlastApp({ programRoom } = {}) {
     connectWebsocket(room.pin, 'HOST', user.token, room.instance_id);
   };
   const joinRoom=()=>{if(!roomPin.trim())return alert('PIN gir'); if(!name.trim())return alert('İsim gir');
+    if (['host', 'display'].includes(name.trim().toLowerCase())) return alert('Bu isim ekran rolüne ayrılmış. Başka bir oyuncu adı girin.');
     // Guard the asynchronous handshake before the server sends its first players event.
     pendingPlayerJoinRef.current = true;
     if (!window.history.state?.quizblastActiveSession) {
