@@ -391,6 +391,17 @@ class EventSessionsAcceptance(unittest.TestCase):
         for endpoint, cursor, player in [(first, 1, 'Ada'), (second, 3, 'Bora')]:
             self.assertEqual(advance('complete', 409)['detail'], 'event_quiz_not_completed')
             session = create(endpoint, 200)
+            async def verify_program_display():
+                url = self.address.replace('http:', 'ws:') + f"/ws/{session['pin']}/DISPLAY?instance={session['instance_id']}"
+                async with connect(url, subprotocols=['quizblast-program', live['display_key']]) as screen:
+                    self.assertEqual(screen.subprotocol, 'quizblast-program')
+                    self.assertEqual(json.loads(await asyncio.wait_for(screen.recv(), 3))['type'], 'players')
+                    # Refresh of the official projection can overlap its original connection.
+                    async with connect(url, subprotocols=['quizblast-program', live['display_key']]) as refreshed:
+                        self.assertEqual(json.loads(await asyncio.wait_for(refreshed.recv(), 3))['type'], 'players')
+                        await asyncio.wait_for(screen.wait_closed(), 3)
+                        self.assertEqual(screen.close_code, 4001)
+            asyncio.run(verify_program_display())
             state = display()
             self.assertEqual(state['cursor'], cursor)
             self.assertEqual(state['quiz_display'], {key: session[key] for key in ('pin', 'instance_id')})

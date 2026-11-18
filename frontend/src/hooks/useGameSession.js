@@ -118,7 +118,7 @@ export function useGameSession({
     resetGame();
   };
 
-  const connectWebsocket = (pin, who, hostToken, expectedInstanceId) => {
+  const connectWebsocket = (pin, who, hostToken, expectedInstanceId, programDisplayKey) => {
     closeSocket();
     const connection = { pin, who, hostToken, expectedInstanceId, instanceId: null, attempt: 0 };
     connectionRef.current = connection;
@@ -162,10 +162,24 @@ export function useGameSession({
     const playerKey = `quizblast_player_${connection.instanceId}_${who}`;
     let playerToken = localStorage.getItem(playerKey);
 
+    let displayProtocol;
+    if (who === "DISPLAY") {
+      if (programDisplayKey) displayProtocol = ["quizblast-program", programDisplayKey];
+      else {
+        const key = `quizblast_display_${connection.instanceId}`;
+        let secret = sessionStorage.getItem(key);
+        if (!secret) {
+          secret = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, "0")).join("");
+          sessionStorage.setItem(key, secret);
+        }
+        displayProtocol = ["quizblast-display", secret];
+      }
+    }
     const ws = new WebSocket(
       `${WS}/ws/${pin}/${encodeURIComponent(who)}?instance=${connection.instanceId}`,
       who === "HOST" && hostToken
         ? ["quizblast-host", hostToken]
+        : displayProtocol ? displayProtocol
         : who !== "DISPLAY" && playerToken
           ? ["quizblast-player", playerToken]
           : undefined
@@ -195,7 +209,8 @@ export function useGameSession({
           callbacksRef.current.onRoomClosed?.();
         } else {
         alert(
-          data.reason === "duplicate_name"
+          data.reason === "display_in_use" ? "Bu odada zaten bir Display bağlı."
+            : data.reason === "duplicate_name"
             ? "Bu isim zaten odada. Farklı bir isim gir."
             : data.reason === "room_not_found"
               ? "Oda bulunamadı. PIN kontrol et."
@@ -318,12 +333,10 @@ export function useGameSession({
         setJoined(false);
         setTimeLeft(0);
         if (event.code === 4001 && who === "DISPLAY") {
-          // Another Display has taken over this PIN. Do not reconnect in a loop.
+          // A verified successor owns the projection. Keep its saved session intact.
           connectionRef.current = null;
           clearTimeout(reconnectTimerRef.current);
           setReconnecting(false);
-          if (persistSession) sessionStorage.removeItem("quizblast_active_session");
-          if (persistSession) localStorage.removeItem("quizblast_active_session");
           return;
         }
         if (connectionRef.current === connection && !pageSuspendedRef.current) {
