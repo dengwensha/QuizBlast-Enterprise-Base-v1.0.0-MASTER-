@@ -533,6 +533,17 @@ def delete_quiz(quiz_id:int, authorization: str | None = Header(default=None)):
         if not quiz: return {'error':'quiz_not_found'}
         if db.query(GameRoom.pin).filter(GameRoom.quiz_id == quiz_id).first():
             raise HTTPException(status_code=409, detail='quiz_has_game_rooms')
+        # Agenda save and live start lock the same quiz row before committing.
+        owned_events = db.query(EventDraft.id).join(User, EventDraft.owner_id == User.id).filter(User.email == email)
+        selected = db.query(EventQuizSelection.event_id).filter(
+            EventQuizSelection.quiz_id == quiz_id, EventQuizSelection.event_id.in_(owned_events))
+        agendas = db.query(EventAgenda.steps).filter(EventAgenda.event_id.in_(owned_events))
+        runs = db.query(EventRun.steps, EventRun.cursor).filter(EventRun.event_id.in_(owned_events))
+        def references(steps):
+            return any(step.get('quiz_id') == quiz_id for step in steps if step['kind'] == 'quiz')
+        if (selected.first() or any(references(steps) for steps, in agendas.yield_per(64))
+                or any(references(steps[cursor:]) for steps, cursor in runs.yield_per(64))):
+            raise HTTPException(status_code=409, detail='quiz_used_in_event')
         db.delete(quiz); db.commit()
         return {'status':'quiz_deleted'}
 

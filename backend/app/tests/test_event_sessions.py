@@ -316,6 +316,29 @@ class EventSessionsAcceptance(unittest.TestCase):
         self.assertEqual(self.request(path=path + '/live'), (200, 'null'))
         self.assertIsNone(self.request(path=path + '/game')[1]['session'])
 
+    def test_delete_quiz_respects_agenda_and_remaining_run_steps(self):
+        path, state = self.event(2)  # Legacy selection is a different, published quiz.
+        quiz_id = self.quiz_ids[0]
+        delete = lambda: self.request('DELETE', f'/quizzes/{quiz_id}')
+        step = {'kind': 'quiz', 'title': 'A', 'quiz_id': quiz_id}
+        status, agenda = self.request('PUT', path + '/agenda', {
+            'steps': [step], 'revision': state['event']['revision']})
+        self.assertEqual(status, 200)
+        blocked = (409, {'detail': 'quiz_used_in_event'})
+        self.assertEqual(delete(), blocked)
+        self.assertEqual(self.request('POST', path + '/live')[0], 200)
+        self.assertEqual(delete(), blocked)
+        # A run has its own snapshot; exercise it independently of the editable agenda.
+        event_id = state['event']['id']
+        with main.db_session() as db:
+            db.get(main.EventAgenda, event_id).steps = []
+            db.commit()
+        self.assertEqual(delete(), blocked)
+        with main.db_session() as db:
+            db.get(main.EventRun, event_id).cursor = 1
+            db.commit()
+        self.assertEqual(delete(), (200, {'status': 'quiz_deleted'}))
+
     def test_live_multi_quiz_display_follows_active_step_and_requires_its_result(self):
         path, state = self.event()
         status, agenda = self.request('PUT', path + '/agenda', {
