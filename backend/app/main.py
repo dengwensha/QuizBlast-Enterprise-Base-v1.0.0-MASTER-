@@ -631,6 +631,15 @@ async def close_room(room_pin: str, authorization: str | None = Header(default=N
         record = db.get(GameRoom, room_pin)
         if record.phase == 'closed':
             raise HTTPException(status_code=409, detail='room_closed')
+        for link_model, report_model, key in (
+            (EventStepSession, EventStepReport, 'instance_id'),
+            (EventGameSession, EventReport, 'event_id'),
+        ):
+            link = db.query(link_model).filter_by(
+                pin=room_pin, instance_id=record.identity.instance_id
+            ).first()
+            if link and db.get(report_model, getattr(link, key)) is None:
+                raise HTTPException(409, detail='event_quiz_not_completed')
         record.phase = 'closed'
         record.deadline_epoch = None
         record.retention = ClosedRoomRetention(closed_at=time.time())
