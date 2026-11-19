@@ -73,6 +73,7 @@ class EventSessionsAcceptance(unittest.TestCase):
             db.query(main.EventStepReport).filter(main.EventStepReport.instance_id.in_(
                 [link.instance_id for link in step_links])).delete(synchronize_session=False)
             db.query(main.EventStepSession).filter(main.EventStepSession.event_id.in_(ids)).delete(synchronize_session=False)
+            db.query(main.EventRetention).filter(main.EventRetention.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventDeck).filter(main.EventDeck.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventRun).filter(main.EventRun.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventAgenda).filter(main.EventAgenda.event_id.in_(ids)).delete(synchronize_session=False)
@@ -248,6 +249,26 @@ class EventSessionsAcceptance(unittest.TestCase):
         main.save_game(room['pin'])
         self.assertEqual(self.request('POST', '/close-room/' + room['pin'])[0], 200)
         self.assertIsNone(display()['quiz_display'])
+
+    def test_presentation_retention_follows_program_completion(self):
+        path, _ = self.event()
+        agenda = path + '/agenda'
+        state = lambda: self.request(path=agenda)[1]
+        self.assertIsNone(state()['retention'])
+        steps = [{'kind': 'break', 'title': title} for title in ('A', 'B')]
+        def save(**fields):
+            return self.request('PUT', agenda, dict(revision=state()['revision'], steps=steps, **fields))[0]
+        self.assertEqual(save(retention='delete_after_7_days'), 200)
+        self.assertEqual(save(), 200)  # Older clients omit the preference.
+        self.assertEqual(state()['retention'], 'delete_after_7_days')
+        self.assertEqual(self.request('POST', path + '/live')[0], 200)
+        for rev, action in enumerate(('open', 'complete', 'open', 'complete'), 1):
+            self.assertIsNone(state()['program_completed_at'])
+            self.assertEqual(self.request('PUT', path + '/live', dict(action=action, revision=rev))[0], 200)
+        finished = state()['program_completed_at']
+        self.assertIsNotNone(finished)
+        self.assertEqual(save(retention='keep'), 200)
+        self.assertEqual((state()['retention'], state()['program_completed_at']), ('keep', finished))
 
     def test_agenda_order_ownership_and_revision(self):
         path, _ = self.event()
