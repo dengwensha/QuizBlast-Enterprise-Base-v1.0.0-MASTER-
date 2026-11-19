@@ -174,6 +174,9 @@ class EventSessionsAcceptance(unittest.TestCase):
         other_path, _ = self.event()
         self.assertEqual(self.request('PUT', other_path + '/agenda', data)[0], 422)
         self.assertEqual(self.request('PUT', path + '/agenda', data)[0], 200)
+        _, reopened = self.request(path=path + '/agenda')
+        self.assertEqual(reopened['deck_names'], {deck['id']: 'opening.pdf'})
+        self.assertEqual(self.request(path=other_path + '/agenda')[1]['deck_names'], {})
         preview_path = path + '/decks/' + deck['id'] + '/0'
         self.assertEqual(self.request(path=preview_path, email=self.other)[0], 404)
         def png(suffix, token):

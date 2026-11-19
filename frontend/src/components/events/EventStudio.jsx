@@ -25,7 +25,16 @@ export default function EventStudio({ user, initialLiveEvent, onBack, onOpenHost
     else delete state.quizblastLiveEvent;
     window.history.replaceState(state, '', window.location.href);
   }, [liveEvent, user.email]);
-  const [agendaEvent, setAgendaEvent] = useState(null);
+  const [agendaEvent, setAgendaEvent] = useState(() => {
+    const saved = window.history.state?.quizblastAgendaEvent;
+    return !liveEvent && saved?.owner === user.email && /^[a-f0-9]{32}$/i.test(saved.id || '') ? saved.id : null;
+  });
+  useEffect(() => {
+    const state = { ...(window.history.state || {}) };
+    if (agendaEvent) state.quizblastAgendaEvent = { owner: user.email, id: agendaEvent };
+    else delete state.quizblastAgendaEvent;
+    window.history.replaceState(state, '', window.location.href);
+  }, [agendaEvent, user.email]);
   const [gameEvent, setGameEvent] = useState(null);
   const [gameStep, setGameStep] = useState(null);
   const [items, setItems] = useState([]);
