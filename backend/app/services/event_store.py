@@ -73,6 +73,15 @@ def report_utc(value):
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
 
 
+def register_event_retention_model(base):
+    class EventRetention(base):
+        __tablename__ = 'event_presentation_retention'
+        event_id = Column(String(32), ForeignKey('event_drafts.id'), primary_key=True)
+        preference = Column(String(24), nullable=True)
+        program_completed_at = Column(DateTime(timezone=True), nullable=True)
+    return EventRetention
+
+
 def register_event_agenda_model(base):
     class EventAgenda(base):
         __tablename__ = 'event_agendas'

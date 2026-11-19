@@ -65,6 +65,7 @@ class AgendaStep(BaseModel):
 class EventAgendaUpdate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     revision: int = Field(ge=1, strict=True)
+    retention: Literal['keep', 'delete_after_7_days'] | None = None
     steps: list[AgendaStep] = Field(max_length=50)
 
 

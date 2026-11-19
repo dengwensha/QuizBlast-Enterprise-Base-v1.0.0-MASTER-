@@ -13,7 +13,7 @@ from app.services.event_store import describe_event_game, describe_session, repo
 
 
 def create_event_game_router(owner, session_factory, EventDraft, User,
-                             Selection, EventSession, builder, initialize, Report, Agenda, Run, Deck, StepSession, StepReport):
+                             Selection, EventSession, builder, initialize, Report, Retention, Agenda, Run, Deck, StepSession, StepReport):
     router = APIRouter()
 
     def event(db, event_id, owner_id, lock=False):
@@ -45,9 +45,20 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
         quizzes = [step for step in steps if step['kind'] == 'quiz']
         return len(quizzes) > 1 or any(step.get('quiz_id') is not None for step in quizzes)
 
+    def retention_row(db, event_id):
+        record = db.get(Retention, event_id)
+        if record is None:
+            record = Retention(event_id=event_id)
+            db.add(record)
+        return record
+
     def agenda_state(db, row):
         agenda = db.get(Agenda, row.id)
+        record = db.get(Retention, row.id)
         return dict(title=row.title, revision=row.revision,
+                    retention=record.preference if record else None,
+                    program_completed_at=report_utc(record.program_completed_at)
+                    if record and record.program_completed_at else None,
                     steps=identified_steps(row.id, agenda.steps) if agenda else [])
 
     @router.delete('/{event_id}', status_code=204)
@@ -59,7 +70,7 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                 raise HTTPException(409, detail='event_delete_started')
             if row.revision != revision:
                 raise HTTPException(409, detail='event_revision_conflict')
-            for model in (Deck, Agenda, Selection):
+            for model in (Retention, Deck, Agenda, Selection):
                 db.query(model).filter_by(event_id=row.id).delete(synchronize_session=False)
             db.delete(row)
             db.commit()
@@ -113,6 +124,8 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                 email = db.get(User, owner_id).email
                 for quiz_id in sorted(quiz_ids):
                     builder.lock_quiz(db, quiz_id, email, require_questions=True)
+            if 'retention' in data.model_fields_set:
+                retention_row(db, row.id).preference = data.retention
             agenda.steps = steps
             row.revision += 1
             row.updated_at = datetime.now(timezone.utc)
@@ -241,6 +254,8 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                     if not report and (not session or session['phase'] != 'completed'):
                         raise HTTPException(409, detail='event_quiz_not_completed')
                 run.cursor += 1
+                if run.cursor == len(run.steps):
+                    retention_row(db, row.id).program_completed_at = datetime.now(timezone.utc)
                 run.view = 'agenda'
             else:
                 raise HTTPException(409, detail='event_run_transition_invalid')

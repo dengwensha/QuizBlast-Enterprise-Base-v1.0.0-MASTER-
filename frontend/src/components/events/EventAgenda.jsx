@@ -66,7 +66,7 @@ export default function EventAgenda({ token, eventId, onBack }) {
     if (busy) return;
     setBusy(true); setError(''); setSaved(false);
     try {
-      setAgenda(await saveEventAgenda(token, eventId, { revision: agenda.revision, steps }));
+      setAgenda(await saveEventAgenda(token, eventId, { revision: agenda.revision, steps, retention: agenda.retention ?? null }));
       setSaved(true);
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
@@ -82,6 +82,15 @@ export default function EventAgenda({ token, eventId, onBack }) {
     {busy && !agenda && <p role="status">Program yükleniyor…</p>}
     {agenda && <form className="qb-events__panel" onSubmit={submit}>
       <h2>{agenda.title}</h2>
+      <label>Etkinlik bittikten sonra sunumları saklamak istiyor musunuz?
+        <select value={agenda.retention ?? ''} disabled={busy}
+          onChange={e => { setAgenda({ ...agenda, retention: e.target.value || null }); setSaved(false); }}>
+          <option value="">Henüz karar vermedim</option>
+          <option value="keep">Evet, ben silene kadar sakla</option>
+          <option value="delete_after_7_days">Hayır, program tamamlandıktan 7 gün sonra sil</option>
+        </select>
+      </label>
+      <p>Tercihiniz programla birlikte kaydedilir. Otomatik silme henüz etkin değil.</p>
       {plannedQuizzes && <p>Canlı başlatmadan önce her quiz adımı için bir quiz seç.</p>}
       {plannedQuizzes && catalogError && <p role="alert">{catalogError}</p>}
       {!steps.length && <p>Programa bir adım ekle.</p>}
