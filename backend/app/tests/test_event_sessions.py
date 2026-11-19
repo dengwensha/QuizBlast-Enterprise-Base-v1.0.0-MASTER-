@@ -73,6 +73,7 @@ class EventSessionsAcceptance(unittest.TestCase):
             db.query(main.EventStepReport).filter(main.EventStepReport.instance_id.in_(
                 [link.instance_id for link in step_links])).delete(synchronize_session=False)
             db.query(main.EventStepSession).filter(main.EventStepSession.event_id.in_(ids)).delete(synchronize_session=False)
+            db.query(main.EventRetention).filter(main.EventRetention.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventDeck).filter(main.EventDeck.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventRun).filter(main.EventRun.event_id.in_(ids)).delete(synchronize_session=False)
             db.query(main.EventAgenda).filter(main.EventAgenda.event_id.in_(ids)).delete(synchronize_session=False)
