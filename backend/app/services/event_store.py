@@ -109,6 +109,7 @@ def register_event_deck_model(base):
         id = Column(String(32), primary_key=True, default=lambda: uuid4().hex)
         event_id = Column(String(32), ForeignKey('event_drafts.id'), nullable=False, index=True)
         name = Column(String(160), nullable=False)
+        agenda_unlinked_since = Column(DateTime(timezone=True), nullable=True)
         page_count = Column(Integer, nullable=False)
         pages = Column(JSON, nullable=False)
     return EventDeck
