@@ -54,12 +54,16 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
 
     def agenda_state(db, row):
         agenda = db.get(Agenda, row.id)
+        steps = identified_steps(row.id, agenda.steps) if agenda else []
+        ids = {UUID(step['deck_id']).hex for step in steps if step.get('deck_id')}
+        names = dict(db.query(Deck.id, Deck.name).filter(
+            Deck.event_id == row.id, Deck.id.in_(ids)).all()) if ids else {}
         record = db.get(Retention, row.id)
         return dict(title=row.title, revision=row.revision,
                     retention=record.preference if record else None,
                     program_completed_at=report_utc(record.program_completed_at)
                     if record and record.program_completed_at else None,
-                    steps=identified_steps(row.id, agenda.steps) if agenda else [])
+                    steps=steps, deck_names=names)
 
     @router.delete('/{event_id}', status_code=204)
     def delete_event(event_id: UUID, revision: int, owner_id: int = Depends(owner)):

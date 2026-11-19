@@ -56,7 +56,11 @@ export default function EventAgenda({ token, eventId, onBack }) {
     setBusy(true); setError('');
     try {
       const deck = await uploadEventDeck(token, eventId, file);
-      edit(steps.map((item, i) => i === index ? { ...item, deck_id: deck.id } : item));
+      setAgenda(current => ({ ...current,
+        steps: current.steps.map((item, i) => i === index ? { ...item, deck_id: deck.id } : item),
+        deck_names: { ...current.deck_names, [deck.id.replace(/-/g, '')]: deck.name },
+      }));
+      setSaved(false);
       setPreview(deck.id); setPage(0); setCount(deck.page_count);
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
@@ -113,6 +117,7 @@ export default function EventAgenda({ token, eventId, onBack }) {
           </select>
         </label>}
         {step.kind === 'presentation' && <div className="qb-agenda__pdf">
+          {step.deck_id && <p>Seçili sunum: <strong>{agenda.deck_names?.[step.deck_id.replace(/-/g, '')] || 'Dosya adı bulunamadı'}</strong></p>}
           <label>{step.deck_id ? "PDF’yi değiştir" : "PDF yükle"}<input type="file" accept="application/pdf,.pdf" disabled={busy}
             onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; upload(index, file); }} /></label>
           {step.deck_id && <button type="button" disabled={busy} onClick={() => {
