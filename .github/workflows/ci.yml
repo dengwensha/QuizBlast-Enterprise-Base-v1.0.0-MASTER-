@@ -113,6 +113,12 @@ jobs:
           docker compose logs redis
           exit 1
 
+      - name: Run catalog and question policy tests
+        run: |
+          docker compose run --rm --no-deps -T \
+            -v "${{ github.workspace }}/backend/tests:/ci-tests:ro" \
+            backend python -m unittest discover -s /ci-tests -p 'test_*.py' -v
+
       - name: Run backend regression modules
         shell: bash
         run: |
