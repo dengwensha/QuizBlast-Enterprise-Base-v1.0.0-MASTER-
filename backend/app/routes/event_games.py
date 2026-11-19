@@ -130,6 +130,13 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                     builder.lock_quiz(db, quiz_id, email, require_questions=True)
             if 'retention' in data.model_fields_set:
                 retention_row(db, row.id).preference = data.retention
+            # Track agenda membership, not live/editor activity. No cleanup here.
+            previous = {UUID(s['deck_id']).hex for s in prior_steps if s.get('deck_id')}
+            current = {UUID(s['deck_id']).hex for s in steps if s.get('deck_id')}
+            for ids, since in ((previous - current, datetime.now(timezone.utc)), (current - previous, None)):
+                if ids:
+                    db.execute(update(Deck).where(Deck.event_id == row.id, Deck.id.in_(ids))
+                               .values(agenda_unlinked_since=since))
             agenda.steps = steps
             row.revision += 1
             row.updated_at = datetime.now(timezone.utc)
@@ -150,7 +157,8 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             row = event(db, event_id, owner_id, lock=True)
             if db.query(Deck.id).filter_by(event_id=row.id).count() >= 12:
                 raise HTTPException(409, detail='event_deck_limit')
-            deck = Deck(event_id=row.id, name=(file.filename or 'Sunum.pdf')[:160], page_count=len(pages), pages=pages)
+            deck = Deck(event_id=row.id, name=(file.filename or 'Sunum.pdf')[:160], page_count=len(pages), pages=pages,
+                        agenda_unlinked_since=datetime.now(timezone.utc))
             db.add(deck)
             db.flush()
             result = dict(id=deck.id, name=deck.name, page_count=len(pages))

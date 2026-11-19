@@ -168,6 +168,10 @@ class EventSessionsAcceptance(unittest.TestCase):
             self.assertEqual(response.status, 201)
             deck = json.load(response)
         self.assertEqual(deck['page_count'], 2)
+        def unlinked_since():
+            with main.db_session() as db:
+                return db.get(main.EventDeck, deck['id']).agenda_unlinked_since
+        self.assertIsNotNone(unlinked_since())
         _, agenda = self.request(path=path + '/agenda')
         data = {'revision': agenda['revision'], 'steps': [
             {'kind': 'presentation', 'title': 'Opening', 'deck_id': deck['id']}]}
@@ -175,6 +179,20 @@ class EventSessionsAcceptance(unittest.TestCase):
         self.assertEqual(self.request('PUT', other_path + '/agenda', data)[0], 422)
         self.assertEqual(self.request('PUT', path + '/agenda', data)[0], 200)
         _, reopened = self.request(path=path + '/agenda')
+        self.assertIsNone(unlinked_since())
+        def save_steps(steps):
+            revision = self.request(path=path + '/agenda')[1]['revision']
+            self.assertEqual(self.request('PUT', path + '/agenda', dict(steps=steps, revision=revision))[0], 200)
+        save_steps(data['steps'] * 2)
+        save_steps(data['steps'])
+        self.assertIsNone(unlinked_since())  # Still used by one step.
+        save_steps([])
+        detached = unlinked_since()
+        self.assertIsNotNone(detached)
+        save_steps([])
+        self.assertEqual(unlinked_since(), detached)
+        save_steps(data['steps'])
+        self.assertIsNone(unlinked_since())
         self.assertEqual(reopened['deck_names'], {deck['id']: 'opening.pdf'})
         self.assertEqual(self.request(path=other_path + '/agenda')[1]['deck_names'], {})
         preview_path = path + '/decks/' + deck['id'] + '/0'

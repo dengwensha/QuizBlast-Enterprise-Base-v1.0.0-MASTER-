@@ -167,6 +167,11 @@ while not connected:
                     connection.execute(text(
                         f'ALTER TABLE questions ADD COLUMN {column} {sql_type} NULL'
                     ))
+        # Existing presentations have no reliable unlink date; leave them NULL.
+        if 'agenda_unlinked_since' not in {c['name'] for c in inspect(engine).get_columns('event_decks')}:
+            with engine.begin() as connection:
+                ddl_type = EventDeck.agenda_unlinked_since.type.compile(dialect=engine.dialect)
+                connection.execute(text(f'ALTER TABLE event_decks ADD COLUMN agenda_unlinked_since {ddl_type} NULL'))
         connected=True
         print('PostgreSQL connected.')
     except Exception as e:
