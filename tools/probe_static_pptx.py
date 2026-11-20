@@ -14,13 +14,13 @@ from tempfile import TemporaryDirectory
 from PIL import Image
 from pptx import Presentation
 from pptx.util import Inches, Pt
-import pypdfium2 as pdfium
+
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
-from app.services.event_pdf import render_pdf
 
 
-def probe(root):
+
+def fixture(root):
     deck = Presentation()
     deck.slide_width, deck.slide_height = Inches(12), Inches(6.75)
     titles = ["Açılış ve görüşme", "Ölçüm sonuçları", "Çay arası"]
@@ -36,10 +36,20 @@ def probe(root):
         slide.shapes.add_picture(img, Inches(4), Inches(3), Inches(4), Inches(2))
     source = root / "prova.pptx"
     deck.save(source)
-    subprocess.run(["soffice", "-env:UserInstallation=" + (root / "profile").as_uri(),
-                    "--headless", "--convert-to", "pdf:impress_pdf_Export",
-                    "--outdir", str(root), str(source)], check=True, timeout=60)
-    data = source.with_suffix(".pdf").read_bytes()
+    return source, titles, colors
+
+
+def probe(root, converter=None):
+    import pypdfium2 as pdfium
+    from app.services.event_pdf import render_pdf
+    source, titles, colors = fixture(root)
+    if converter:
+        data = converter(source.read_bytes())
+    else:
+        subprocess.run(["soffice", "-env:UserInstallation=" + (root / "profile").as_uri(),
+                        "--headless", "--convert-to", "pdf:impress_pdf_Export",
+                        "--outdir", str(root), str(source)], check=True, timeout=60)
+        data = source.with_suffix(".pdf").read_bytes()
     pages = render_pdf(data)
     if len(pages) != len(titles):
         raise ValueError("Page count changed")

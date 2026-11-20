@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Response, UploadF
 from sqlalchemy import update
 from sqlalchemy.orm import defer
 from app.schemas.events import EventRunCommand, EventAgendaUpdate, EventQuizSelect, EventSessionCreate
+from app.services.event_pptx import pptx_to_pdf
 from app.services.event_pdf import MAX_PDF_BYTES, render_pdf
 from pypdfium2 import PdfiumError
 from app.services.event_store import describe_event_game, describe_session, report_utc
@@ -149,10 +150,14 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
     def upload_deck(event_id: UUID, file: UploadFile, owner_id: int = Depends(owner)):
         with session_factory() as db:
             event(db, event_id, owner_id)
+        is_pptx = (file.filename or '').lower().endswith('.pptx')
         try:
-            pages = render_pdf(file.file.read(MAX_PDF_BYTES + 1))
+            data = file.file.read(MAX_PDF_BYTES + 1)
+            pages = render_pdf(pptx_to_pdf(data) if is_pptx else data)
+        except OSError:
+            raise HTTPException(503, detail='event_converter_unavailable') from None
         except (ValueError, PdfiumError):
-            raise HTTPException(422, detail='event_pdf_invalid') from None
+            raise HTTPException(422, detail='event_pptx_invalid' if is_pptx else 'event_pdf_invalid') from None
         with session_factory() as db:
             row = event(db, event_id, owner_id, lock=True)
             if db.query(Deck.id).filter_by(event_id=row.id).count() >= 12:

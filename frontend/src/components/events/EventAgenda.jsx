@@ -118,11 +118,11 @@ export default function EventAgenda({ token, eventId, onBack }) {
         </label>}
         {step.kind === 'presentation' && <div className="qb-agenda__pdf">
           {step.deck_id && <p>Seçili sunum: <strong>{agenda.deck_names?.[step.deck_id.replace(/-/g, '')] || 'Dosya adı bulunamadı'}</strong></p>}
-          <label>{step.deck_id ? "PDF’yi değiştir" : "PDF yükle"}<input type="file" accept="application/pdf,.pdf" disabled={busy}
+          <label>{step.deck_id ? "Sunumu değiştir" : "Sunum yükle (PDF veya PPTX)"}<input type="file" accept="application/pdf,.pdf,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" disabled={busy}
             onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; upload(index, file); }} /></label>
           {step.deck_id && <button type="button" disabled={busy} onClick={() => {
             setPreview(step.deck_id); setPage(0); setCount(0);
-          }}>PDF Önizle</button>}
+          }}>Sunumu Önizle</button>}
         </div>}
         <div className="qb-events__actions qb-agenda__tools">
           <button type="button" aria-label={`${index + 1}. adımı yukarı taşı`} disabled={busy || !index} onClick={() => move(index, -1)}>Yukarı</button>
@@ -138,7 +138,7 @@ export default function EventAgenda({ token, eventId, onBack }) {
       </div>
     </form>}
     {preview && <section className="qb-events__panel">
-      <h2>PDF Önizleme</h2>
+      <h2>Sunum Önizleme</h2>
       <SlideImage key={`${preview}:${page}`} token={token} path={`/${eventId}/decks/${preview}/${page}`} onCount={setCount} />
       <div className="qb-events__actions qb-agenda__tools"><button disabled={!page} onClick={() => setPage(page - 1)}>Önceki Slayt</button>
       <button disabled={page + 1 >= count} onClick={() => setPage(page + 1)}>Sonraki Slayt</button>
