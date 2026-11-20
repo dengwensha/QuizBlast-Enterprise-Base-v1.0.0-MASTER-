@@ -50,7 +50,7 @@ jobs:
         run: docker compose config --quiet
 
       - name: Build production images
-        run: docker compose build --pull backend frontend
+        run: docker compose build --pull backend frontend pptx
 
       - name: Verify optional remote frontend image and proxy template
         shell: bash
@@ -156,6 +156,19 @@ jobs:
 
       - name: Start production application
         run: docker compose up -d backend frontend
+
+      - name: Verify isolated PPTX converter and backend socket
+        shell: bash
+        run: |
+          set -eo pipefail
+          python -m venv "$RUNNER_TEMP/pptx-probe"
+          "$RUNNER_TEMP/pptx-probe/bin/pip" install python-pptx==1.0.2
+          PYTHONPATH=tools "$RUNNER_TEMP/pptx-probe/bin/python" -c 'from probe_static_pptx import fixture; from pathlib import Path; import os; fixture(Path(os.environ["RUNNER_TEMP"]))'
+          docker compose exec -T backend python -c "
+          import sys
+          from app.services.event_pptx import pptx_to_pdf
+          from app.services.event_pdf import render_pdf
+          assert len(render_pdf(pptx_to_pdf(sys.stdin.buffer.read()))) == 3" < "$RUNNER_TEMP/prova.pptx"
 
       - name: Verify backend readiness
         shell: bash
