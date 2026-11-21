@@ -1,0 +1,197 @@
+diff --git a/backend/app/main.py b/backend/app/main.py
+index 80cc93a..fdbdcf2 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
+ from contextlib import contextmanager, suppress
+ import os, random, asyncio, time, uuid
+ from app.routes.events import create_events_router
++from app.services.event_breakdown import breakdown
+ from app.services.event_store import register_event_model, register_event_game_models, register_event_report_model, register_event_retention_model, register_event_agenda_model, register_event_run_model, register_event_deck_model, register_event_step_game_models
+ from app.services.room_creation import RoomBuilder
+ from secrets import compare_digest
+@@ -172,6 +173,10 @@ while not connected:
+             with engine.begin() as connection:
+                 ddl_type = EventDeck.agenda_unlinked_since.type.compile(dialect=engine.dialect)
+                 connection.execute(text(f'ALTER TABLE event_decks ADD COLUMN agenda_unlinked_since {ddl_type} NULL'))
++        for table, column in [('game_rooms', 'event_history'), ('event_reports', 'breakdown'), ('event_step_reports', 'breakdown')]:
++            if column not in {c['name'] for c in inspect(engine).get_columns(table)}:
++                with engine.begin() as connection:
++                    connection.execute(text(f'ALTER TABLE {table} ADD COLUMN {column} JSON NULL'))
+         connected=True
+         print('PostgreSQL connected.')
+     except Exception as e:
+@@ -204,8 +209,23 @@ room_instance_map={}
+ closed_room_cleanup_task=None
+ 
+ 
+-def save_game(room_pin):
++def save_game(room_pin, opened=None, accepted=None):
+     with db_session() as db:
++        record = db.get(GameRoom, room_pin)
++        history = record.event_history if record else None
++        idx = current_question_index[room_pin]
++        if record and opened is not None:
++            if history is None and idx == 0 and any(db.query(model).filter_by(
++                    instance_id=room_instance_map.get(room_pin), pin=room_pin).first()
++                    for model in (EventGameSession, EventStepSession)):
++                history = []
++            if history is not None and len(history) == idx:
++                history = [*history, dict(title=opened, answers=dict.fromkeys(scores[room_pin]))]
++                record.event_history = history
++        if accepted and history and len(history) == idx + 1:
++            name, correct = accepted
++            last = history[-1]
++            record.event_history = [*history[:-1], {**last, 'answers': {**last['answers'], name: correct}}]
+         if game_phase[room_pin] == 'completed':
+             for link_model, report_model, key in (
+                 (EventGameSession, EventReport, 'event_id'),
+@@ -224,6 +244,7 @@ def save_game(room_pin):
+                         event_title=db.get(EventDraft, link.event_id).title,
+                         quiz_title=db.get(Quiz, link.quiz_id).title,
+                         completed_at=completed, expires_at=completed + timedelta(days=15),
++                        breakdown=breakdown(history, ranking),
+                         ranking=[dict(name=name, score=score) for name, score in ranking]))
+                 break
+         persist_game_state(
+@@ -1237,6 +1258,9 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
+                     digest=token_digest(supplied_token)
+                 else:
+                     player_token,digest=new_player_token()
++                if record.phase == 'question' and record.event_history and len(record.event_history) == record.question_index + 1:
++                    last = record.event_history[-1]
++                    record.event_history = [*record.event_history[:-1], {**last, 'answers': {**last['answers'], clean_name: None}}]
+                 record.players.append(GamePlayer(name=clean_name,token_hash=digest))
+                 db.commit()
+         if normalized_name in existing and returning_player:
+@@ -1298,7 +1322,7 @@ async def websocket_endpoint(websocket: WebSocket, room_pin:str, player_name:str
+                 server_time_left=max(0, question_time-elapsed)
+                 if selected_answer==q['correct']:
+                     scores[room_pin][clean_name]+=100+int(server_time_left*10)
+-                save_game(room_pin)
++                save_game(room_pin, accepted=(clean_name, selected_answer == q['correct']))
+                 leaderboard=sorted(scores[room_pin].items(), key=lambda x:x[1], reverse=True)
+                 await safe_broadcast_json(room_pin, {'type':'answer_count','count':len(answered_players[room_pin]),'total':visible_player_count(room_pin)})
+                 await safe_broadcast_json(room_pin, {'type':'leaderboard','scores':leaderboard})
+@@ -1395,7 +1419,7 @@ async def send_question(room_pin):
+     question_start_time[room_pin]=time.time()
+     remaining_seconds[room_pin]=question_time
+     question_deadline[room_pin]=question_start_time[room_pin]+question_time
+-    save_game(room_pin)
++    save_game(room_pin, opened=q['question'])
+     await safe_broadcast_json(room_pin, {'type':'question','question':q['question'],'image_url':q.get('image_url'),'image_alt_text':q.get('image_alt_text'),'options':q['options'],'index':idx,'question_count':len(questions),'time':q['time'],'deadline_epoch':question_deadline[room_pin],'server_time_epoch':time.time()})
+ 
+ async def safe_broadcast_json(room_pin, payload):
+diff --git a/backend/app/routes/event_games.py b/backend/app/routes/event_games.py
+index 62751a9..d6a3184 100644
+--- a/backend/app/routes/event_games.py
++++ b/backend/app/routes/event_games.py
+@@ -356,7 +356,7 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
+             raise HTTPException(410, detail='event_report_expired')
+         return dict(event_title=report.event_title, quiz_title=report.quiz_title,
+                     completed_at=report_utc(report.completed_at), expires_at=expires,
+-                    ranking=report.ranking)
++                    ranking=report.ranking, breakdown=report.breakdown)
+ 
+     def step_session_state(db, link):
+         return describe_session(db, link, builder.Room)
+diff --git a/backend/app/services/event_breakdown.py b/backend/app/services/event_breakdown.py
+new file mode 100644
+index 0000000..0e94eb9
+--- /dev/null
++++ b/backend/app/services/event_breakdown.py
+@@ -0,0 +1,19 @@
++"""Only questions actually opened during the event contribute to the denominator."""
++def breakdown(history, ranking):
++    if not history:
++        return None
++    players = {name: [0, 0, 0] for name, _ in ranking}
++    questions = []
++    def row(label, counts):
++        total = sum(counts)
++        return dict(label=label, counts=counts, total=total,
++                    rates=[value / total if total else None for value in counts])
++    for question in history:
++        counts = [0, 0, 0]
++        for name, answer in question['answers'].items():
++            index = 2 if answer is None else 0 if answer else 1
++            counts[index] += 1
++            if name in players:
++                players[name][index] += 1
++        questions.append(row(question['title'], counts))
++    return dict(players=[row(name, counts) for name, counts in players.items()], questions=questions)
+diff --git a/backend/app/services/event_excel.py b/backend/app/services/event_excel.py
+index 3bfa93a..436c4c6 100644
+--- a/backend/app/services/event_excel.py
++++ b/backend/app/services/event_excel.py
+@@ -31,6 +31,19 @@ def report_workbook(report):
+         for cell, width in zip(sheet[1], widths):
+             cell.font = Font(bold=True, color='174EA0')
+             sheet.column_dimensions[cell.column_letter].width = width
++    if report.get('breakdown'):
++        for key, title, heading in [('players', 'Katılımcı analizi', 'Oyuncu'), ('questions', 'Soru analizi', 'Soru')]:
++            sheet = book.create_sheet(title)
++            append(sheet, [heading, 'Toplam', 'Doğru', 'Yanlış', 'Boş', 'Doğru %', 'Yanlış %', 'Boş %'])
++            for i, item in enumerate(report['breakdown'][key], 1):
++                label = item['label'] if key == 'players' else f"{i}. {item['label']}"
++                append(sheet, [label, item['total'], *item['counts'], *item['rates']])
++                for cell in sheet[sheet.max_row][5:]:
++                    cell.number_format = '0.0%'
++            sheet.freeze_panes = 'B2'
++            sheet.column_dimensions['A'].width = 65
++    else:
++        append(summary, ['Cevap analizi', 'Ayrıntılı cevap verisi yok.'])
+     output = BytesIO()
+     book.save(output)
+     return output.getvalue()
+diff --git a/backend/app/services/event_store.py b/backend/app/services/event_store.py
+index 4d36bfe..3e9bfa8 100644
+--- a/backend/app/services/event_store.py
++++ b/backend/app/services/event_store.py
+@@ -65,6 +65,7 @@ def register_event_report_model(base):
+         quiz_title = Column(String, nullable=False)
+         completed_at = Column(DateTime(timezone=True), nullable=False)
+         expires_at = Column(DateTime(timezone=True), nullable=False)
++        breakdown = Column(JSON, nullable=True)
+         ranking = Column(JSON, nullable=False)
+     return EventReport
+ 
+@@ -140,6 +141,7 @@ def register_event_step_game_models(base):
+         quiz_title = Column(String, nullable=False)
+         completed_at = Column(DateTime(timezone=True), nullable=False)
+         expires_at = Column(DateTime(timezone=True), nullable=False)
++        breakdown = Column(JSON, nullable=True)
+         ranking = Column(JSON, nullable=False)
+ 
+     return EventStepSession, EventStepReport
+diff --git a/backend/app/services/game_recovery.py b/backend/app/services/game_recovery.py
+index 6a7e663..9b7a1d8 100644
+--- a/backend/app/services/game_recovery.py
++++ b/backend/app/services/game_recovery.py
+@@ -28,6 +28,7 @@ class GameRoom(RecoveryBase):
+     question_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+     remaining_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+     deadline_epoch: Mapped[float | None] = mapped_column(Float, nullable=True)
++    event_history: Mapped[list | None] = mapped_column(JSON, nullable=True)
+     answer_stats: Mapped[list] = mapped_column(JSON, nullable=False, default=lambda: [0, 0, 0, 0])
+     players: Mapped[list['GamePlayer']] = relationship(
+         back_populates='room', cascade='all, delete-orphan'
+diff --git a/frontend/src/components/events/EventReport.jsx b/frontend/src/components/events/EventReport.jsx
+index da944ce..0c75591 100644
+--- a/frontend/src/components/events/EventReport.jsx
++++ b/frontend/src/components/events/EventReport.jsx
+@@ -46,6 +46,14 @@ export default function EventReport({ token, eventId, stepId, onBack }) {
+         <tbody>{report.ranking.map(({ name, score }, index) =>
+           <tr key={name}><td>{index + 1}</td><td>{name}</td><td>{score}</td></tr>)}</tbody>
+       </table>
++      {report.breakdown ? [['players', 'Katılımcı analizi', 'Oyuncu'], ['questions', 'Soru analizi', 'Soru']].map(([key, title, heading]) =>
++        <table key={key}><caption>{title}</caption>
++          <thead><tr>{[heading, 'Toplam', 'Doğru', 'Yanlış', 'Boş'].map(h => <th key={h} scope="col">{h}</th>)}</tr></thead>
++          <tbody>{report.breakdown[key].map((item, i) => <tr key={i}>
++            <th scope="row">{key === 'questions' && (i + 1) + '. '}{item.label}</th><td>{item.total}</td>
++            {item.counts.map((n, j) => <td key={j}>{n} ({item.rates[j] == null ? '—' :
++              item.rates[j].toLocaleString('tr-TR', {style: 'percent', maximumFractionDigits: 1})})</td>)}
++          </tr>)}</tbody></table>) : <p>Ayrıntılı cevap verisi yok.</p>}
+     </section>}
+   </main>;
+ }
