@@ -26,6 +26,7 @@ services:
     tmpfs: ["/tmp:rw,nosuid,nodev,size=256m"]
     volumes:
       - pptx_ipc:/ipc
+      - "./deploy/local-fonts:/usr/local/share/fonts/qb-aptos:ro"
 
   backend:
     build: ./backend
