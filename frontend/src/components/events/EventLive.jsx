@@ -28,7 +28,7 @@ function Program({ live, displayKey, onReport }) {
     </div>
     {showing ? (!!live.page_count && <div className="qb-live__slide">
       <p>Slayt {live.page + 1} / {live.page_count}</p>
-      <SlideImage key={live.revision} token={displayKey} path={`/display/program/page/${live.revision}`} />
+      <SlideImage key={`${live.revision}:${live.page}`} token={displayKey} path={`/display/program/page/${live.revision}?requested_page=${live.page}`} />
     </div>) : <ol className="qb-live__timeline">{live.steps.map((item, i) => {
       const status = i < live.cursor ? 'Tamamlandı' : i === live.cursor ? 'Sırada' : 'Bekliyor';
       return <li key={i} data-kind={item.kind} aria-current={i === live.cursor ? 'step' : undefined} data-complete={i < live.cursor}>
@@ -94,6 +94,22 @@ export default function EventLive({ token, eventId, onBack, onQuiz }) {
   };
   const live = data?.live;
   const step = live?.steps[live.cursor];
+  const automatic = live?.view === 'step' && !!step?.slide_seconds;
+  const playing = automatic && live.page + 1 < live.page_count;
+  useEffect(() => {
+    if (!playing || busy) return;
+    let active = true;
+    let timer;
+    async function refresh() {
+      try {
+        const next = await getEventLive(token, eventId);
+        if (active) { setData(next); setError(''); }
+      } catch (e) { if (active) setError(e.message); }
+      finally { if (active) timer = setTimeout(refresh, 1000); }
+    }
+    timer = setTimeout(refresh, 1000);
+    return () => { active = false; clearTimeout(timer); };
+  }, [playing, busy, token, eventId]);
   const command = action => perform(() => advanceEventLive(token, eventId, { action, revision: live.revision }));
   if (reportStep) return <EventReport token={token} eventId={eventId} stepId={reportStep} onBack={() => setReportStep(null)} />;
   return <StageViewport enabled><main className="qb-events qb-live">
@@ -106,7 +122,8 @@ export default function EventLive({ token, eventId, onBack, onQuiz }) {
         <a className="qb-live__display-link" target="_blank" rel="noopener noreferrer" href={`/#event-display=${data.display_key}`}>Program Display’ini Aç</a>
         {step && live.view === 'agenda' && <button disabled={busy} onClick={() => command('open')}>Sonraki Adımı Aç</button>}
         {live.view === 'step' && <>
-          {!!live.page_count && <>
+          {automatic && <p>{playing ? `Slaytlar ${step.slide_seconds} saniyede bir ilerler.` : 'Son slayt. Sunum burada bekler.'}</p>}
+          {!!live.page_count && !automatic && <>
             <button disabled={busy || !live.page} onClick={() => command('previous_page')}>Önceki Slayt</button>
             <button disabled={busy || live.page + 1 >= live.page_count} onClick={() => command('next_page')}>Sonraki Slayt</button>
           </>}

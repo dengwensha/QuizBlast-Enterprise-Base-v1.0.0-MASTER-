@@ -3,6 +3,7 @@ from base64 import b64decode
 from datetime import datetime, timezone
 from uuid import UUID, uuid4, uuid5
 from secrets import token_urlsafe
+from time import time
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, UploadFile
 from sqlalchemy import update
 from sqlalchemy.orm import defer
@@ -113,6 +114,8 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                     if step.kind != 'quiz':
                         raise HTTPException(422, detail='event_quiz_step_invalid')
                     quiz_ids.add(step.quiz_id)
+                if step.slide_seconds is not None and (step.kind != 'presentation' or not step.deck_id):
+                    raise HTTPException(422, detail='event_slide_interval_invalid')
                 if step.deck_id:
                     deck = db.get(Deck, step.deck_id.hex)
                     if step.kind != 'presentation' or not deck or deck.event_id != row.id:
@@ -187,7 +190,12 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
         query = db.query(Deck).filter_by(id=UUID(deck_id).hex)
         if not include_pages:
             query = query.options(defer(Deck.pages))
-        return query.first(), int(run.view.split(':')[1])
+        deck = query.first()
+        step = run.steps[run.cursor]
+        if deck and 'opened_at' in step:
+            elapsed = max(0, time() - step['opened_at'])
+            return deck, min(deck.page_count - 1, int(elapsed // step['slide_seconds']))
+        return deck, int(run.view.split(':')[1])
 
     def live_quiz_link(db, run):
         step = run.steps[run.cursor]
@@ -205,7 +213,7 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
                 quiz_display = dict(pin=link.pin, instance_id=link.instance_id)
         hidden = {'deck_id', 'quiz_id'} if public else {'deck_id'}
         return dict(quiz_display=quiz_display, title=run.title,
-                    steps=[{k: v for k, v in step.items() if k not in hidden} for step in run.steps],
+                    steps=[{k: v for k, v in step.items() if k not in hidden and k != 'opened_at'} for step in run.steps],
                     cursor=run.cursor, view='step' if run.view.startswith('step') else run.view,
                     revision=run.revision, page=page, page_count=deck.page_count if deck else 0)
 
@@ -253,9 +261,16 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             if run.revision != data.revision:
                 raise HTTPException(409, detail='event_revision_conflict')
             if data.action == 'open' and run.view == 'agenda' and run.cursor < len(run.steps):
+                step = run.steps[run.cursor]
+                if step.get('slide_seconds') and step.get('deck_id'):
+                    # Replace the JSON list so SQLAlchemy persists the clock across restarts.
+                    run.steps = [dict(item, opened_at=time()) if i == run.cursor else item
+                                 for i, item in enumerate(run.steps)]
                 run.view = 'step:0' if run.steps[run.cursor].get('deck_id') else 'step'
             elif data.action in {'previous_page', 'next_page'} and run.view.startswith('step:'):
                 deck, page = active_deck(db, run)
+                if run.steps[run.cursor].get('slide_seconds'):
+                    raise HTTPException(409, detail='event_slide_automatic')
                 page += 1 if data.action == 'next_page' else -1
                 if not deck or not 0 <= page < deck.page_count:
                     raise HTTPException(409, detail='event_run_transition_invalid')
@@ -292,13 +307,13 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             return live_state(run, db, public=True)
 
     @router.get('/display/program/page/{revision}')
-    def display_page(revision: int, authorization: str = Header(default='')):
+    def display_page(revision: int, requested_page: int | None = None, authorization: str = Header(default='')):
         key = authorization.removeprefix('Bearer ')
         with session_factory() as db:
             run = db.query(Run).filter_by(display_key=key).first() if key != authorization and len(key) == 43 else None
             if run and run.revision == revision:
                 deck, page = active_deck(db, run, include_pages=True)
-                if deck:
+                if deck and (requested_page is None or requested_page == page):
                     return Response(b64decode(deck.pages[page]), media_type='image/png',
                                     headers={'Cache-Control': 'no-store'})
             raise HTTPException(404, detail='event_deck_not_found')
