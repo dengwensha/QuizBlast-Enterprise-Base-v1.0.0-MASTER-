@@ -56,6 +56,7 @@ class EventSessionCreate(BaseModel):
 class AgendaStep(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     kind: Literal['presentation', 'quiz', 'break']
+    slide_seconds: int | None = Field(default=None, ge=3, le=300, strict=True)
     deck_id: UUID | None = None
     step_id: UUID | None = None
     quiz_id: int | None = Field(default=None, gt=0, strict=True)

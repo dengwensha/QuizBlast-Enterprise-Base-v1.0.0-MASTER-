@@ -224,6 +224,36 @@ class EventSessionsAcceptance(unittest.TestCase):
         self.assertEqual(self.request('PUT', path + '/live',
                                       {'action': 'next_page', 'revision': 3})[0], 409)
 
+    def test_timed_deck_stops_before_quiz_without_host_commands(self):
+        path, state = self.event()
+        event_id = state['event']['id']
+        revision = state['event']['revision']
+        with main.db_session() as db:
+            deck = main.EventDeck(event_id=event_id, name='Clock', page_count=3, pages=['YQ=='] * 3)
+            db.add(deck)
+            db.flush()
+            deck_id = deck.id
+            db.commit()
+        steps = [dict(kind='presentation', title='Deck', deck_id=deck_id, slide_seconds=10),
+                 dict(kind='quiz', title='Next')]
+        self.assertEqual(self.request('PUT', path + '/agenda', dict(revision=revision, steps=steps))[0], 200)
+        self.assertEqual(self.request('POST', path + '/live')[0], 200)
+        _, opened = self.request('PUT', path + '/live', dict(revision=1, action='open'))
+        self.assertEqual(opened['live']['page'], 0)
+        self.assertEqual(self.request('PUT', path + '/live', dict(revision=2, action='next_page'))[0], 409)
+        for elapsed, expected in [(11, 1), (300, 2)]:
+            with main.db_session() as db:
+                run = db.get(main.EventRun, event_id)
+                run.steps = [dict(run.steps[0], opened_at=time.time() - elapsed), run.steps[1]]
+                db.commit()
+            req = Request(self.address + '/events/display/program/state',
+                          headers={'Authorization': 'Bearer ' + opened['display_key']})
+            with urlopen(req, timeout=10) as response:
+                display = json.load(response)
+            self.assertEqual((display['cursor'], display['view'], display['page']), (0, 'step', expected))
+            self.assertIsNone(display['quiz_display'])
+            self.assertEqual(self.request(path=path + '/live')[1]['live']['page'], expected)
+
     def test_live_agenda_display_and_transitions(self):
         path, _ = self.event()
         self.assertEqual(self.request('POST', path + '/live')[0], 409)

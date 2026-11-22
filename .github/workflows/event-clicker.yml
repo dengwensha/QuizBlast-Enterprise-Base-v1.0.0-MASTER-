@@ -1,0 +1,21 @@
+name: Event presentation clicker
+on: [pull_request]
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: |
+          cp tests/clicker/probe.{html,jsx} .
+          ./node_modules/.bin/vite --port 4209 --strictPort > /tmp/clicker-vite.log 2>&1 &
+          trap 'kill $! || true' EXIT
+          curl --retry 20 --retry-connrefused --retry-delay 1 -fsS http://localhost:4209/probe.html >/dev/null
+          node tests/clicker/test-clicker.cjs

@@ -10,7 +10,7 @@ async function request(token, path = '', options = {}) {
     const messages = {
       401: 'Oturumunuz sona erdi. Yeniden giriş yapın.',
       404: 'Etkinlik bulunamadı veya erişiminiz yok.',
-      413: 'PDF dosyası yükleme sınırını aşıyor.',
+      413: 'Sunum dosyası yükleme sınırını aşıyor.',
       409: 'Etkinlik başka bir yerde güncellendi. Güncel kaydı yeniden açın.',
       422: 'Başlık ve tarih bilgilerini kontrol edin.',
     };
@@ -21,9 +21,11 @@ async function request(token, path = '', options = {}) {
       event_quiz_step_inactive: 'Oturum yalnızca etkin olan quiz adımı için açılabilir.',
       event_program_running: 'Çoklu quiz programı çalışırken program düzenlenemez.',
       event_quiz_step_invalid: 'Quiz adımı bu programa ait değil. Güncel programı yeniden aç.',
+      event_converter_unavailable: 'PPTX dönüştürücüye ulaşılamadı. Tekrar deneyin veya PDF yükleyin.',
+      event_pptx_invalid: 'PPTX dönüştürülemedi. Statik sunum kullanın (en fazla 10 MB ve 30 slayt).',
       event_pdf_invalid: 'PDF açılamadı veya dosya 10 MB, 30 sayfa ya da görsel boyutu sınırını aşıyor.',
-      event_deck_limit: 'Etkinlik başına en fazla 12 PDF yüklenebilir.',
-      event_deck_invalid: 'Seçilen PDF bu sunum adımına bağlanamadı.',
+      event_deck_limit: 'Etkinlik başına en fazla 12 sunum yüklenebilir.',
+      event_deck_invalid: 'Seçilen dosya bu sunum adımına bağlanamadı.',
       event_agenda_required: 'Önce etkinlik programını kaydet.',
       event_quiz_not_completed: 'Sonraki adıma geçmeden quizi tamamla.',
       event_run_transition_invalid: 'Bu işlem programın mevcut adımında kullanılamıyor.',
