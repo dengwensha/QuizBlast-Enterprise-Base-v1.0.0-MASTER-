@@ -15,6 +15,7 @@ async function request(token, path = '', options = {}) {
       422: 'Başlık ve tarih bilgilerini kontrol edin.',
     };
     const details = {
+      slide_remote_inactive: 'Kumanda bağlantısı artık geçerli değil.',
       event_delete_started: 'Programı başlatılmış veya oyun oturumu oluşturulmuş etkinlikler silinemez.',
       event_step_sessions_unavailable: 'Adıma özel quiz oturumunu Canlı Etkinlik ekranından aç.',
       event_step_quiz_required: 'Programı başlatmadan önce her quiz adımı için quiz seç.',
@@ -91,3 +92,11 @@ export async function getSlideImage(token, path) {
   if (!response.ok) throw new Error('Slayt yüklenemedi.');
   return { blob: await response.blob(), count: Number(response.headers.get('X-Page-Count')) };
 }
+
+export const enableSlideRemote = (token, id, revision) => request(token, `/${id}/slide-remote`, {
+  method: 'POST', body: JSON.stringify({ revision }),
+});
+export const slideRemoteState = (key, id) => request(key, `/${id}/slide-remote/state`, { cache: 'no-store' });
+export const moveRemoteSlide = (key, id, action, revision) => request(key, `/${id}/slide-remote/page`, {
+  method: 'PUT', body: JSON.stringify({ action, revision }),
+});

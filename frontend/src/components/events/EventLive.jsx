@@ -1,3 +1,5 @@
+import { QRCodeSVG } from 'qrcode.react';
+import { enableSlideRemote } from '../../services/eventService';
 import React, { useEffect, useState } from 'react';
 import { advanceEventLive, getEventDisplay, getEventLive, startEventLive } from '../../services/eventService';
 import './event-studio.css';
@@ -72,6 +74,7 @@ export function EventLiveDisplay({ displayKey, renderQuiz }) {
 
 export default function EventLive({ token, eventId, onBack, onQuiz }) {
   const [data, setData] = useState(null);
+  const [remote, setRemote] = useState(null);
   const [reportStep, setReportStep] = useState(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -97,7 +100,7 @@ export default function EventLive({ token, eventId, onBack, onQuiz }) {
   const automatic = live?.view === 'step' && !!step?.slide_seconds;
   const playing = automatic && live.page + 1 < live.page_count;
   useEffect(() => {
-    if (!playing || busy) return;
+    if ((!playing && !live?.remote_enabled) || busy) return;
     let active = true;
     let timer;
     async function refresh() {
@@ -109,7 +112,7 @@ export default function EventLive({ token, eventId, onBack, onQuiz }) {
     }
     timer = setTimeout(refresh, 1000);
     return () => { active = false; clearTimeout(timer); };
-  }, [playing, busy, token, eventId]);
+  }, [playing, live?.remote_enabled, busy, token, eventId]);
   const command = action => perform(() => advanceEventLive(token, eventId, { action, revision: live.revision }));
   // Presentation remotes commonly emulate these four keyboard keys.
   useEffect(() => {
@@ -141,6 +144,17 @@ export default function EventLive({ token, eventId, onBack, onQuiz }) {
         {live.view === 'step' && <>
           {automatic && <p>{playing ? `Slaytlar ${step.slide_seconds} saniyede bir ilerler.` : 'Son slayt. Sunum burada bekler.'}</p>}
           {!!live.page_count && !automatic && <>
+            <button disabled={busy} onClick={() => perform(async () => {
+              const { key, ...next } = await enableSlideRemote(token, eventId, live.revision);
+              const url = new URL(window.location.href);
+              url.hash = new URLSearchParams({ 'slide-remote': eventId, key }).toString();
+              setRemote({ cursor: live.cursor, eventId, url: url.href });
+              return next;
+            })}>{live.remote_enabled ? 'Yeni kumanda bağlantısı oluştur' : 'Uzak slayt kumandasını aç'}</button>
+            {live.remote_enabled && remote?.cursor === live.cursor && remote.eventId === eventId && <div>
+              <QRCodeSVG value={remote.url} size={120} />
+              <p><a href={remote.url} target="_blank" rel="noreferrer">Slayt kumandası bağlantısı</a></p>
+            </div>}
             <small>Sunum kumandası: Host penceresinde ← / → veya Page Up / Page Down.</small>
             <button disabled={busy || !live.page} onClick={() => command('previous_page')}>Önceki Slayt</button>
             <button disabled={busy || live.page + 1 >= live.page_count} onClick={() => command('next_page')}>Sonraki Slayt</button>

@@ -2,12 +2,13 @@
 from base64 import b64decode
 from datetime import datetime, timezone
 from uuid import UUID, uuid4, uuid5
-from secrets import token_urlsafe
+from hashlib import sha256
+from secrets import compare_digest, token_urlsafe
 from time import time
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, UploadFile
 from sqlalchemy import update
 from sqlalchemy.orm import defer
-from app.schemas.events import EventRunCommand, EventAgendaUpdate, EventQuizSelect, EventSessionCreate
+from app.schemas.events import SlideCommand, EventRunCommand, EventAgendaUpdate, EventQuizSelect, EventSessionCreate
 from app.services.event_pptx import pptx_to_pdf
 from app.services.event_pdf import MAX_PDF_BYTES, render_pdf
 from pypdfium2 import PdfiumError
@@ -212,8 +213,10 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             if room and room.identity and room.identity.instance_id == link.instance_id and room.phase != 'closed':
                 quiz_display = dict(pin=link.pin, instance_id=link.instance_id)
         hidden = {'deck_id', 'quiz_id'} if public else {'deck_id'}
-        return dict(quiz_display=quiz_display, title=run.title,
-                    steps=[{k: v for k, v in step.items() if k not in hidden and k != 'opened_at'} for step in run.steps],
+        remote_enabled = (not public and run.view.startswith('step:') and
+                          bool(run.steps[run.cursor].get('remote_digest')))
+        return dict(remote_enabled=remote_enabled, quiz_display=quiz_display, title=run.title,
+                    steps=[{k: v for k, v in step.items() if k not in hidden and k not in {'opened_at', 'remote_digest'}} for step in run.steps],
                     cursor=run.cursor, view='step' if run.view.startswith('step') else run.view,
                     revision=run.revision, page=page, page_count=deck.page_count if deck else 0)
 
@@ -295,6 +298,70 @@ def create_event_game_router(owner, session_factory, EventDraft, User,
             result = dict(live=live_state(run, db), display_key=run.display_key)
             db.commit()
             return result
+
+    def manual_slide(run):
+        return (run and run.view.startswith('step:') and run.cursor < len(run.steps)
+                and run.steps[run.cursor]['kind'] == 'presentation'
+                and not run.steps[run.cursor].get('slide_seconds'))
+
+    @router.post('/{event_id}/slide-remote')
+    def enable_remote(event_id: UUID, data: EventSessionCreate, response: Response, owner_id: int = Depends(owner)):
+        response.headers["Cache-Control"] = "no-store"
+        with session_factory() as db:
+            row = event(db, event_id, owner_id, lock=True)
+            run = db.get(Run, row.id)
+            if not manual_slide(run) or run.revision != data.revision:
+                raise HTTPException(409, detail='event_run_transition_invalid')
+            key = token_urlsafe(32)
+            digest = sha256(key.encode()).hexdigest()
+            run.steps = [dict(item, remote_digest=digest) if i == run.cursor else item
+                         for i, item in enumerate(run.steps)]
+            run.revision += 1
+            result = dict(key=key, live=live_state(run, db), display_key=run.display_key)
+            db.commit()
+            return result
+
+    def remote_state(event_id, authorization, data=None):
+        key = authorization.removeprefix('Bearer ')
+        missing = HTTPException(404, detail='slide_remote_inactive')
+        if key == authorization or len(key) != 43:
+            raise missing
+        digest = sha256(key.encode()).hexdigest()
+        with session_factory() as db:
+            def authorized(run):
+                return manual_slide(run) and compare_digest(
+                    run.steps[run.cursor].get('remote_digest', ''), digest)
+            run = db.get(Run, event_id.hex)
+            if not authorized(run):
+                raise missing
+            if data is not None:
+                row = db.get(EventDraft, event_id.hex)
+                event(db, event_id, row.owner_id, lock=True)
+                db.refresh(run)
+                if not authorized(run):
+                    raise missing
+            deck, page = active_deck(db, run)
+            if not deck:
+                raise missing
+            if data is not None:
+                page += 1 if data.action == 'next_page' else -1
+                if data.revision != run.revision or not 0 <= page < deck.page_count:
+                    raise HTTPException(409, detail='event_revision_conflict')
+                run.view = f'step:{page}'
+                run.revision += 1
+            result = dict(page=page, page_count=deck.page_count, revision=run.revision)
+            if data is not None:
+                db.commit()
+            return result
+
+    @router.get('/{event_id}/slide-remote/state')
+    def read_remote(event_id: UUID, response: Response, authorization: str = Header(default='')):
+        response.headers['Cache-Control'] = 'no-store'
+        return remote_state(event_id, authorization)
+
+    @router.put('/{event_id}/slide-remote/page')
+    def move_remote(event_id: UUID, data: SlideCommand, authorization: str = Header(default='')):
+        return remote_state(event_id, authorization, data)
 
     @router.get('/display/program/state')
     def get_display_live(response: Response, authorization: str = Header(default='')):
