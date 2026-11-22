@@ -111,6 +111,23 @@ export default function EventLive({ token, eventId, onBack, onQuiz }) {
     return () => { active = false; clearTimeout(timer); };
   }, [playing, busy, token, eventId]);
   const command = action => perform(() => advanceEventLive(token, eventId, { action, revision: live.revision }));
+  // Presentation remotes commonly emulate these four keyboard keys.
+  useEffect(() => {
+    if (reportStep || automatic || live?.view !== 'step' ||
+        step?.kind !== 'presentation' || !live.page_count) return;
+    function onKey(event) {
+      if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey ||
+          event.metaKey || event.shiftKey || event.target?.isContentEditable ||
+          event.target?.closest?.('input, textarea, select, [role="textbox"], [role="slider"]')) return;
+      const forward = event.key === 'PageDown' || event.key === 'ArrowRight';
+      if (!forward && event.key !== 'PageUp' && event.key !== 'ArrowLeft') return;
+      event.preventDefault();
+      if (busy || event.repeat || (forward ? live.page + 1 >= live.page_count : live.page <= 0)) return;
+      command(forward ? 'next_page' : 'previous_page');
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
   if (reportStep) return <EventReport token={token} eventId={eventId} stepId={reportStep} onBack={() => setReportStep(null)} />;
   return <StageViewport enabled><main className="qb-events qb-live">
     <header className="qb-live__header"><div><p className="qb-live__eyebrow">Event Studio</p><h1>Canlı Etkinlik</h1>{live?.title && <p>{live.title}</p>}</div><button disabled={busy} onClick={onBack}>Etkinliklere Dön</button></header>
@@ -124,6 +141,7 @@ export default function EventLive({ token, eventId, onBack, onQuiz }) {
         {live.view === 'step' && <>
           {automatic && <p>{playing ? `Slaytlar ${step.slide_seconds} saniyede bir ilerler.` : 'Son slayt. Sunum burada bekler.'}</p>}
           {!!live.page_count && !automatic && <>
+            <small>Sunum kumandası: Host penceresinde ← / → veya Page Up / Page Down.</small>
             <button disabled={busy || !live.page} onClick={() => command('previous_page')}>Önceki Slayt</button>
             <button disabled={busy || live.page + 1 >= live.page_count} onClick={() => command('next_page')}>Sonraki Slayt</button>
           </>}

@@ -1,0 +1,1 @@
+import React from 'react';import {createRoot} from 'react-dom/client';import Host,{EventLiveDisplay} from './src/components/events/EventLive';createRoot(document.querySelector('#root')).render(location.search==='?display'?<EventLiveDisplay displayKey="key"/>:<Host token="host" eventId="one"/>);
