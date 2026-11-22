@@ -117,6 +117,14 @@ export default function EventAgenda({ token, eventId, onBack }) {
           </select>
         </label>}
         {step.kind === 'presentation' && <div className="qb-agenda__pdf">
+          {step.deck_id && <label>Slayt geçişi
+            <select disabled={busy} value={step.slide_seconds ?? ''}
+              onChange={e => edit(steps.map((item, i) => i === index
+                ? { ...item, slide_seconds: e.target.value ? Number(e.target.value) : null } : item))}>
+              <option value="">Elle ilerlet</option>
+              {[5, 10, 15, 30, 60].map(seconds => <option key={seconds} value={seconds}>Her {seconds} saniyede</option>)}
+            </select>
+          </label>}
           {step.deck_id && <p>Seçili sunum: <strong>{agenda.deck_names?.[step.deck_id.replace(/-/g, '')] || 'Dosya adı bulunamadı'}</strong></p>}
           <label>{step.deck_id ? "Sunumu değiştir" : "Sunum yükle (PDF veya PPTX)"}<input type="file" accept="application/pdf,.pdf,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" disabled={busy}
             onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; upload(index, file); }} /></label>
