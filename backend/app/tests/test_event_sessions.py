@@ -224,6 +224,53 @@ class EventSessionsAcceptance(unittest.TestCase):
         self.assertEqual(self.request('PUT', path + '/live',
                                       {'action': 'next_page', 'revision': 3})[0], 409)
 
+    def test_remote_rotates_and_expires_at_slide_boundary(self):
+        path, state = self.event()
+        with main.db_session() as db:
+            deck = main.EventDeck(event_id=state['event']['id'], name='Deck', page_count=2, pages=['YQ==']*2)
+            db.add(deck)
+            db.flush()
+            step = dict(kind='presentation', title='Deck', deck_id=deck.id)
+            db.commit()
+        revision = state['event']['revision']
+        self.assertEqual(self.request('PUT', path + '/agenda', dict(revision=revision, steps=[
+            step, step, dict(step, slide_seconds=5)]))[0], 200)
+        self.request('POST', path + '/live')
+        control = path + '/slide-remote'
+        def host(action, rev):
+            return self.request('PUT', path + '/live', dict(action=action, revision=rev))[0]
+        def remote(key, action=None, rev=None):
+            req = Request(self.address + control + ('/state' if action is None else '/page'),
+                          method='GET' if action is None else 'PUT',
+                          headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'},
+                          data=None if action is None else json.dumps(dict(action=action, revision=rev)).encode())
+            try:
+                with urlopen(req, timeout=10) as response:
+                    return response.status, json.load(response)
+            except HTTPError as error:
+                return error.code, None
+        self.assertEqual(host('open', 1), 200)
+        self.assertEqual(self.request('POST', control, dict(revision=2), email=self.other)[0], 404)
+        _, first = self.request('POST', control, dict(revision=2))
+        _, second = self.request('POST', control, dict(revision=3))
+        key = second['key']
+        self.assertEqual(remote(first['key'])[0], 404)
+        self.assertEqual(remote(second['display_key'])[0], 404)
+        self.assertEqual(remote(key), (200, dict(page=0, page_count=2, revision=4)))
+        self.assertEqual(remote(key, 'complete', 4)[0], 422)
+        self.assertEqual(remote(key, 'previous_page', 4)[0], 409)
+        self.assertEqual(remote(key, 'next_page', 4)[1]['page'], 1)
+        self.assertEqual(remote(key, 'next_page', 5)[0], 409)
+        self.assertEqual(remote(key, 'previous_page', 4)[0], 409)
+        self.assertEqual(remote(key, 'previous_page', 5)[1]['page'], 0)
+        self.assertEqual(host('complete', 6), 200)
+        self.assertEqual(remote(key)[0], 404)
+        self.assertEqual(host('open', 7), 200)
+        self.assertEqual(remote(key, 'next_page', 8)[0], 404)
+        self.assertEqual(host('complete', 8), 200)
+        self.assertEqual(host('open', 9), 200)
+        self.assertEqual(self.request('POST', control, dict(revision=10))[0], 409)
+
     def test_timed_deck_stops_before_quiz_without_host_commands(self):
         path, state = self.event()
         event_id = state['event']['id']

@@ -74,3 +74,7 @@ class EventRunCommand(BaseModel):
     model_config = ConfigDict(extra='forbid')
     action: Literal['open', 'complete', 'previous_page', 'next_page']
     revision: int = Field(ge=1, strict=True)
+
+
+class SlideCommand(EventSessionCreate):
+    action: Literal['previous_page', 'next_page']
