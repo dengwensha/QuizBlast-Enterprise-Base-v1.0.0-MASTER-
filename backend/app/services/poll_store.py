@@ -22,6 +22,7 @@ def register_poll_models(base):
         poll_id = Column(String(32), ForeignKey('poll_definitions.id'), nullable=False, index=True)
         definition_revision = Column(Integer, nullable=False)
         invite_digest = Column(String(64), nullable=False, unique=True)
+        display_digest = Column(String(64), nullable=True, unique=True)
         status = Column(String(16), nullable=False, default='draft')
         created_at = Column(DateTime(timezone=True), nullable=False,
                             default=lambda: datetime.now(timezone.utc))
