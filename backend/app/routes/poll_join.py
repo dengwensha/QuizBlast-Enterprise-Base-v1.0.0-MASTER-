@@ -16,7 +16,10 @@ from sqlalchemy.exc import IntegrityError
 class JoinRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     # Client generates and persists once before the first POST.
-    join_key: str = Field(min_length=43, max_length=43, pattern=r'^[A-Za-z0-9_-]{43}, User, PollDefinition, PollSession,
+    join_key: str = Field(min_length=43, max_length=43, pattern=r'^[A-Za-z0-9_-]{43}$')
+
+
+def create_poll_join_router(session_factory, User, PollDefinition, PollSession,
                             PollParticipant, authenticate, secret_key):
     router = APIRouter(tags=['polls'])
 
