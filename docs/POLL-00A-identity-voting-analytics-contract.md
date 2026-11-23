@@ -9,6 +9,18 @@ Status: proposed architecture / documentation-only. Target event: 2026-12-12. Ba
 - `backend/app/services/game_recovery.py`: quiz player identity is scoped to room PIN plus name, with separate hashed reconnect token; closed-room cleanup eventually deletes players. Do not infer reusable poll eligibility from a quiz nickname or ephemeral live roster.
 - Frontend: EventAgenda and EventLive have explicit step-kind switches; all must be audited for a fourth kind, including generic program transitions, display and stage sizing.
 
+## Architectural decision — Poll Studio is a standalone module (2026-11-23)
+
+- **Poll Studio owns poll definitions, single-choice vote sessions, participant credentials, vote persistence, aggregate analytics, retention and owner-only reports.** Its services and data must not require EventDraft, EventRun, a quiz room, a game PIN, or a quiz score to exist.
+- **Event Studio only orchestrates** a reference to a Poll Studio definition/session inside the program agenda, starts or finishes an attached session through an owner-scoped integration contract, and renders Poll Studio’s safe aggregate projection on Host/Display.
+- For direct use, a Poll Studio owner can create a poll, start a standalone session, share a Poll Studio QR/link and inspect its report without creating an event.
+- Proposed canonical identifiers: `poll_id` (reusable definition), `poll_session_id` (one execution), optional `event_id` + `step_id` binding in a separate `PollEventBinding`; do not require event_id on the standalone definition/session. Event-specific sessions remain isolated from standalone executions.
+- One shared application authentication and infrastructure layer is acceptable, but business ownership and route/model boundaries are separate. Quiz scoring and participant nickname/room identity must not be coupled to poll votes.
+- **December 12 minimal vertical slice:** standalone Poll Studio authoring + poll session + vote + live aggregate/report, then thin Event Studio agenda/Host/Display integration. Avoid duplicating engines to achieve both launch modes.
+- Keep one immutable, server-verifiable participant ID per scope; for standalone use the scope is the poll session or an explicit Poll Studio event/group, for Event Studio it can be the event participation scope. Refresh/reconnect reuses the same identity in each scope. Never equate two scopes implicitly.
+- Compatibility: existing `presentation | quiz | break` steps remain unchanged; new `poll` type references a poll definition and binds a distinct session. No automatic changes to legacy Event Studio flows.
+- The standalone-first boundary **supersedes all event-mandatory fields and event-only proposed routes below**. Their concrete schema/API are to be revised in POLL-00B before production implementation. All remaining one-vote, privacy, analytics and test invariants continue to apply.
+
 ## Locked MVP intent / explicit non-goals
 - One question per poll, single-choice, 2–6 choices, no correct answer, no score.
 - Multiple poll steps in one event are permitted only if each is given an immutable step ID and isolated poll session. At least one poll step must work on December 12.
@@ -25,11 +37,12 @@ Status: proposed architecture / documentation-only. Target event: 2026-12-12. Ba
 6. Poll definition becomes immutable when session opens; stale versions fail with 409. Owner cannot delete or mutate active/finished poll content in a way that reinterprets prior votes.
 
 ## Proposed logical data model (NOT IMPLEMENTED)
-- `PollDefinition`: id, event_id, immutable step_id, question, ordered options with stable option IDs, owner_id, version.
-- `PollParticipant`: id, event_id, token_digest, joined_at, optional display_name; event participant credential independent of quiz room.
-- `PollSession`: id, event_id, step_id, poll_definition_version, status (draft/open/closed), opened_at, closed_at, revision, display_results flag.
+- `PollDefinition`: id, question, ordered options with stable option IDs, owner_id, version; independent of event_id and step_id.
+- `PollParticipant`: id, participation_scope_id, token_digest, joined_at, optional display_name; scope may be standalone poll session or a separately established Event Studio participation scope; never require a quiz room.
+- `PollSession`: id, poll_definition_id, poll_definition_version, status (draft/open/closed), opened_at, closed_at, revision, display_results flag; independent of EventRun.
 - `PollVote`: id, poll_session_id, participant_id, option_id, accepted_at; unique(poll_session_id, participant_id). Foreign keys and integrity checks required.
-- `PollSummary`: proposed retained, derivable report snapshot with event_id, step_id, session_id, closed_at, eligible_count (nullable), vote_count, option counts, expires_at, participant_count_source. No individually identifying data needed in aggregate report.
+- `PollEventBinding`: optional event_id, step_id, poll_definition_id, poll_session_id; owns the narrow orchestration link, not the voting engine.
+- `PollSummary`: proposed retained, derivable report snapshot with session_id, optional event/step binding, closed_at, eligible_count (nullable), vote_count, option counts, expires_at, participant_count_source. No individually identifying data needed in aggregate report.
 - Exact columns/migrations and cleanup policy deferred to POLL-01A; do not duplicate event data where stable references suffice. Retention must remain independent of purged quiz rooms.
 
 ## State machine and consistency
@@ -51,7 +64,8 @@ Status: proposed architecture / documentation-only. Target event: 2026-12-12. Ba
 - Owner-only report remains accessible after event and backend restart until defined expiry. Verify existing quiz report defaults versus presentation retention choices before selecting poll expiry. Do not assume all existing data is 15 days.
 
 ## Minimal API outline (proposed, not existing)
-- Owner: `PUT /events/{event_id}/polls/{step_id}` (definition, revision), `POST /events/{event_id}/polls/{step_id}/open`, `POST .../close`, `GET .../report`.
+- Poll Studio owner: proposed `/polls` (definitions), `/poll-sessions` (open/close) and `/poll-sessions/{session_id}/report` with owner authorization. Routes are sketches, not implemented.
+- Event Studio integration: proposed `/events/{event_id}/poll-bindings/{step_id}` creates or references a Poll Studio definition; existing Event Run delegates opening/closing of the bound poll session rather than accepting votes itself.
 - Participant: scoped poll join/restore endpoint; `POST /poll-sessions/{session_id}/vote` with participant bearer and option ID.
 - Display: aggregate poll status via existing program-state trust boundary or narrow read-only endpoint requiring display credential.
 - Define exact payloads and route conflicts after mapping existing `/events/{event_id}/...` routes. No unguarded public vote or report endpoint.
@@ -69,10 +83,10 @@ Status: proposed architecture / documentation-only. Target event: 2026-12-12. Ba
 10. CI: production build, backend tests (Postgres), browser regression; exact passing commit captured. No merge/deploy without gates.
 
 ## Implementation dependency/order
-- POLL-00B: verify join/restore and source-of-truth attendance (highest risk); test-only or documentation first.
-- POLL-01A: new schema and owner-owned definition API, contract tests.
+- POLL-00B: verify standalone join/restore, unique participation scope, optional Event Studio binding and source-of-truth attendance (highest risk); test-only or documentation first.
+- POLL-01A: standalone Poll Studio schema and owner-owned definition API, contract tests; no Event Studio dependency.
 - POLL-01B: poll-only participant join, identity and atomic voting.
-- POLL-01C: Event Run host controls and read-only Display aggregates.
+- POLL-01C: standalone live aggregate API plus narrow Event Studio binding, Event Run host controls and read-only Display projection.
 - POLL-01D: summary snapshot, owner report and expiry.
 - POLL-01E: full regression, 10+ participant local acceptance, live rehearsal.
 - Stay on isolated branch/stacked PR; compare current Event Studio head with slide-remote PR #52 and test PR #53 before any shared App, EventLive, routes, models or CI edits.
