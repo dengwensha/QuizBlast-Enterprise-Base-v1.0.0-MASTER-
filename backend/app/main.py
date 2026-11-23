@@ -10,6 +10,8 @@ from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager, suppress
 import os, random, asyncio, time, uuid
 from app.routes.events import create_events_router
+from app.routes.polls import create_polls_router
+from app.services.poll_store import register_poll_models
 from app.services.event_store import register_event_model, register_event_game_models, register_event_report_model, register_event_retention_model, register_event_agenda_model, register_event_run_model, register_event_deck_model, register_event_step_game_models
 from app.services.room_creation import RoomBuilder
 from secrets import compare_digest
@@ -132,6 +134,7 @@ EventAgenda = register_event_agenda_model(Base)
 EventRun = register_event_run_model(Base)
 EventDeck = register_event_deck_model(Base)
 EventStepSession, EventStepReport = register_event_step_game_models(Base)
+PollDefinition, PollSession = register_poll_models(Base)
 
 connected=False
 while not connected:
@@ -196,6 +199,11 @@ app.include_router(create_events_router(
     lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
     game_features=dict(Selection=EventQuizSelection, EventSession=EventGameSession,
                        Retention=EventRetention, Report=EventReport, Agenda=EventAgenda, Run=EventRun, Deck=EventDeck, StepSession=EventStepSession, StepReport=EventStepReport, builder=room_builder, initialize=lambda *args: initialize_lobby_room(*args)),
+))
+
+app.include_router(create_polls_router(
+    SessionLocal, User, PollDefinition,
+    lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
 ))
 
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
