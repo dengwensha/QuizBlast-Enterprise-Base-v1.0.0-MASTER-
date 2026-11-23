@@ -103,6 +103,39 @@ class PollResultsAcceptance(unittest.TestCase):
         return self.req('GET', '/poll-sessions/' + session['session_id'] + '/results',
                         token=token or self.tokens[self.email])
 
+    def test_display_capability_is_read_only_and_survives_close(self):
+        session = self.new_session()
+        display_key = session['display_key']
+        results_url = '/poll-sessions/' + session['session_id'] + '/display-results'
+        status, initial = self.req('GET', results_url, token=display_key)
+        self.assertEqual(status, 200)
+        self.assertEqual(initial['total_votes'], 0)
+        self.assertEqual([row['votes'] for row in initial['options']], [0, 0, 0])
+        self.assertEqual(self.req('GET', results_url)[0], 401)
+        self.assertEqual(self.req('GET', results_url, token=token_urlsafe(32))[0], 404)
+        self.assertEqual(self.req('GET', results_url,
+                                  token=self.tokens[self.email])[0], 401)
+        voter = self.join(session)
+        self.assertEqual(self.req('GET', results_url, token=voter)[0], 401)
+        self.assertEqual(self.req('POST', '/poll-sessions/' + session['session_id'] + '/close',
+                                  token=display_key)[0], 401)
+        self.assertEqual(self.req('POST', '/poll-sessions/' + session['session_id'] + '/votes',
+                                  {'option_index': 0}, display_key)[0], 401)
+        self.assertEqual(self.req('POST', '/poll-sessions/' + session['session_id'] + '/votes',
+                                  {'option_index': 1}, voter)[0], 200)
+        status, active = self.req('GET', results_url, token=display_key)
+        self.assertEqual(status, 200)
+        self.assertEqual(active['total_votes'], 1)
+        self.assertEqual(active['options'][1]['votes'], 1)
+        self.assertNotIn('participant_id', str(active))
+        self.assertNotIn('token_digest', str(active))
+        self.assertEqual(self.req('POST', '/poll-sessions/' + session['session_id'] + '/close',
+                                  token=self.tokens[self.email])[0], 200)
+        status, closed = self.req('GET', results_url, token=display_key)
+        self.assertEqual(status, 200)
+        self.assertEqual(closed['status'], 'closed')
+        self.assertEqual(closed['options'], active['options'])
+
     def test_empty_ballot_no_division_by_zero(self):
         session = self.new_session()
         status, result = self.results(session)
