@@ -1,5 +1,6 @@
 import SlideRemote from './components/events/SlideRemote';
 import PollJoin from './components/polls/PollJoin';
+import PollDisplay from './components/polls/PollDisplay';
 import PollHost from './components/polls/PollHost';
 import { EventLiveDisplay } from './components/events/EventLive';
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -52,6 +53,7 @@ export default function App() {
   if (pollInvite !== null) return <PollJoin invite={pollInvite} />;
   if (new URLSearchParams(window.location.search).get('poll-host') === '1') return <PollHost />;
   const params = new URLSearchParams(window.location.hash.slice(1));
+  if (params.has('poll-display')) return <PollDisplay sessionId={params.get('poll-display')} accessKey={params.get('key')} />;
   if (params.has('slide-remote')) return <SlideRemote id={params.get('slide-remote')} accessKeyValue={params.get('key')} />;
   const displayKey = new URLSearchParams(window.location.hash.slice(1)).get('event-display');
   return displayKey ? <EventLiveDisplay displayKey={displayKey} renderQuiz={room => <QuizBlastApp key={room.instance_id} programRoom={room} programDisplayKey={displayKey} />} /> : <QuizBlastApp />;
