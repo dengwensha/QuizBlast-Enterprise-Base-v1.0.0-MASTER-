@@ -37,7 +37,20 @@ def register_poll_models(base):
         joined_at = Column(DateTime(timezone=True), nullable=False,
                            default=lambda: datetime.now(timezone.utc))
 
-    return PollDefinition, PollSession, PollParticipant
+    class PollVote(base):
+        __tablename__ = 'poll_votes'
+        __table_args__ = (UniqueConstraint('session_id', 'participant_id',
+                                           name='uq_poll_vote_once'),)
+        id = Column(String(32), primary_key=True, default=lambda: uuid4().hex)
+        session_id = Column(String(32), ForeignKey('poll_sessions.id'),
+                            nullable=False, index=True)
+        participant_id = Column(String(32), ForeignKey('poll_participants.id'),
+                                nullable=False)
+        option_index = Column(Integer, nullable=False)
+        accepted_at = Column(DateTime(timezone=True), nullable=False,
+                             default=lambda: datetime.now(timezone.utc))
+
+    return PollDefinition, PollSession, PollParticipant, PollVote
 
 
 def serialize_poll(row):
