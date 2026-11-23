@@ -7,10 +7,16 @@ from hashlib import sha256
 from hmac import new as hmac_new, compare_digest
 from secrets import token_urlsafe
 from uuid import UUID
+from datetime import timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
+
+
+class VoteRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    option_index: int = Field(ge=0, strict=True)
 
 
 class JoinRequest(BaseModel):
@@ -20,7 +26,7 @@ class JoinRequest(BaseModel):
 
 
 def create_poll_join_router(session_factory, User, PollDefinition, PollSession,
-                            PollParticipant, authenticate, secret_key):
+                            PollParticipant, PollVote, authenticate, secret_key):
     router = APIRouter(tags=['polls'])
 
     def owner(authorization: str | None = Header(default=None)):
@@ -101,5 +107,82 @@ def create_poll_join_router(session_factory, User, PollDefinition, PollSession,
                 raise HTTPException(409, detail='poll_join_identity_conflict')
             return dict(participant_id=existing.id, session_id=session.id,
                         participant_token=participant_token)
+
+
+    def participant_for_token(db, session_id, authorization):
+        if not authorization or not authorization.startswith('Bearer '):
+            raise HTTPException(401, detail='poll_participant_unauthorized')
+        credential = authorization[7:]
+        if len(credential) != 43:
+            raise HTTPException(401, detail='poll_participant_unauthorized')
+        digest = sha256(credential.encode()).hexdigest()
+        participant = db.query(PollParticipant).filter_by(
+            session_id=session_id, token_digest=digest).first()
+        if participant is None:
+            raise HTTPException(401, detail='poll_participant_unauthorized')
+        return participant
+
+    def vote_receipt(vote):
+        accepted = vote.accepted_at
+        if accepted is not None and accepted.tzinfo is None:
+            accepted = accepted.replace(tzinfo=timezone.utc)
+        return dict(vote_id=vote.id, session_id=vote.session_id,
+                    option_index=vote.option_index, accepted_at=accepted)
+
+    @router.get('/poll-sessions/{session_id}/me')
+    def my_poll_state(session_id: UUID, authorization: str | None = Header(default=None)):
+        with session_factory() as db:
+            participant = participant_for_token(db, session_id.hex, authorization)
+            vote = db.query(PollVote).filter_by(
+                session_id=session_id.hex, participant_id=participant.id).first()
+            session = db.get(PollSession, session_id.hex)
+            return dict(participant_id=participant.id, session_id=session_id.hex,
+                        status=session.status if session else 'unavailable',
+                        vote=vote_receipt(vote) if vote else None)
+
+    @router.post('/poll-sessions/{session_id}/votes')
+    def submit_vote(session_id: UUID, data: VoteRequest,
+                    authorization: str | None = Header(default=None)):
+        with session_factory() as db:
+            # Serializes vote-vote and vote-close transitions in PostgreSQL.
+            session = db.query(PollSession).filter_by(
+                id=session_id.hex).with_for_update().first()
+            if session is None:
+                raise HTTPException(404, detail='poll_session_not_found')
+            participant = participant_for_token(db, session_id.hex, authorization)
+            previous = db.query(PollVote).filter_by(
+                session_id=session.id, participant_id=participant.id).first()
+            if previous is not None:
+                if previous.option_index != data.option_index:
+                    raise HTTPException(409, detail='poll_vote_already_cast')
+                return vote_receipt(previous)
+            if session.status != 'open':
+                raise HTTPException(409, detail='poll_session_closed')
+            definition = db.get(PollDefinition, session.poll_id)
+            if definition is None or not 0 <= data.option_index < len(definition.options):
+                raise HTTPException(422, detail='poll_option_invalid')
+            record = PollVote(session_id=session.id, participant_id=participant.id,
+                              option_index=data.option_index)
+            db.add(record)
+            db.commit()
+            db.refresh(record)
+            return vote_receipt(record)
+
+    @router.post('/poll-sessions/{session_id}/close')
+    def close_session(session_id: UUID, owner_id: int = Depends(owner)):
+        with session_factory() as db:
+            session = db.query(PollSession).filter_by(
+                id=session_id.hex).with_for_update().first()
+            if session is None:
+                raise HTTPException(404, detail='poll_session_not_found')
+            definition = db.query(PollDefinition).filter_by(
+                id=session.poll_id, owner_id=owner_id).first()
+            if definition is None:
+                raise HTTPException(404, detail='poll_session_not_found')
+            if session.status != 'open':
+                raise HTTPException(409, detail='poll_session_closed')
+            session.status = 'closed'
+            db.commit()
+            return dict(session_id=session.id, status='closed')
 
     return router
