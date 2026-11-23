@@ -19,6 +19,16 @@ Base: POLL-00A documentation commit a5aa5a5 atop 28f27f8. Before implementation 
 4. **Display credential**: separate read-only capability restricted to public aggregate projection. No raw votes or participant secrets.
 5. **Event Studio adapter**: optional event_id/step_id binding references a Poll Studio session. The adapter does not mint GameRoom, Quiz PIN or quiz-score objects.
 
+## POLL-01B hard gate — duplicate registration prevention (2026-11-23)
+
+- **Same participant + same poll session: one registration and one counted vote.** Reopening a QR link, browser F5, reconnecting, double-clicking Join, retrying after a timeout, or parallel Join requests must restore/return the existing participant record rather than insert a new one whenever the participant credential is available.
+- A server-issued, opaque **join idempotency key** is persisted by the client before the initial Join attempt and included with retries. Server records a unique scope-and-key mapping and responds with the same participant identity for identical attempts, including simultaneous requests; client-side button disabling is not sufficient.
+- Existing participant token takes precedence over creating a new identity; authenticate it against the exact poll session. A wrong-session token must fail closed and must not be silently replaced.
+- Database-level constraints for participant registration idempotency and for `UNIQUE(poll_session_id, participant_id)` on votes are mandatory, with atomic conflict handling. Duplicate same-option vote retries are idempotent; different-option retries return 409.
+- **Nickname is display metadata, not a person identifier**. Rejecting a repeated nickname alone is neither secure nor sufficient, and can allow an attacker to block a legitimate participant. Rate limiting and abuse monitoring help deter repeated anonymous registrations.
+- **Limit of the December anonymous QR MVP:** loss of browser credential/storage, incognito browsing or a second physical device can produce a new anonymous identity. It is impossible to guarantee one human one vote without a stronger identity/verification method (e.g. authenticated invitation or one-time attendee credential). Do not claim such a guarantee.
+- Acceptance: verify repeated QR open, double join, F5/restart, two concurrent join requests, same token in second tab, same nickname across independent participants, and vote-level duplicate submission. Distinct participants must not be unintentionally merged.
+
 ## Proposed join and resume behavior
 - Host starts standalone Poll Studio session and shows QR/link `/poll/join?invite=<opaque>`.
 - Player opens URL without login. GET limited public state; on explicit join POST with optional display nickname. Server returns participant token only to that client; save it to client storage indexed by poll session, not shared host auth storage.
