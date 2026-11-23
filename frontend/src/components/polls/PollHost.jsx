@@ -124,6 +124,7 @@ export default function PollHost() {
     setSession(null); setResults(null); setError('');
   }
   const link = session?.invite ? APP_URL + '/?poll=' + encodeURIComponent(session.invite) : '';
+  const displayLink = session?.display_key ? APP_URL + '/#poll-display=' + encodeURIComponent(session.session_id) + '&key=' + encodeURIComponent(session.display_key) : '';
   if (!user) return <main className="qb-poll-host"><section className="qb-poll-host__panel">
     <h1>Poll Studio</h1><p>Host işlemleri için hesabınızla giriş yapmalısınız.</p>
     <a href="/">Giriş ekranına dön</a>
@@ -166,6 +167,13 @@ export default function PollHost() {
           {link && <div className="qb-poll-host__invite">
             <label>Katılım bağlantısı <input value={link} readOnly aria-label="Katılım bağlantısı" /></label>
             <button type="button" onClick={() => navigator.clipboard?.writeText(link)}>Bağlantıyı kopyala</button>
+            {displayLink && <div className="qb-poll-host__display-link">
+              <label>Display bağlantısı (salt okunur)
+                <input readOnly value={displayLink} aria-label="Display bağlantısı" />
+              </label>
+              <button type="button" onClick={() => navigator.clipboard?.writeText(displayLink)}>Display bağlantısını kopyala</button>
+              <a href={displayLink} target="_blank" rel="noreferrer">Display aç</a>
+            </div>}
           </div>}
           {results ? <>
             <h3>{results.question}</h3>
