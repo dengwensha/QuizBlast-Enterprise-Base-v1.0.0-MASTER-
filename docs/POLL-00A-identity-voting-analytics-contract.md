@@ -21,6 +21,19 @@ Status: proposed architecture / documentation-only. Target event: 2026-12-12. Ba
 - Compatibility: existing `presentation | quiz | break` steps remain unchanged; new `poll` type references a poll definition and binds a distinct session. No automatic changes to legacy Event Studio flows.
 - The standalone-first boundary **supersedes all event-mandatory fields and event-only proposed routes below**. Their concrete schema/API are to be revised in POLL-00B before production implementation. All remaining one-vote, privacy, analytics and test invariants continue to apply.
 
+## Long-term analytics direction — explicitly OUT of December 12 MVP (2026-11-23)
+
+Product vision: Poll Studio must ultimately perform statistical analysis and produce professional reports inside QuizBlast, without requiring users to move their data into a separate external analysis program. Internally integrated numerical libraries are permitted; this is not a commitment to build custom statistical algorithms from scratch.
+
+**December 12 scope lock:** no regression, correlation, hypothesis testing, cross-tabulation, advanced filters, demographic segmentation, AI interpretation, or advanced report builder. Initial acceptance covers independent poll authoring, secure participation, one-vote integrity, live aggregates (counts and percentages), reliable eligible participation rate only when its denominator is defensible, Host/Display updates and basic owner report.
+
+**Future phases, not implementation tickets today:**
+- Later survey analytics: multi-question surveys with stable variable types and question IDs, missing-response rules, cross-tabs, filters, longitudinal comparison and descriptive statistics.
+- Later inference: appropriate correlation and regression models, confidence intervals, statistical tests, assumptions and diagnostics, with transparent caveats and sample-size checks.
+- Later reporting: configurable visual dashboards and independently generated PDF reports, with reproducible methodology and provenance.
+
+**Data preservation constraint:** keep stable poll/session/question/option IDs and appropriate timestamp and version metadata; retain committed vote-level records for the explicitly approved retention period, subject to privacy and deletion policy. Do not introduce demographic collection or indefinite retention for a possible future analysis. Preserve the distinction between anonymous aggregate reporting and confidential participant-level records. Do not design the December MVP around a speculative future analytics engine.
+
 ## Locked MVP intent / explicit non-goals
 - One question per poll, single-choice, 2–6 choices, no correct answer, no score.
 - Multiple poll steps in one event are permitted only if each is given an immutable step ID and isolated poll session. At least one poll step must work on December 12.
