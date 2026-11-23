@@ -235,6 +235,10 @@ jobs:
         working-directory: frontend
         run: npx playwright test tests/live-qr.spec.js tests/stage-viewport.spec.js tests/question-progress.spec.js tests/invitation-share.spec.js tests/events.spec.js tests/event-sessions.spec.js --workers=1 --reporter=line
 
+      - name: Verify standalone mobile poll voting and F5
+        working-directory: frontend
+        run: npx playwright test tests/poll-join.spec.js --workers=1 --reporter=line
+
       - name: Verify existing browser game recovery (isolated scenarios)
         working-directory: frontend
         shell: bash

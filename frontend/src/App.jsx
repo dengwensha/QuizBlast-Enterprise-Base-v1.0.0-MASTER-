@@ -1,4 +1,5 @@
 import SlideRemote from './components/events/SlideRemote';
+import PollJoin from './components/polls/PollJoin';
 import { EventLiveDisplay } from './components/events/EventLive';
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import JoinQrPopup from "./components/game/JoinQrPopup";
@@ -45,6 +46,9 @@ import { useImportState } from "./hooks/useImportState";
 const isMobile = window.innerWidth < 700;
 
 export default function App() {
+  // Standalone poll invitation bypasses Quiz auth and WebSocket entirely.
+  const pollInvite = new URLSearchParams(window.location.search).get('poll');
+  if (pollInvite !== null) return <PollJoin invite={pollInvite} />;
   const params = new URLSearchParams(window.location.hash.slice(1));
   if (params.has('slide-remote')) return <SlideRemote id={params.get('slide-remote')} accessKeyValue={params.get('key')} />;
   const displayKey = new URLSearchParams(window.location.hash.slice(1)).get('event-display');
