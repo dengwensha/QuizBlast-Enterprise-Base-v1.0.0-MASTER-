@@ -124,6 +124,7 @@ jobs:
         run: |
           modules=(
             app.tests.test_poll_definitions
+            app.tests.test_poll_registration
             app.tests.test_event_sessions
             app.tests.test_events
             app.tests.test_answer_acceptance
