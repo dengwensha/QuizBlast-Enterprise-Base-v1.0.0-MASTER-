@@ -11,6 +11,7 @@ from contextlib import contextmanager, suppress
 import os, random, asyncio, time, uuid
 from app.routes.events import create_events_router
 from app.routes.polls import create_polls_router
+from app.routes.poll_excel import create_poll_excel_router
 from app.routes.poll_join import create_poll_join_router
 from app.routes.poll_results import create_poll_results_router
 from app.services.poll_store import register_poll_models
@@ -201,6 +202,11 @@ app.include_router(create_events_router(
     lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
     game_features=dict(Selection=EventQuizSelection, EventSession=EventGameSession,
                        Retention=EventRetention, Report=EventReport, Agenda=EventAgenda, Run=EventRun, Deck=EventDeck, StepSession=EventStepSession, StepReport=EventStepReport, builder=room_builder, initialize=lambda *args: initialize_lobby_room(*args)),
+))
+
+app.include_router(create_poll_excel_router(
+    SessionLocal, User,
+    lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
 ))
 
 app.include_router(create_polls_router(
