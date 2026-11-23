@@ -127,6 +127,7 @@ jobs:
             app.tests.test_poll_registration
             app.tests.test_poll_voting
             app.tests.test_poll_results
+            app.tests.test_poll_excel_preview
             app.tests.test_event_sessions
             app.tests.test_events
             app.tests.test_answer_acceptance
