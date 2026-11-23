@@ -57,14 +57,16 @@ def create_poll_join_router(session_factory, User, PollDefinition, PollSession,
             if not definition:
                 raise HTTPException(404, detail='poll_not_found')
             invite = token_urlsafe(32)
+            display_key = token_urlsafe(32)
             session = PollSession(poll_id=definition.id,
                                   definition_revision=definition.revision,
                                   invite_digest=sha256(invite.encode()).hexdigest(),
+                                  display_digest=sha256(display_key.encode()).hexdigest(),
                                   status='open')
             db.add(session)
             db.commit()
             db.refresh(session)
-            return dict(session_id=session.id, invite=invite,
+            return dict(session_id=session.id, invite=invite, display_key=display_key,
                         status=session.status, definition_revision=session.definition_revision)
 
     @router.get('/poll-invites/{invite}')
