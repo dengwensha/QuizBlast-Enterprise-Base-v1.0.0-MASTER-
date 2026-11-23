@@ -11,6 +11,7 @@ from contextlib import contextmanager, suppress
 import os, random, asyncio, time, uuid
 from app.routes.events import create_events_router
 from app.routes.polls import create_polls_router
+from app.routes.poll_join import create_poll_join_router
 from app.services.poll_store import register_poll_models
 from app.services.event_store import register_event_model, register_event_game_models, register_event_report_model, register_event_retention_model, register_event_agenda_model, register_event_run_model, register_event_deck_model, register_event_step_game_models
 from app.services.room_creation import RoomBuilder
@@ -134,7 +135,7 @@ EventAgenda = register_event_agenda_model(Base)
 EventRun = register_event_run_model(Base)
 EventDeck = register_event_deck_model(Base)
 EventStepSession, EventStepReport = register_event_step_game_models(Base)
-PollDefinition, PollSession = register_poll_models(Base)
+PollDefinition, PollSession, PollParticipant = register_poll_models(Base)
 
 connected=False
 while not connected:
@@ -204,6 +205,12 @@ app.include_router(create_events_router(
 app.include_router(create_polls_router(
     SessionLocal, User, PollDefinition,
     lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
+))
+
+app.include_router(create_poll_join_router(
+    SessionLocal, User, PollDefinition, PollSession, PollParticipant,
+    lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
+    SECRET_KEY,
 ))
 
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
