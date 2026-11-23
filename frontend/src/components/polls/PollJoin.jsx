@@ -35,7 +35,6 @@ export default function PollJoin({ invite }) {
   const [status, setStatus] = useState('loading');
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState('');
-  const joining = useRef(false);
   const submitting = useRef(false);
 
   useEffect(() => {
@@ -48,6 +47,11 @@ export default function PollJoin({ invite }) {
       }
       try {
         let saved = readStored(invite);
+        // Claim a stable key synchronously before any asynchronous join work.
+        if (!saved?.join_key) {
+          saved = { join_key: makeJoinKey() };
+          saveStored(invite, saved);
+        }
         // On refresh, resume first; closed polls need not expose the public invitation.
         if (saved?.participant_token && saved?.session_id && saved?.poll) {
           try {
@@ -71,12 +75,6 @@ export default function PollJoin({ invite }) {
         if (cancelled) return;
         setPoll(publicPoll);
         // The idempotency key must exist before the first HTTP join call.
-        if (!saved?.join_key) {
-          saved = { join_key: makeJoinKey() };
-          saveStored(invite, saved);
-        }
-        if (joining.current) return;
-        joining.current = true;
         const joined = await callApi('/poll-invites/' + invite + '/join', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -94,8 +92,6 @@ export default function PollJoin({ invite }) {
         }
       } catch (reason) {
         if (!cancelled) { setError(messageFor(reason)); setStatus('error'); }
-      } finally {
-        joining.current = false;
       }
     }
     initialize();
