@@ -116,7 +116,8 @@ class PollResultsAcceptance(unittest.TestCase):
         self.assertEqual(self.req('GET', results_url,
                                   token=self.tokens[self.email])[0], 401)
         voter = self.join(session)
-        self.assertEqual(self.req('GET', results_url, token=voter)[0], 401)
+        # A well-formed but unrelated participant credential must not reveal the Display session.
+        self.assertEqual(self.req('GET', results_url, token=voter)[0], 404)
         self.assertEqual(self.req('POST', '/poll-sessions/' + session['session_id'] + '/close',
                                   token=display_key)[0], 401)
         self.assertEqual(self.req('POST', '/poll-sessions/' + session['session_id'] + '/votes',
