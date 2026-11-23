@@ -162,8 +162,14 @@ class PollResultsAcceptance(unittest.TestCase):
         self.assertEqual(before['response_rate_percent'], 100)
         self.assertEqual(self.req('POST', url + '/close',
                                   token=self.tokens[self.email])[0], 200)
+        # An accepted same-choice retry returns the original receipt even after close.
+        replay_status, replay = self.req('POST', url + '/votes',
+                                         {'option_index': 0}, tokens[0])
+        self.assertEqual(replay_status, 200)
+        self.assertEqual(replay, results[0][1])
+        # Changing the already accepted ballot remains forbidden.
         self.assertEqual(self.req('POST', url + '/votes',
-                                  {'option_index': 0}, tokens[0])[0], 409)
+                                  {'option_index': 1}, tokens[0])[0], 409)
         status, after = self.results(session)
         self.assertEqual(status, 200)
         self.assertEqual(after['status'], 'closed')
