@@ -135,7 +135,7 @@ EventAgenda = register_event_agenda_model(Base)
 EventRun = register_event_run_model(Base)
 EventDeck = register_event_deck_model(Base)
 EventStepSession, EventStepReport = register_event_step_game_models(Base)
-PollDefinition, PollSession, PollParticipant = register_poll_models(Base)
+PollDefinition, PollSession, PollParticipant, PollVote = register_poll_models(Base)
 
 connected=False
 while not connected:
@@ -208,7 +208,7 @@ app.include_router(create_polls_router(
 ))
 
 app.include_router(create_poll_join_router(
-    SessionLocal, User, PollDefinition, PollSession, PollParticipant,
+    SessionLocal, User, PollDefinition, PollSession, PollParticipant, PollVote,
     lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
     SECRET_KEY,
 ))
