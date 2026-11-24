@@ -245,6 +245,10 @@ jobs:
         working-directory: frontend
         run: npx playwright test tests/poll-host.spec.js --workers=1 --reporter=line
 
+      - name: Verify Poll Studio XLSX Host import
+        working-directory: frontend
+        run: npx playwright test tests/poll-excel-import.spec.js --workers=1 --reporter=line
+
       - name: Verify Poll Studio read-only Display
         working-directory: frontend
         run: npx playwright test tests/poll-display.spec.js --workers=1 --reporter=line
