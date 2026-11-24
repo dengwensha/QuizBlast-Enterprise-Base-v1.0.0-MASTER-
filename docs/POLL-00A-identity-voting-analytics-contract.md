@@ -41,6 +41,13 @@ Product vision: Poll Studio must ultimately perform statistical analysis and pro
 - No free text, multi-select, demographics, AI interpretation, exports or answer editing in MVP.
 - Quiz gameplay, scoring, existing PIN/QR join and private reports must not change. Avoid assuming that a quiz room exists for a poll-only event.
 
+## POLL-SR01-FIX02 — actual anonymous uniqueness guarantee (2026-11-24)
+
+- **An anonymous person's uniqueness is not verified.** The shipped MVP enforces at most one accepted vote **per server-issued participant identity (stable browser join key) per poll session**. Private browsing, clearing storage or another device may create another identity. **Never claim one vote per human.**
+- The standalone `POST /poll-invites/{invite}/join` endpoint now limits **new identities** per observed client IP and poll session; default 30 per 60 seconds, configurable via `POLL_JOIN_MAX_NEW_IDENTITIES` and `POLL_JOIN_WINDOW_SECONDS`. A replay of an existing join key returns the original credential without consuming another slot. Exceeded limits return HTTP 429 with `Retry-After`. A shared Wi-Fi/network may share the same IP quota.
+- This process-local limiter is a mitigation, **not an anti-Sybil or one-person-one-vote system**. Reverse-proxy source IP configuration must be validated for the deployed single-worker environment; multi-worker deployment requires a shared limiter store. Do not trust arbitrary client-provided forwarded-address headers.
+- Stronger human identity verification would require separately approved eligibility, privacy, and authentication decisions. No such verification is claimed in this MVP.
+
 ## Identity and authorization
 1. `PollParticipant`: server-generated stable random participant ID and a high-entropy bearer token; database stores token digest only. Identity scoped to event, not nickname. Restore it across refresh from the token; nickname is optional presentation metadata and never an authorization key.
 2. Join entry point may reuse the existing event invite UI/QR presentation, but requires a separate poll/event join protocol. Existing quiz PIN and room must not be required for a poll-only event. Never expose owner or Display credentials.

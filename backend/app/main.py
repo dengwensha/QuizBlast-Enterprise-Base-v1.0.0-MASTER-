@@ -60,6 +60,10 @@ AUTH_RATE_LIMIT_WINDOW_SECONDS=read_positive_int(os.getenv('AUTH_RATE_LIMIT_WIND
 AUTH_LOGIN_RATE_LIMIT=read_positive_int(os.getenv('AUTH_LOGIN_RATE_LIMIT','5'),'AUTH_LOGIN_RATE_LIMIT')
 AUTH_REGISTER_RATE_LIMIT=read_positive_int(os.getenv('AUTH_REGISTER_RATE_LIMIT','3'),'AUTH_REGISTER_RATE_LIMIT')
 auth_rate_limiter=SlidingWindowRateLimiter(AUTH_RATE_LIMIT_WINDOW_SECONDS)
+# Separate quota so public poll participation never consumes login/register limits.
+POLL_JOIN_WINDOW_SECONDS=read_positive_int(os.getenv('POLL_JOIN_WINDOW_SECONDS','60'),'POLL_JOIN_WINDOW_SECONDS')
+POLL_JOIN_MAX_NEW_IDENTITIES=read_positive_int(os.getenv('POLL_JOIN_MAX_NEW_IDENTITIES','30'),'POLL_JOIN_MAX_NEW_IDENTITIES')
+poll_join_rate_limiter=SlidingWindowRateLimiter(POLL_JOIN_WINDOW_SECONDS)
 
 engine=create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal=sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -222,6 +226,7 @@ app.include_router(create_poll_join_router(
     SessionLocal, User, PollDefinition, PollSession, PollParticipant, PollVote,
     lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
     SECRET_KEY,
+    poll_join_rate_limiter, POLL_JOIN_MAX_NEW_IDENTITIES,
 ))
 
 rooms={}; scores={}; current_question_index={}; answered_players={}; room_quiz_map={}; room_host_map={}; answer_stats_map={}; waiting_next_question={}; game_tasks={}; question_start_time={}
