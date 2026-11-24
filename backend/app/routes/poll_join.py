@@ -9,7 +9,7 @@ from secrets import token_urlsafe
 from uuid import UUID
 from datetime import timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
 
@@ -26,7 +26,8 @@ class JoinRequest(BaseModel):
 
 
 def create_poll_join_router(session_factory, User, PollDefinition, PollSession,
-                            PollParticipant, PollVote, authenticate, secret_key):
+                            PollParticipant, PollVote, authenticate, secret_key,
+                            join_limiter, max_new_joins_per_ip):
     router = APIRouter(tags=['polls'])
 
     def owner(authorization: str | None = Header(default=None)):
@@ -77,7 +78,7 @@ def create_poll_join_router(session_factory, User, PollDefinition, PollSession,
                         options=definition.options, status=session.status)
 
     @router.post('/poll-invites/{invite}/join')
-    def join(invite: str, data: JoinRequest):
+    def join(invite: str, data: JoinRequest, request: Request):
         with session_factory() as db:
             session, definition = get_invited_session(db, invite)
             # Never trust a nickname as the unique participant identity.
@@ -90,6 +91,14 @@ def create_poll_join_router(session_factory, User, PollDefinition, PollSession,
             existing = db.query(PollParticipant).filter_by(
                 session_id=session.id, join_key_digest=join_digest).first()
             if existing is None:
+                # Apply limits only to NEW identities. An existing browser may
+                # retry the same key without minting a second identity or using
+                # up another quota slot. Never trust spoofable X-Forwarded-For.
+                client_ip = request.client.host if request.client else 'unknown'
+                join_limiter.enforce(
+                    f'poll-join:{client_ip}:{session.id}',
+                    max_new_joins_per_ip,
+                )
                 participant = PollParticipant(
                     session_id=session.id, join_key_digest=join_digest,
                     token_digest=token_digest)
