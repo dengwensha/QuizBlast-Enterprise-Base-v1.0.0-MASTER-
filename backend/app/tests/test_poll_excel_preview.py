@@ -1,5 +1,6 @@
 """POLL-01D-01 Excel preview: owner-only, bounded, no writes."""
 from io import BytesIO
+import re
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from zipfile import ZipFile, ZIP_DEFLATED
@@ -235,6 +236,77 @@ class PollExcelPreviewAcceptance(unittest.TestCase):
                 self.assertLess(elapsed, .45, 'Excel parser blocked event-loop HTTP response')
                 status, result = future.result(timeout=6)
                 self.assertEqual(status, 200, result)
+
+    @staticmethod
+    def without_dimensions(content):
+        # Simulate valid XLSX exports that omit worksheet <dimension> metadata.
+        out = BytesIO()
+        with ZipFile(BytesIO(content)) as source, ZipFile(out, 'w') as target:
+            for member in source.infolist():
+                data = source.read(member.filename)
+                if member.filename == 'xl/worksheets/sheet1.xml':
+                    data, count = re.subn(rb'<dimension\\s+ref="[^"]+"\\s*/>', b'', data)
+                    assert count == 1
+                target.writestr(member, data)
+        return out.getvalue()
+
+    def test_missing_worksheet_dimension_preview_and_commit(self):
+        valid = self.workbook([
+            ['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3', 'Seçenek4', 'Seçenek5', 'Seçenek6'],
+            ['Which process?', 'CAD', 'CAM'],
+        ])
+        content = self.without_dimensions(valid)
+        status, preview = self.request(content, token=self.token)
+        self.assertEqual(status, 200, preview)
+        self.assertEqual(preview['count'], 1)
+        self.assertTrue(preview['can_commit'])
+        status, saved = self.request(content, token=self.token, endpoint='commit')
+        self.assertEqual(status, 201, saved)
+        self.assertEqual(saved['imported_count'], 1)
+
+    def test_numeric_option_years_and_rating_scale_are_text(self):
+        rows = [
+            ['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3', 'Seçenek4', 'Seçenek5', 'Seçenek6'],
+            ['Hangi yıl?', 2025, 2026.0, None, None, None, None],
+            ['Puanınız?', 1, 2.5, 3, 4, 5, None],
+        ]
+        content = self.workbook(rows)
+        status, preview = self.request(content, token=self.token)
+        self.assertEqual(status, 200, preview)
+        self.assertEqual(preview['count'], 2)
+        self.assertEqual(preview['items'][0]['options'], ['2025', '2026'])
+        self.assertEqual(preview['items'][1]['options'], ['1', '2.5', '3', '4', '5'])
+        status, saved = self.request(content, token=self.token, endpoint='commit')
+        self.assertEqual(status, 201, saved)
+        with main.db_session() as db:
+            options = [db.get(main.PollDefinition, poll_id).options
+                       for poll_id in saved['poll_ids']]
+            self.assertEqual(options, [['2025', '2026'], ['1', '2.5', '3', '4', '5']])
+
+    def test_formula_and_unsupported_cell_types_still_fail_closed(self):
+        content = self.workbook([
+            ['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3', 'Seçenek4', 'Seçenek5', 'Seçenek6'],
+            ['Valid?', 'Yes', 'No'],
+            ['Formula?', '=1+1', 'No'],
+            ['Boolean?', True, 'No'],
+        ])
+        status, preview = self.request(content, token=self.token)
+        self.assertEqual(status, 200, preview)
+        self.assertFalse(preview['can_commit'])
+        self.assertEqual([row['row'] for row in preview['errors']], [3, 4])
+        status, invalid = self.request(content, token=self.token, endpoint='commit')
+        self.assertEqual(status, 422, invalid)
+        with main.db_session() as db:
+            owner_id = db.query(main.User.id).filter_by(email=self.email).scalar()
+            self.assertEqual(db.query(main.PollDefinition).filter_by(owner_id=owner_id).count(), 0)
+
+    def test_dimensionless_workbook_over_row_limit_rejected(self):
+        rows = [['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
+                 'Seçenek4', 'Seçenek5', 'Seçenek6']]
+        rows += [[f'Question {i}?', 'Yes', 'No'] for i in range(101)]
+        content = self.without_dimensions(self.workbook(rows))
+        self.assertEqual(self.request(content, token=self.token)[0], 422)
+        self.assertEqual(self.request(content, token=self.token, endpoint='commit')[0], 422)
 
     def test_row_limit_fail_closed(self):
         rows = [['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
