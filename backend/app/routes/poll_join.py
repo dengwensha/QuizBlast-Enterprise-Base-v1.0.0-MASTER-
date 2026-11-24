@@ -12,6 +12,7 @@ from datetime import timezone
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
+from app.services.poll_client_ip import poll_client_address
 
 
 class VoteRequest(BaseModel):
@@ -94,7 +95,7 @@ def create_poll_join_router(session_factory, User, PollDefinition, PollSession,
                 # Apply limits only to NEW identities. An existing browser may
                 # retry the same key without minting a second identity or using
                 # up another quota slot. Never trust spoofable X-Forwarded-For.
-                client_ip = request.client.host if request.client else 'unknown'
+                client_ip = poll_client_address(request)
                 join_limiter.enforce(
                     f'poll-join:{client_ip}:{session.id}',
                     max_new_joins_per_ip,

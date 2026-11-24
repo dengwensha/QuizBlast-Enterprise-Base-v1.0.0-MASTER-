@@ -125,6 +125,7 @@ jobs:
           modules=(
             app.tests.test_poll_definitions
             app.tests.test_poll_registration
+            app.tests.test_poll_client_ip
             app.tests.test_poll_voting
             app.tests.test_poll_results
             app.tests.test_poll_schema
@@ -159,6 +160,15 @@ jobs:
             docker compose run --rm --no-deps backend \
               python -m "$module"
           done
+
+      - name: Verify local Poll proxy IP trust configuration
+        shell: bash
+        run: |
+          # Python trust/spoof tests are already in the backend regression list.
+          # Proxy must overwrite caller-provided XFF and attach a single trusted real IP.
+          grep -F 'proxy_set_header X-Forwarded-For $remote_addr;' frontend/nginx.conf
+          grep -F 'proxy_set_header X-Real-IP $remote_addr;' frontend/nginx.conf
+          grep -F -- '--no-proxy-headers' backend/Dockerfile
 
       - name: Start production application
         run: docker compose up -d backend frontend
