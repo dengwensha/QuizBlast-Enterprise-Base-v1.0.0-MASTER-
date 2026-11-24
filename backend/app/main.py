@@ -15,6 +15,7 @@ from app.routes.poll_excel import create_poll_excel_router
 from app.routes.poll_join import create_poll_join_router
 from app.routes.poll_results import create_poll_results_router
 from app.services.poll_store import register_poll_models
+from app.services.poll_schema import ensure_poll_display_digest
 from app.services.poll_import_store import register_poll_import_model
 from app.services.event_store import register_event_model, register_event_game_models, register_event_report_model, register_event_retention_model, register_event_agenda_model, register_event_run_model, register_event_deck_model, register_event_step_game_models
 from app.services.room_creation import RoomBuilder
@@ -150,6 +151,8 @@ while not connected:
     try:
         Base.metadata.create_all(bind=engine)
         RecoveryBase.metadata.create_all(bind=engine)
+        # Support databases created before Display capabilities were introduced.
+        ensure_poll_display_digest(engine)
         # Additive columns only; older published sets remain general/event via serializer fallback.
         catalog_columns={column['name'] for column in inspect(engine).get_columns('published_quiz_sets')}
         catalog_additions={
