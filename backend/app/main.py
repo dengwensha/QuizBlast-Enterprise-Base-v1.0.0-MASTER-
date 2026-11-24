@@ -205,7 +205,7 @@ app.include_router(create_events_router(
 ))
 
 app.include_router(create_poll_excel_router(
-    SessionLocal, User,
+    SessionLocal, User, PollDefinition,
     lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
 ))
 

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { API, APP_URL } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
+import PollExcelImport from './PollExcelImport';
 import './poll-host.css';
 
 async function request(path, token, method = 'GET', body) {
@@ -101,6 +102,11 @@ export default function PollHost() {
       setQuestion('');
     });
   }
+  async function reloadPolls() {
+    const listing = await request('/polls?limit=50', user.token);
+    setPolls(listing.items);
+    setSelectedId(listing.items[0]?.id || '');
+  }
   async function openSession() {
     if (!selectedId) return;
     await action(async () => {
@@ -157,6 +163,7 @@ export default function PollHost() {
           </label>
           <button disabled={busy || !question.trim()} type="submit">Anketi kaydet</button>
         </form>
+        <PollExcelImport token={user.token} onImported={reloadPolls} />
       </section>
       <section className="qb-poll-host__panel" aria-label="Canlı anket sonuçları">
         <div className="qb-poll-host__row">
