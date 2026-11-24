@@ -51,6 +51,7 @@ class PollExcelPreviewAcceptance(unittest.TestCase):
             user = db.query(main.User).filter_by(email=self.email).first()
             if user:
                 # Imported definitions have no sessions in this acceptance module.
+                db.query(main.PollImportBatch).filter_by(owner_id=user.id).delete()
                 db.query(main.PollDefinition).filter_by(owner_id=user.id).delete()
                 db.delete(user)
             db.commit()
@@ -307,6 +308,28 @@ class PollExcelPreviewAcceptance(unittest.TestCase):
         content = self.without_dimensions(self.workbook(rows))
         self.assertEqual(self.request(content, token=self.token)[0], 422)
         self.assertEqual(self.request(content, token=self.token, endpoint='commit')[0], 422)
+
+    def test_exact_file_retry_and_concurrent_commit_do_not_duplicate_polls(self):
+        from concurrent.futures import ThreadPoolExecutor
+        content = self.workbook([
+            ['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3', 'Seçenek4', 'Seçenek5', 'Seçenek6'],
+            ['Choice?', 'One', 'Two'],
+            ['Another?', 'Yes', 'No'],
+        ])
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: self.request(
+                content, token=self.token, endpoint='commit'), range(2)))
+        self.assertEqual([status for status, _ in results], [201, 201], results)
+        self.assertEqual(results[0][1]['poll_ids'], results[1][1]['poll_ids'])
+        self.assertEqual(sorted([r['already_imported'] for _, r in results]), [False, True])
+        status, retry = self.request(content, token=self.token, endpoint='commit')
+        self.assertEqual(status, 201)
+        self.assertTrue(retry['already_imported'])
+        self.assertEqual(retry['poll_ids'], results[0][1]['poll_ids'])
+        with main.db_session() as db:
+            owner = db.query(main.User.id).filter_by(email=self.email).scalar()
+            self.assertEqual(db.query(main.PollDefinition).filter_by(owner_id=owner).count(), 2)
+            self.assertEqual(db.query(main.PollImportBatch).filter_by(owner_id=owner).count(), 1)
 
     def test_row_limit_fail_closed(self):
         rows = [['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
