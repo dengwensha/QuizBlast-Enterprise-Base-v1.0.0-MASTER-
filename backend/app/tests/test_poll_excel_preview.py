@@ -211,6 +211,70 @@ class PollExcelPreviewAcceptance(unittest.TestCase):
             owner = db.query(main.User.id).filter_by(email=self.email).scalar()
             self.assertEqual(db.query(main.PollDefinition).filter_by(owner_id=owner).count(), 0)
 
+    def test_parallel_parsing_limit_rejects_third_request_but_keeps_get_responsive(self):
+        normal = self.workbook([
+            ['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
+             'Seçenek4', 'Seçenek5', 'Seçenek6'],
+            ['Question?', 'A', 'B'],
+        ])
+        from app.routes import poll_excel
+        original = poll_excel.load_workbook
+        entered = threading.Event()
+        unblock = threading.Event()
+        lock = threading.Lock()
+        in_parser = [0]
+
+        def slow_parser(*args, **kwargs):
+            with lock:
+                in_parser[0] += 1
+                if in_parser[0] == poll_excel.MAX_CONCURRENT_EXCEL_PARSES:
+                    entered.set()
+            if not unblock.wait(timeout=8):
+                raise RuntimeError('test parser not released')
+            return original(*args, **kwargs)
+
+        with patch.object(poll_excel, 'load_workbook', side_effect=slow_parser):
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                first = executor.submit(self.request, normal, token=self.token)
+                second = executor.submit(self.request, normal, token=self.token,
+                                         endpoint='commit')
+                try:
+                    self.assertTrue(entered.wait(timeout=5), 'two parsing slots were not reached')
+                    third_status, third = self.request(normal, token=self.token)
+                    self.assertEqual(third_status, 429, third)
+                    self.assertEqual(third['detail'], 'poll_import_busy')
+                    start = time.monotonic()
+                    with urlopen(self.address + '/', timeout=3) as response:
+                        self.assertEqual(response.status, 200)
+                    self.assertLess(time.monotonic() - start, 1.0)
+                finally:
+                    unblock.set()
+                self.assertEqual(first.result(timeout=8)[0], 200)
+                self.assertEqual(second.result(timeout=8)[0], 201)
+        with main.db_session() as db:
+            owner_id = db.query(main.User.id).filter_by(email=self.email).scalar()
+            self.assertEqual(db.query(main.PollDefinition).filter_by(owner_id=owner_id).count(), 1)
+
+    def test_xml_member_above_reduced_limit_is_rejected(self):
+        valid = self.workbook([
+            ['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
+             'Seçenek4', 'Seçenek5', 'Seçenek6'],
+            ['Question?', 'A', 'B'],
+        ])
+        stream = BytesIO()
+        # Moderately compressible data: <1 MiB on disk but >2 MiB expanded.
+        with ZipFile(BytesIO(valid)) as source, ZipFile(stream, 'w', ZIP_DEFLATED) as target:
+            for member in source.infolist():
+                target.writestr(member, source.read(member.filename))
+            target.writestr('xl/padding.xml', (b'0123456789abcdef' * 140000))
+        payload = stream.getvalue()
+        self.assertLess(len(payload), 1024 * 1024)
+        for endpoint in ('preview', 'commit'):
+            with self.subTest(endpoint=endpoint):
+                code, result = self.request(payload, token=self.token, endpoint=endpoint)
+                self.assertEqual(code, 422, result)
+                self.assertEqual(result['detail'], 'poll_import_xlsx_resource_limit')
+
     def test_slow_excel_parse_does_not_block_the_http_event_loop(self):
         normal = self.workbook([
             ['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',

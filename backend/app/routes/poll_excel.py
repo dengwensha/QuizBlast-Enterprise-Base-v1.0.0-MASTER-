@@ -2,6 +2,7 @@
 from io import BytesIO
 from hashlib import sha256
 from math import isfinite
+from threading import BoundedSemaphore
 from zipfile import BadZipFile, ZipFile
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
@@ -13,12 +14,17 @@ from sqlalchemy.exc import IntegrityError
 from app.schemas.polls import PollCreate
 
 MAX_BYTES = 1024 * 1024
-MAX_UNCOMPRESSED_BYTES = 20 * 1024 * 1024
-MAX_MEMBER_BYTES = 10 * 1024 * 1024
+MAX_UNCOMPRESSED_BYTES = 5 * 1024 * 1024
+MAX_MEMBER_BYTES = 2 * 1024 * 1024
 MAX_COMPRESSION_RATIO = 100
 MAX_ROWS = 100
 EXPECTED_COLUMNS = ('Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
                     'Seçenek4', 'Seçenek5', 'Seçenek6')
+
+# One process-wide admission guard for BOTH preview and commit; reject rather
+# than queue additional expensive parses in the shared worker thread pool.
+MAX_CONCURRENT_EXCEL_PARSES = 2
+EXCEL_PARSE_SLOTS = BoundedSemaphore(MAX_CONCURRENT_EXCEL_PARSES)
 
 
 def create_poll_excel_router(session_factory, User, PollDefinition, PollImportBatch, authenticate):
@@ -32,7 +38,7 @@ def create_poll_excel_router(session_factory, User, PollDefinition, PollImportBa
                 raise HTTPException(401, detail='invalid_authentication_credentials')
             return user.id
 
-    def validate_upload(file: UploadFile):
+    def parse_excel_upload(file: UploadFile):
         filename = file.filename or ''
         if not filename.lower().endswith('.xlsx'):
             raise HTTPException(422, detail='poll_import_xlsx_required')
@@ -127,6 +133,15 @@ def create_poll_excel_router(session_factory, User, PollDefinition, PollImportBa
         finally:
             if workbook is not None:
                 workbook.close()
+
+    def validate_upload(file: UploadFile):
+        if not EXCEL_PARSE_SLOTS.acquire(blocking=False):
+            raise HTTPException(
+                429, detail='poll_import_busy', headers={'Retry-After': '2'})
+        try:
+            return parse_excel_upload(file)
+        finally:
+            EXCEL_PARSE_SLOTS.release()
 
     @router.post('/preview')
     def preview(file: UploadFile = File(...), owner_id: int = Depends(owner)):
