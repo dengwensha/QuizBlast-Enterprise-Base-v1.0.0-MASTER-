@@ -1,4 +1,4 @@
-"""Independent Poll Studio Excel preview. Never writes questions or poll records."""
+"""Independent Poll Studio Excel preview and atomic, server-revalidated commit."""
 from io import BytesIO
 from zipfile import BadZipFile
 
@@ -15,7 +15,7 @@ EXPECTED_COLUMNS = ('Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
                     'Seçenek4', 'Seçenek5', 'Seçenek6')
 
 
-def create_poll_excel_router(session_factory, User, authenticate):
+def create_poll_excel_router(session_factory, User, PollDefinition, authenticate):
     router = APIRouter(prefix='/polls/import', tags=['polls'])
 
     def owner(authorization: str | None = Header(default=None)):
@@ -26,8 +26,7 @@ def create_poll_excel_router(session_factory, User, authenticate):
                 raise HTTPException(401, detail='invalid_authentication_credentials')
             return user.id
 
-    @router.post('/preview')
-    async def preview(file: UploadFile = File(...), owner_id: int = Depends(owner)):
+    async def validate_upload(file: UploadFile):
         filename = file.filename or ''
         if not filename.lower().endswith('.xlsx'):
             raise HTTPException(422, detail='poll_import_xlsx_required')
@@ -83,5 +82,34 @@ def create_poll_excel_router(session_factory, User, authenticate):
         finally:
             if workbook is not None:
                 workbook.close()
+
+    @router.post('/preview')
+    async def preview(file: UploadFile = File(...), owner_id: int = Depends(owner)):
+        # Preview is always read-only, including when some rows are invalid.
+        return await validate_upload(file)
+
+    @router.post('/commit', status_code=201)
+    async def commit(file: UploadFile = File(...), owner_id: int = Depends(owner)):
+        # Never trust preview JSON supplied by a browser: parse and validate the
+        # uploaded bytes again before any insert, then commit exactly once.
+        parsed = await validate_upload(file)
+        if not parsed['can_commit']:
+            raise HTTPException(422, detail=dict(
+                code='poll_import_validation_failed',
+                count=parsed['count'],
+                errors=parsed['errors']))
+        with session_factory() as db:
+            records = [PollDefinition(owner_id=owner_id, question=item['question'],
+                                      options=item['options'])
+                       for item in parsed['items']]
+            try:
+                db.add_all(records)
+                db.commit()
+                for record in records:
+                    db.refresh(record)
+            except Exception:
+                db.rollback()
+                raise
+            return dict(imported_count=len(records), poll_ids=[record.id for record in records])
 
     return router
