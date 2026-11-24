@@ -59,7 +59,10 @@ def create_poll_excel_router(session_factory, User, PollDefinition, PollImportBa
             workbook = load_workbook(BytesIO(content), read_only=True, data_only=False,
                                      keep_links=False)
             sheet = workbook.active
-            values = sheet.iter_rows(min_row=1, max_row=MAX_ROWS + 2, values_only=True)
+            # Scan through the first populated row beyond the limit, even if
+            # row 102 or later rows are blank. A bounded max_row silently
+            # truncated valid data after a blank boundary row.
+            values = sheet.iter_rows(min_row=1, values_only=True)
             header = next(values, None)
             if header is None:
                 raise HTTPException(422, detail='poll_import_header_invalid')
