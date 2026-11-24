@@ -164,10 +164,7 @@ jobs:
       - name: Verify local Poll proxy IP trust configuration
         shell: bash
         run: |
-          docker compose run --rm --no-deps -T backend python -m app.tests.test_poll_client_ip
-          docker compose run --rm --no-deps -T --entrypoint sh backend -c '
-            grep -q -- "--no-proxy-headers" /proc/1/cmdline || true
-          '
+          # Python trust/spoof tests are already in the backend regression list.
           # Proxy must overwrite caller-provided XFF and attach a single trusted real IP.
           grep -F 'proxy_set_header X-Forwarded-For $remote_addr;' frontend/nginx.conf
           grep -F 'proxy_set_header X-Real-IP $remote_addr;' frontend/nginx.conf
