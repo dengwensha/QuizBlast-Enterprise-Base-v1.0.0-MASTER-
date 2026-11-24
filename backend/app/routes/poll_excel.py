@@ -1,5 +1,6 @@
 """Independent Poll Studio Excel preview and atomic, server-revalidated commit."""
 from io import BytesIO
+from hashlib import sha256
 from math import isfinite
 from zipfile import BadZipFile, ZipFile
 
@@ -7,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 
 from app.schemas.polls import PollCreate
 
@@ -19,7 +21,7 @@ EXPECTED_COLUMNS = ('Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
                     'Seçenek4', 'Seçenek5', 'Seçenek6')
 
 
-def create_poll_excel_router(session_factory, User, PollDefinition, authenticate):
+def create_poll_excel_router(session_factory, User, PollDefinition, PollImportBatch, authenticate):
     router = APIRouter(prefix='/polls/import', tags=['polls'])
 
     def owner(authorization: str | None = Header(default=None)):
@@ -115,7 +117,8 @@ def create_poll_excel_router(session_factory, User, PollDefinition, authenticate
             if overflow:
                 raise HTTPException(422, detail='poll_import_row_limit')
             return dict(valid=not errors, count=len(items), error_count=len(errors),
-                        items=items, errors=errors, can_commit=bool(items) and not errors)
+                        items=items, errors=errors, can_commit=bool(items) and not errors,
+                        _file_digest=sha256(content).hexdigest())
         except (BadZipFile, InvalidFileException, ValueError, OSError, EOFError):
             raise HTTPException(422, detail='poll_import_xlsx_invalid')
         finally:
@@ -125,7 +128,9 @@ def create_poll_excel_router(session_factory, User, PollDefinition, authenticate
     @router.post('/preview')
     def preview(file: UploadFile = File(...), owner_id: int = Depends(owner)):
         # Preview is always read-only, including when some rows are invalid.
-        return validate_upload(file)
+        parsed = validate_upload(file)
+        parsed.pop('_file_digest', None)
+        return parsed
 
     @router.post('/commit', status_code=201)
     def commit(file: UploadFile = File(...), owner_id: int = Depends(owner)):
@@ -137,7 +142,13 @@ def create_poll_excel_router(session_factory, User, PollDefinition, authenticate
                 code='poll_import_validation_failed',
                 count=parsed['count'],
                 errors=parsed['errors']))
+        digest = parsed['_file_digest']
         with session_factory() as db:
+            existing = db.query(PollImportBatch).filter_by(
+                owner_id=owner_id, file_sha256=digest).first()
+            if existing is not None:
+                return dict(imported_count=len(existing.poll_ids),
+                            poll_ids=existing.poll_ids, already_imported=True)
             records = [PollDefinition(owner_id=owner_id, question=item['question'],
                                       options=item['options'])
                        for item in parsed['items']]
@@ -145,10 +156,22 @@ def create_poll_excel_router(session_factory, User, PollDefinition, authenticate
                 db.add_all(records)
                 db.flush()
                 ids = [record.id for record in records]
+                db.add(PollImportBatch(owner_id=owner_id, file_sha256=digest,
+                                       poll_ids=ids))
                 db.commit()
+            except IntegrityError:
+                # Concurrent identical commits: unique(owner_id,file_sha256)
+                # permits only one batch. Roll back all losing poll rows.
+                db.rollback()
+                prior = db.query(PollImportBatch).filter_by(
+                    owner_id=owner_id, file_sha256=digest).first()
+                if prior is None:
+                    raise
+                return dict(imported_count=len(prior.poll_ids),
+                            poll_ids=prior.poll_ids, already_imported=True)
             except Exception:
                 db.rollback()
                 raise
-            return dict(imported_count=len(ids), poll_ids=ids)
+            return dict(imported_count=len(ids), poll_ids=ids, already_imported=False)
 
     return router
