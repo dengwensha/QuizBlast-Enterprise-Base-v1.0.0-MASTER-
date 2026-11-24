@@ -9,6 +9,8 @@ const labels = {
   poll_import_header_invalid: 'Sütun başlıkları şablona uygun değil.',
   poll_import_row_limit: 'En fazla 100 anket satırı yükleyebilirsiniz.',
   poll_import_xlsx_invalid: 'Excel dosyası okunamadı.',
+  poll_import_busy: 'Sunucu şu anda başka Excel dosyalarını işliyor. Biraz sonra yeniden deneyin.',
+  poll_import_xlsx_resource_limit: 'Excel dosyasının açılmış içeriği güvenlik sınırlarını aşıyor.',
   poll_import_validation_failed: 'Dosya kaydetme öncesinde yeniden doğrulandı ve hatalar bulundu.',
 };
 
