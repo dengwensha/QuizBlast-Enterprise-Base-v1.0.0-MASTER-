@@ -26,6 +26,7 @@ const messageFor = (error) => ({
   poll_vote_already_cast: 'Oyunuz kaydedildi; değiştiremezsiniz.',
   poll_participant_unauthorized: 'Katılımcı oturumunuz doğrulanamadı.',
   poll_option_invalid: 'Geçerli bir seçenek belirleyin.',
+  auth_rate_limit_exceeded: 'Çok fazla yeni katılım denemesi yapıldı. Biraz sonra tekrar deneyin.',
 }[error?.message] || 'İşlem tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.');
 
 export default function PollJoin({ invite }) {
