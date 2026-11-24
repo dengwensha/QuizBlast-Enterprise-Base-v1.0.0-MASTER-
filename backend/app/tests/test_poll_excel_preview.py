@@ -245,7 +245,7 @@ class PollExcelPreviewAcceptance(unittest.TestCase):
             for member in source.infolist():
                 data = source.read(member.filename)
                 if member.filename == 'xl/worksheets/sheet1.xml':
-                    data, count = re.subn(rb'<dimension\\s+ref="[^"]+"\\s*/>', b'', data)
+                    data, count = re.subn(rb'<dimension\s+ref="[^"]+"\s*/>', b'', data)
                     assert count == 1
                 target.writestr(member, data)
         return out.getvalue()
