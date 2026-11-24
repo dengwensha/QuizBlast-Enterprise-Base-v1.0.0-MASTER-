@@ -60,13 +60,21 @@ export default function PollExcelImport({ token, onImported }) {
         setPreview(null);
         setFile(null);
         if (picker.current) picker.current.value = '';
-        await onImported?.();
+        setError('');
+        // Refresh failure does not undo a successfully committed transaction.
+        try { await onImported?.(); }
+        catch { setError('Anketler kaydedildi ancak liste yenilenemedi. Sayfayı yenileyebilirsiniz.'); }
       }
     } catch (reason) {
-      setError(labels[reason.message] || 'Excel işlemi tamamlanamadı.');
-      if (action === 'commit') {
+      const validationFailed = reason.message === 'poll_import_validation_failed';
+      setError(labels[reason.message] ||
+        (action === 'commit'
+          ? 'Kaydetme sonucu doğrulanamadı. Aynı dosyayla güvenle tekrar deneyebilirsiniz.'
+          : 'Excel işlemi tamamlanamadı.'));
+      if (action === 'commit' && validationFailed) {
         setPreview(previous => previous
-          ? { ...previous, can_commit: false, errors: reason.rows.length ? reason.rows : previous.errors }
+          ? { ...previous, can_commit: false,
+              errors: reason.rows?.length ? reason.rows : previous.errors }
           : null);
       }
     } finally {
@@ -97,6 +105,6 @@ export default function PollExcelImport({ token, onImported }) {
         onClick={() => perform('commit')}>Doğrulanan {preview.count} anketi toplu kaydet</button>
       {!preview.can_commit && <p>Hatalar düzeltilmeden hiçbir anket kaydedilemez.</p>}
     </div>}
-    {saved > 0 && <p role="status">{saved} anket başarıyla kaydedildi. Hazır anket listesinden seçebilirsiniz.</p>}
+    {saved > 0 && <p role="status">{saved} anket kaydedildi veya önceki kayıt doğrulandı. Hazır anket listesinden seçebilirsiniz.</p>}
   </section>;
 }
