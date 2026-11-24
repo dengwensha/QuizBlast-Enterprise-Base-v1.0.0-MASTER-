@@ -125,6 +125,37 @@ class PollRegistrationAcceptance(unittest.TestCase):
             self.assertEqual(db.query(main.PollParticipant).filter_by(
                 session_id=session['session_id']).count(), 2)
 
+    def test_new_identity_rate_limit_preserves_existing_rejoin(self):
+        _, session = self.new_session()
+        url = '/poll-invites/' + session['invite'] + '/join'
+        first_key = token_urlsafe(32)
+        accepted = []
+        # Rate limit is scoped to the invitation/session and observed client IP.
+        for index in range(main.POLL_JOIN_MAX_NEW_IDENTITIES):
+            key = first_key if index == 0 else token_urlsafe(32)
+            status, record = self.request('POST', url, {'join_key': key}, anonymous=True)
+            self.assertEqual(status, 200, (index, record))
+            accepted.append(record)
+        # A new identity beyond the boundary is rejected before any database write.
+        status, rejection = self.request(
+            'POST', url, {'join_key': token_urlsafe(32)}, anonymous=True)
+        self.assertEqual(status, 429, rejection)
+        self.assertEqual(rejection['detail'], 'auth_rate_limit_exceeded')
+        status, replay = self.request('POST', url,
+                                      {'join_key': first_key}, anonymous=True)
+        self.assertEqual(status, 200)
+        self.assertEqual(replay, accepted[0])
+        with main.db_session() as db:
+            self.assertEqual(db.query(main.PollParticipant).filter_by(
+                session_id=session['session_id']).count(),
+                main.POLL_JOIN_MAX_NEW_IDENTITIES)
+        # IP count on one poll must not block another distinct poll session.
+        _, second = self.new_session()
+        status, different_poll = self.request(
+            'POST', '/poll-invites/' + second['invite'] + '/join',
+            {'join_key': token_urlsafe(32)}, anonymous=True)
+        self.assertEqual(status, 200, different_poll)
+
     def test_owner_boundary_invalid_invite_and_key(self):
         poll, session = self.new_session()
         self.assertEqual(self.request('POST', '/polls/' + poll['id'] + '/sessions',
