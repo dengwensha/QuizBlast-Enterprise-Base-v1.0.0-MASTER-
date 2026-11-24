@@ -331,6 +331,53 @@ class PollExcelPreviewAcceptance(unittest.TestCase):
             self.assertEqual(db.query(main.PollDefinition).filter_by(owner_id=owner).count(), 2)
             self.assertEqual(db.query(main.PollImportBatch).filter_by(owner_id=owner).count(), 1)
 
+    def test_blank_102_then_more_questions_rejected_without_silent_drop(self):
+        # SR02 M3 reproduction: 100 valid questions (Excel rows 2..101),
+        # blank row 102, then 57 additional valid questions (rows 103..159).
+        header = ['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
+                  'Seçenek4', 'Seçenek5', 'Seçenek6']
+        rows = [header]
+        rows.extend([[f'Question {index}?', 'Yes', 'No']
+                     for index in range(1, 101)])
+        rows.append([None] * len(header))
+        rows.extend([[f'Later question {index}?', 'Yes', 'No']
+                     for index in range(1, 58)])
+        content = self.workbook(rows)
+        for endpoint in ('preview', 'commit'):
+            with self.subTest(endpoint=endpoint):
+                status, response = self.request(content, token=self.token, endpoint=endpoint)
+                self.assertEqual(status, 422, response)
+                self.assertEqual(response['detail'], 'poll_import_row_limit')
+        with main.db_session() as db:
+            owner = db.query(main.User.id).filter_by(email=self.email).scalar()
+            self.assertEqual(db.query(main.PollDefinition).filter_by(owner_id=owner).count(), 0)
+            self.assertEqual(db.query(main.PollImportBatch).filter_by(owner_id=owner).count(), 0)
+
+    def test_dimensionless_blank_boundary_does_not_hide_overflow(self):
+        header = ['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
+                  'Seçenek4', 'Seçenek5', 'Seçenek6']
+        rows = [header]
+        rows.extend([[f'Question {index}?', 'Yes', 'No']
+                     for index in range(1, 101)])
+        rows.append([None] * len(header))
+        rows.append(['Hidden row?', 'Yes', 'No'])
+        content = self.without_dimensions(self.workbook(rows))
+        for endpoint in ('preview', 'commit'):
+            with self.subTest(endpoint=endpoint):
+                status, response = self.request(content, token=self.token, endpoint=endpoint)
+                self.assertEqual(status, 422, response)
+                self.assertEqual(response['detail'], 'poll_import_row_limit')
+
+    def test_exactly_100_questions_still_valid(self):
+        header = ['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
+                  'Seçenek4', 'Seçenek5', 'Seçenek6']
+        rows = [header] + [[f'Question {index}?', 'Yes', 'No']
+                           for index in range(1, 101)]
+        status, response = self.request(self.workbook(rows), token=self.token)
+        self.assertEqual(status, 200, response)
+        self.assertEqual(response['count'], 100)
+        self.assertTrue(response['can_commit'])
+
     def test_row_limit_fail_closed(self):
         rows = [['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
                  'Seçenek4', 'Seçenek5', 'Seçenek6']]
