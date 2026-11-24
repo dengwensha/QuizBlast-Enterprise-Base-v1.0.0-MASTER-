@@ -104,12 +104,12 @@ def create_poll_excel_router(session_factory, User, PollDefinition, authenticate
                        for item in parsed['items']]
             try:
                 db.add_all(records)
+                db.flush()
+                ids = [record.id for record in records]
                 db.commit()
-                for record in records:
-                    db.refresh(record)
             except Exception:
                 db.rollback()
                 raise
-            return dict(imported_count=len(records), poll_ids=[record.id for record in records])
+            return dict(imported_count=len(ids), poll_ids=ids)
 
     return router
