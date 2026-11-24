@@ -1,5 +1,8 @@
 """POLL-01D-01 Excel preview: owner-only, bounded, no writes."""
 from io import BytesIO
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
+from zipfile import ZipFile, ZIP_DEFLATED
 import json
 import socket
 import threading
@@ -181,6 +184,57 @@ class PollExcelPreviewAcceptance(unittest.TestCase):
         with main.db_session() as db:
             owner_id = db.query(main.User.id).filter_by(email=self.email).scalar()
             self.assertEqual(db.query(main.PollDefinition).filter_by(owner_id=owner_id).count(), 0)
+
+    def test_compressed_excel_bomb_is_rejected_for_preview_and_commit(self):
+        normal = self.workbook([
+            ['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
+             'Seçenek4', 'Seçenek5', 'Seçenek6'],
+            ['Question?', 'A', 'B'],
+        ])
+        # Keep it structurally XLSX while adding an XML ZIP member whose
+        # decompressed size overwhelms the small compressed upload.
+        stream = BytesIO()
+        with ZipFile(BytesIO(normal)) as source, ZipFile(stream, 'w', ZIP_DEFLATED) as target:
+            for member in source.infolist():
+                target.writestr(member, source.read(member.filename))
+            target.writestr('xl/oversized-sharedStrings.xml', b'x' * (21 * 1024 * 1024))
+        payload = stream.getvalue()
+        self.assertLess(len(payload), 1024 * 1024)
+        for endpoint in ('preview', 'commit'):
+            with self.subTest(endpoint=endpoint):
+                status, result = self.request(payload, token=self.token, endpoint=endpoint)
+                self.assertEqual(status, 422, result)
+                self.assertEqual(result['detail'], 'poll_import_xlsx_resource_limit')
+        with main.db_session() as db:
+            owner = db.query(main.User.id).filter_by(email=self.email).scalar()
+            self.assertEqual(db.query(main.PollDefinition).filter_by(owner_id=owner).count(), 0)
+
+    def test_slow_excel_parse_does_not_block_the_http_event_loop(self):
+        normal = self.workbook([
+            ['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
+             'Seçenek4', 'Seçenek5', 'Seçenek6'],
+            ['Question?', 'A', 'B'],
+        ])
+        from app.routes import poll_excel
+        original = poll_excel.load_workbook
+        parsing_started = threading.Event()
+
+        def deliberately_slow_parser(*args, **kwargs):
+            parsing_started.set()
+            time.sleep(.6)
+            return original(*args, **kwargs)
+
+        with patch.object(poll_excel, 'load_workbook', side_effect=deliberately_slow_parser):
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                future = executor.submit(self.request, normal, token=self.token)
+                self.assertTrue(parsing_started.wait(timeout=5))
+                start = time.monotonic()
+                with urlopen(self.address + '/', timeout=3) as response:
+                    self.assertEqual(response.status, 200)
+                elapsed = time.monotonic() - start
+                self.assertLess(elapsed, .45, 'Excel parser blocked event-loop HTTP response')
+                status, result = future.result(timeout=6)
+                self.assertEqual(status, 200, result)
 
     def test_row_limit_fail_closed(self):
         rows = [['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',

@@ -1,6 +1,6 @@
 """Independent Poll Studio Excel preview and atomic, server-revalidated commit."""
 from io import BytesIO
-from zipfile import BadZipFile
+from zipfile import BadZipFile, ZipFile
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 from openpyxl import load_workbook
@@ -10,6 +10,9 @@ from pydantic import ValidationError
 from app.schemas.polls import PollCreate
 
 MAX_BYTES = 1024 * 1024
+MAX_UNCOMPRESSED_BYTES = 20 * 1024 * 1024
+MAX_MEMBER_BYTES = 10 * 1024 * 1024
+MAX_COMPRESSION_RATIO = 100
 MAX_ROWS = 100
 EXPECTED_COLUMNS = ('Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
                     'Seçenek4', 'Seçenek5', 'Seçenek6')
@@ -26,16 +29,29 @@ def create_poll_excel_router(session_factory, User, PollDefinition, authenticate
                 raise HTTPException(401, detail='invalid_authentication_credentials')
             return user.id
 
-    async def validate_upload(file: UploadFile):
+    def validate_upload(file: UploadFile):
         filename = file.filename or ''
         if not filename.lower().endswith('.xlsx'):
             raise HTTPException(422, detail='poll_import_xlsx_required')
         # Read one byte beyond the boundary; never trust Content-Length.
-        content = await file.read(MAX_BYTES + 1)
+        content = file.file.read(MAX_BYTES + 1)
         if not content or len(content) > MAX_BYTES:
             raise HTTPException(413, detail='poll_import_file_too_large')
         workbook = None
         try:
+            # Inspect the ZIP central directory BEFORE openpyxl parses XML. The
+            # compressed upload limit alone does not constrain sharedStrings.
+            with ZipFile(BytesIO(content)) as archive:
+                members = archive.infolist()
+                total_uncompressed = 0
+                for member in members:
+                    if member.is_dir():
+                        continue
+                    total_uncompressed += member.file_size
+                    if (total_uncompressed > MAX_UNCOMPRESSED_BYTES
+                            or member.file_size > MAX_MEMBER_BYTES
+                            or member.file_size > MAX_COMPRESSION_RATIO * max(1, member.compress_size)):
+                        raise HTTPException(422, detail='poll_import_xlsx_resource_limit')
             # Formula expressions are untrusted: data_only=False permits rejection.
             workbook = load_workbook(BytesIO(content), read_only=True, data_only=False,
                                      keep_links=False)
@@ -84,15 +100,15 @@ def create_poll_excel_router(session_factory, User, PollDefinition, authenticate
                 workbook.close()
 
     @router.post('/preview')
-    async def preview(file: UploadFile = File(...), owner_id: int = Depends(owner)):
+    def preview(file: UploadFile = File(...), owner_id: int = Depends(owner)):
         # Preview is always read-only, including when some rows are invalid.
-        return await validate_upload(file)
+        return validate_upload(file)
 
     @router.post('/commit', status_code=201)
-    async def commit(file: UploadFile = File(...), owner_id: int = Depends(owner)):
+    def commit(file: UploadFile = File(...), owner_id: int = Depends(owner)):
         # Never trust preview JSON supplied by a browser: parse and validate the
         # uploaded bytes again before any insert, then commit exactly once.
-        parsed = await validate_upload(file)
+        parsed = validate_upload(file)
         if not parsed['can_commit']:
             raise HTTPException(422, detail=dict(
                 code='poll_import_validation_failed',
