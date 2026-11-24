@@ -1,5 +1,6 @@
 """Independent Poll Studio Excel preview and atomic, server-revalidated commit."""
 from io import BytesIO
+from math import isfinite
 from zipfile import BadZipFile, ZipFile
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
@@ -75,12 +76,32 @@ def create_poll_excel_router(session_factory, User, PollDefinition, authenticate
                 if excel_row > MAX_ROWS + 1:
                     overflow = True
                     break
-                if any(not isinstance(cell, str) or cell.startswith('=')
-                       for cell in filled if cell is not None and str(cell).strip()):
+                # Questions must remain text; Excel may store rating/year options
+                # as numbers. Accept only finite int/float option values, not
+                # booleans, dates, formulas, or any other Excel cell type.
+                question = filled[0]
+                def option_text(cell):
+                    if cell is None:
+                        return ''
+                    if isinstance(cell, str):
+                        if cell.startswith('='):
+                            raise ValueError('formula')
+                        return cell.strip()
+                    if isinstance(cell, bool):
+                        raise ValueError('boolean')
+                    if isinstance(cell, int):
+                        return str(cell)
+                    if isinstance(cell, float) and isfinite(cell):
+                        return str(int(cell)) if cell.is_integer() else str(cell)
+                    raise ValueError('unsupported cell')
+                try:
+                    if not isinstance(question, str) or question.startswith('='):
+                        raise ValueError('invalid question')
+                    options = [text for cell in filled[1:]
+                               if (text := option_text(cell))]
+                except ValueError:
                     errors.append(dict(row=excel_row, code='poll_import_cell_invalid'))
                     continue
-                question = filled[0] or ''
-                options = [value for value in filled[1:] if value is not None and value.strip()]
                 try:
                     poll = PollCreate.model_validate(
                         dict(question=question, options=options))
@@ -89,7 +110,9 @@ def create_poll_excel_router(session_factory, User, PollDefinition, authenticate
                     continue
                 items.append(dict(row=excel_row, question=poll.question,
                                   options=poll.options))
-            if overflow or sheet.max_row > MAX_ROWS + 1:
+            # Read-only worksheets can lack <dimension>; max_row can be None
+            # or contain unreliable producer metadata. Count actual iterated rows.
+            if overflow:
                 raise HTTPException(422, detail='poll_import_row_limit')
             return dict(valid=not errors, count=len(items), error_count=len(errors),
                         items=items, errors=errors, can_commit=bool(items) and not errors)
