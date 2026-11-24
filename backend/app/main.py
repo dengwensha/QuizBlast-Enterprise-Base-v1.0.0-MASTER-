@@ -15,6 +15,7 @@ from app.routes.poll_excel import create_poll_excel_router
 from app.routes.poll_join import create_poll_join_router
 from app.routes.poll_results import create_poll_results_router
 from app.services.poll_store import register_poll_models
+from app.services.poll_import_store import register_poll_import_model
 from app.services.event_store import register_event_model, register_event_game_models, register_event_report_model, register_event_retention_model, register_event_agenda_model, register_event_run_model, register_event_deck_model, register_event_step_game_models
 from app.services.room_creation import RoomBuilder
 from secrets import compare_digest
@@ -142,6 +143,7 @@ EventRun = register_event_run_model(Base)
 EventDeck = register_event_deck_model(Base)
 EventStepSession, EventStepReport = register_event_step_game_models(Base)
 PollDefinition, PollSession, PollParticipant, PollVote = register_poll_models(Base)
+PollImportBatch = register_poll_import_model(Base)
 
 connected=False
 while not connected:
@@ -209,7 +211,7 @@ app.include_router(create_events_router(
 ))
 
 app.include_router(create_poll_excel_router(
-    SessionLocal, User, PollDefinition,
+    SessionLocal, User, PollDefinition, PollImportBatch,
     lambda authorization: require_authenticated_email(authorization, SECRET_KEY, ALGORITHM),
 ))
 
