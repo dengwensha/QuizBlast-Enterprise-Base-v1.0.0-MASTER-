@@ -44,7 +44,11 @@ class PollExcelPreviewAcceptance(unittest.TestCase):
 
     def tearDown(self):
         with main.db_session() as db:
-            db.query(main.User).filter_by(email=self.email).delete()
+            user = db.query(main.User).filter_by(email=self.email).first()
+            if user:
+                # Imported definitions have no sessions in this acceptance module.
+                db.query(main.PollDefinition).filter_by(owner_id=user.id).delete()
+                db.delete(user)
             db.commit()
 
     @staticmethod
@@ -58,7 +62,7 @@ class PollExcelPreviewAcceptance(unittest.TestCase):
         book.close()
         return stream.getvalue()
 
-    def request(self, contents, filename='polls.xlsx', token=None):
+    def request(self, contents, filename='polls.xlsx', token=None, endpoint='preview'):
         boundary = 'poll-preview-test-boundary'
         body = (('--' + boundary + '\r\nContent-Disposition: form-data; name="file"; filename="' +
                  filename + '"\r\nContent-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n').encode()
@@ -66,7 +70,7 @@ class PollExcelPreviewAcceptance(unittest.TestCase):
         headers = { 'Content-Type': 'multipart/form-data; boundary=' + boundary }
         if token is not None:
             headers['Authorization'] = 'Bearer ' + token
-        req = Request(self.address + '/polls/import/preview', method='POST',
+        req = Request(self.address + '/polls/import/' + endpoint, method='POST',
                       headers=headers, data=body)
         try:
             response = urlopen(req, timeout=12)
@@ -122,6 +126,61 @@ class PollExcelPreviewAcceptance(unittest.TestCase):
         self.assertEqual(self.request(b'x' * (1024 * 1024 + 1), token=self.token)[0], 413)
         wrong = self.workbook([['Question', 'A', 'B'], ['Pick?', 'A', 'B']])
         self.assertEqual(self.request(wrong, token=self.token)[0], 422)
+
+    def test_commit_is_atomic_and_preview_does_not_write(self):
+        base = [['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
+                 'Seçenek4', 'Seçenek5', 'Seçenek6']]
+        good = self.workbook(base + [
+            ['Preferred method?', 'CAD', 'CAM'],
+            ['Preferred material?', 'Steel', 'Aluminium', 'Titanium'],
+        ])
+        status, preview = self.request(good, token=self.token)
+        self.assertEqual(status, 200)
+        self.assertTrue(preview['can_commit'])
+        with main.db_session() as db:
+            owner_id = db.query(main.User.id).filter_by(email=self.email).scalar()
+            self.assertEqual(db.query(main.PollDefinition).filter_by(owner_id=owner_id).count(), 0)
+
+        # The commit endpoint rejects a modified/invalid file, even after valid preview.
+        changed = self.workbook(base + [
+            ['Preferred method?', 'CAD', 'CAM'],
+            ['Broken?', 'A', ' a '],
+        ])
+        status, invalid = self.request(changed, token=self.token, endpoint='commit')
+        self.assertEqual(status, 422, invalid)
+        self.assertEqual(invalid['detail']['code'], 'poll_import_validation_failed')
+        self.assertEqual(invalid['detail']['errors'][0]['row'], 3)
+        with main.db_session() as db:
+            self.assertEqual(db.query(main.PollDefinition).filter_by(owner_id=owner_id).count(), 0)
+
+        status, committed = self.request(good, token=self.token, endpoint='commit')
+        self.assertEqual(status, 201, committed)
+        self.assertEqual(committed['imported_count'], 2)
+        self.assertEqual(len(set(committed['poll_ids'])), 2)
+        with main.db_session() as db:
+            records = db.query(main.PollDefinition).filter_by(owner_id=owner_id).all()
+            self.assertEqual(len(records), 2)
+            self.assertEqual({row.question for row in records},
+                             {'Preferred method?', 'Preferred material?'})
+            self.assertEqual(db.query(main.PollSession).filter(
+                main.PollSession.poll_id.in_(committed['poll_ids'])).count(), 0)
+
+    def test_commit_rejects_empty_unauthorized_and_unsafe_upload(self):
+        header = [['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
+                   'Seçenek4', 'Seçenek5', 'Seçenek6']]
+        empty = self.workbook(header)
+        valid = self.workbook(header + [['Pick?', 'Yes', 'No']])
+        self.assertEqual(self.request(valid, endpoint='commit')[0], 401)
+        status, empty_result = self.request(empty, token=self.token, endpoint='commit')
+        self.assertEqual(status, 422, empty_result)
+        self.assertEqual(empty_result['detail']['code'], 'poll_import_validation_failed')
+        self.assertEqual(self.request(valid, filename='poll.xls', token=self.token,
+                                      endpoint='commit')[0], 422)
+        self.assertEqual(self.request(b'invalid ZIP', token=self.token,
+                                      endpoint='commit')[0], 422)
+        with main.db_session() as db:
+            owner_id = db.query(main.User.id).filter_by(email=self.email).scalar()
+            self.assertEqual(db.query(main.PollDefinition).filter_by(owner_id=owner_id).count(), 0)
 
     def test_row_limit_fail_closed(self):
         rows = [['Soru', 'Seçenek1', 'Seçenek2', 'Seçenek3',
